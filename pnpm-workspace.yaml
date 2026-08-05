@@ -1,0 +1,60 @@
+packages:
+  - .
+  - app
+
+catalog:
+  '@changesets/cli': ^2.29.0
+  '@cloudflare/vite-plugin': ^1.51.0
+  '@fontsource-variable/geist': ^5.3.0
+  '@fontsource-variable/geist-mono': ^5.3.0
+  '@stylexjs/stylex': 0.19.0
+  '@stylexjs/unplugin': 0.19.0
+  '@tanstack/react-router': ^1.168.19
+  '@tanstack/react-start': ^1.168.37
+  '@tanstack/router-plugin': ^1.167.12
+  '@types/node': ^25.6.0
+  '@types/react': ^19.2.14
+  '@types/react-dom': ^19.2.3
+  '@vitejs/plugin-react': ^6.0.1
+  hono: ^4.13.0
+  react: ^19.2.5
+  react-dom: ^19.2.5
+  typescript: ~5.9.3
+  unplugin: ^2.3.11
+  vite-plus: ^0.2.8
+  wrangler: ^4.119.0
+  zile: ^0.0.30
+
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+overrides:
+  monoshot: workspace:*
+
+minimumReleaseAgeExclude:
+  - '@cloudflare/vite-plugin@1.51.0'
+  - '@tanstack/react-router@1.170.20'
+  - '@tanstack/react-start-client@1.168.18'
+  - '@tanstack/react-start-rsc@0.1.36'
+  - '@tanstack/react-start-server@1.167.25'
+  - '@tanstack/react-start@1.168.37'
+  - '@tanstack/router-core@1.171.17'
+  - '@tanstack/router-generator@1.167.23'
+  - '@tanstack/router-plugin@1.168.25'
+  - '@tanstack/start-client-core@1.170.16'
+  - '@tanstack/start-plugin-core@1.171.28'
+  - '@tanstack/start-server-core@1.169.20'
+  - '@tanstack/start-storage-context@1.167.19'
+  - '@voidzero-dev/vite-plus-core@0.2.8'
+  - '@voidzero-dev/vite-plus-darwin-arm64@0.2.8'
+  - '@voidzero-dev/vite-plus-darwin-x64@0.2.8'
+  - '@voidzero-dev/vite-plus-linux-arm64-gnu@0.2.8'
+  - '@voidzero-dev/vite-plus-linux-arm64-musl@0.2.8'
+  - '@voidzero-dev/vite-plus-linux-x64-gnu@0.2.8'
+  - '@voidzero-dev/vite-plus-linux-x64-musl@0.2.8'
+  - '@voidzero-dev/vite-plus-win32-arm64-msvc@0.2.8'
+  - '@voidzero-dev/vite-plus-win32-x64-msvc@0.2.8'
+  - miniflare@5.20260801.0-alpha
+  - vite-plus@0.2.8
+  - wrangler@4.119.0
