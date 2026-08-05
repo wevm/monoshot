@@ -1,0 +1,14 @@
+coverage
+dist
+node_modules
+.pnpm-store
+*.tsbuildinfo
+.env
+scratch
+
+# Wrangler local state
+.wrangler
+
+# Generated agent integrations
+.agents/skills
+.claude/skills
