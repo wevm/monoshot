@@ -21,6 +21,13 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
 
+      # Fails when `wrangler.json` changed without regenerating the committed
+      # Worker types.
+      - name: Check generated Worker types
+        run: |
+          pnpm --dir app gen:types
+          git diff --exit-code app/worker-configuration.d.ts
+
       # Not `pnpm check`, which passes `--fix` and would rewrite the checkout instead of failing.
       - name: Check code
         run: pnpm exec vp check

@@ -9,7 +9,7 @@
   "scripts": {
     "build": "vp build",
     "check:types": "tsc --noEmit",
-    "deploy": "wrangler deploy",
+    "deploy": "vp build && wrangler deploy",
     "dev": "vp dev",
     "gen:types": "wrangler types worker-configuration.d.ts",
     "preview": "vp preview"
@@ -39,6 +39,6 @@
     "wrangler": "catalog:"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   }
 }
