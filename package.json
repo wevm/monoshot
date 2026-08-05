@@ -2,7 +2,7 @@
   "scripts": {
     "build": "zile",
     "changeset:publish": "zile publish:prepare && changeset publish && zile publish:post",
-    "changeset:version": "changeset version && node scripts/update-version.js",
+    "changeset:version": "changeset version && node scripts/update-version.ts",
     "check": "vp check --fix",
     "check:types": "tsc",
     "dev": "zile dev",
