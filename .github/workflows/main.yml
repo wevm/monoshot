@@ -2,6 +2,9 @@ name: Main
 on:
   push:
     branches: [main]
+  # Manual dispatch bootstraps the first production deploy (PR previews need
+  # the Worker to exist before `versions upload` can target it).
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -44,3 +47,42 @@ jobs:
           version: pnpm changeset:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    name: Deploy
+    needs: verify
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The `secrets` context is unavailable in job-level `if`, so the job
+      # gates itself: it skips (green) until the Cloudflare secrets exist.
+      - name: Check deploy credentials
+        id: credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: echo "ok=$([ -n "$CLOUDFLARE_API_TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.credentials.outputs.ok == 'true'
+        uses: ./.github/actions/install-dependencies
+
+      - name: Build the app
+        if: steps.credentials.outputs.ok == 'true'
+        run: pnpm --dir app build
+
+      - name: Deploy the app
+        if: steps.credentials.outputs.ok == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          packageManager: pnpm
+          workingDirectory: app

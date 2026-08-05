@@ -16,3 +16,59 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/verify.yml
+
+  preview:
+    name: Preview
+    needs: verify
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The `secrets` context is unavailable in job-level `if`, so the job
+      # gates itself: it skips (green) until the Cloudflare secrets exist.
+      - name: Check deploy credentials
+        id: credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: echo "ok=$([ -n "$CLOUDFLARE_API_TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.credentials.outputs.ok == 'true'
+        uses: ./.github/actions/install-dependencies
+
+      - name: Build the app
+        if: steps.credentials.outputs.ok == 'true'
+        run: pnpm --dir app build
+
+      # Uploads a version without promoting it: production traffic is
+      # untouched and the version gets its own preview URL.
+      - name: Upload preview version
+        if: steps.credentials.outputs.ok == 'true'
+        id: upload
+        uses: cloudflare/wrangler-action@v3
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: versions upload
+          packageManager: pnpm
+          workingDirectory: app
+
+      - name: Comment preview URL
+        if: steps.credentials.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTPUT: ${{ steps.upload.outputs.command-output }}
+        run: |
+          url="$(printf '%s' "$OUTPUT" | grep -o 'https://[a-z0-9.-]*workers\.dev' | tail -1)"
+          if [ -z "$url" ]; then echo 'No preview URL in wrangler output.'; exit 1; fi
+          gh pr comment '${{ github.event.pull_request.number }}' \
+            --create-if-none --edit-last \
+            --body "**Preview**: $url (\`${{ github.event.pull_request.head.sha }}\`)"
