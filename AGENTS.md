@@ -12,6 +12,7 @@
 - Use `readonly T[]` for array types. Preserve mutable arrays only when mutation is part of the contract.
 - Use `type` for project-owned shapes. Use `interface` only when declaration merging or an external ambient contract requires it.
 - Include `.js` extensions on relative imports and exports so source remains valid under NodeNext ESM.
+- Author every source file and script in TypeScript; `.js` files are banned. Node runs TypeScript natively (`node script.ts`), so scripts need no build step.
 - Import module-shaped internal files as namespaces (`import * as Store from './Store.js'`) and access members through the module name. Named imports are fine for types, leaf helpers, command handlers, and third-party APIs that are not module namespaces.
 - Import Node built-ins as namespaces unless the neighboring code or API is clearer with a named import.
 - Re-export public module files as namespaces (`export * as Store from './Store.js'`). Avoid flattening sibling-module symbols into a barrel.
