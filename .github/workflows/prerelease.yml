@@ -1,5 +1,9 @@
 name: Prerelease
-on: [push, pull_request]
+# `push` is limited to main so PR commits do not publish twice (once per event).
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions: {}
 

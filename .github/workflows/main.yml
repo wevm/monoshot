@@ -8,7 +8,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue rather than cancel: aborting a run mid `changeset publish` (after the
+  # registry publish, before tags/release recording) leaves a broken release.
+  cancel-in-progress: false
 
 permissions: {}
 
