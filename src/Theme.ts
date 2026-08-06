@@ -1,6 +1,6 @@
 import { converter, formatCss, parse } from 'culori'
-import type { ThemeRegistrationResolved } from 'shiki'
-import { themes } from 'tm-themes'
+import { bundledThemesInfo } from 'shiki'
+import type { BundledTheme, ThemeRegistrationResolved } from 'shiki'
 
 /** Every theme shiki bundles, as pickable metadata. Carries no theme payload. */
 export function list(): readonly Info[] {
@@ -17,62 +17,95 @@ export function info(name: string): Info | undefined {
  * produces a coherent window, backdrop, and annotation styling.
  *
  * Pure and deterministic: the same theme always yields the same palette.
+ *
+ * @example
+ * ```ts twoslash
+ * import { Frame, Theme } from 'monoshot'
+ *
+ * const result = await Frame.create().render({ code: 'a', lang: 'ts', theme: 'nord' })
+ * const palette = Theme.derive(result.theme)
+ * palette.backdrop.from
+ * // ^?
+ * ```
  */
 export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const type = theme.type === 'light' ? 'light' : 'dark'
-  const background = theme.colors?.['editor.background'] ?? theme.bg ?? fallbackBg[type]
-  const foreground = theme.colors?.['editor.foreground'] ?? theme.fg ?? fallbackFg[type]
+  // `||` rather than `??`: an empty string is a missing color, not a value.
+  const background = theme.colors?.['editor.background'] || theme.bg || fallbackBg[type]
+  const foreground = theme.colors?.['editor.foreground'] || theme.fg || fallbackFg[type]
 
   const bg = toOklch(background) ?? toOklch(fallbackBg[type])!
   const fg = toOklch(foreground) ?? toOklch(fallbackFg[type])!
-  const accent = pickAccent(theme) ?? bg
+  const accent = pickAccent(theme)
 
   // Achromatic themes (min-light, vesper, ...) have no hue to rotate, so the
   // backdrop stays neutral rather than emitting `oklch(... NaN)`.
-  const hue = Number.isFinite(accent.h) && (accent.c ?? 0) > 0.02 ? (accent.h ?? 0) : undefined
+  const hue = accent?.h
   const chroma = hue === undefined ? 0 : type === 'dark' ? 0.09 : 0.06
-  const lightness = type === 'dark' ? clamp(bg.l + 0.16, 0.2, 0.55) : clamp(bg.l - 0.06, 0.7, 0.95)
+  // Symmetric magnitude in both directions so the window always separates from
+  // the backdrop by the same amount, whichever way the theme leans.
+  const shift = 0.16
+  const lightness = clamp(type === 'dark' ? bg.l + shift : bg.l - shift, 0.16, 0.94)
 
   return {
     backdrop: {
       angle: 140,
-      from: css({ l: lightness, c: chroma, h: rotate(hue, -25) }),
-      to: css({ l: clamp(lightness - 0.06, 0.12, 0.98), c: chroma, h: rotate(hue, 25) }),
+      from: css({ c: chroma, h: rotate(hue, -25), l: lightness }),
+      to: css({ c: chroma, h: rotate(hue, 25), l: clamp(lightness - 0.06, 0.1, 0.98) }),
     },
     type,
     window: {
       background,
-      border: css({ l: mix(fg.l, bg.l, 0.12), c: bg.c * 0.5, h: bg.h }),
-      foreground,
-      title: css({ l: mix(fg.l, bg.l, 0.55), c: bg.c * 0.5, h: bg.h }),
+      border: css({ c: bg.c * 0.5, h: bg.h, l: mix(fg.l, bg.l, 0.12) }),
+      title: css({ c: bg.c * 0.5, h: bg.h, l: contrast(mix(fg.l, bg.l, 0.55), bg.l) }),
     },
   }
 }
 
 export declare namespace derive {
   type Result = {
-    /** Gradient behind the window. */
-    backdrop: { angle: number; from: string; to: string }
+    /** Gradient painted behind the window. */
+    backdrop: {
+      /** Gradient angle in degrees. */
+      angle: number
+      /** Gradient start color. */
+      from: string
+      /** Gradient end color. */
+      to: string
+    }
+    /** Whether the frame reads as a light or dark surface. */
     type: 'light' | 'dark'
     /** The code surface itself, using the theme's own canvas. */
-    window: { background: string; border: string; foreground: string; title: string }
+    window: {
+      /** Canvas behind the code. */
+      background: string
+      /** Hairline around the window. */
+      border: string
+      /** Title-bar text, kept readable against the canvas. */
+      title: string
+    }
   }
 }
 
-/** Theme metadata as published by `tm-themes`. */
+/** Theme metadata as published by shiki. */
 export type Info = {
+  /** Human-readable name for a picker. */
   displayName: string
-  name: string
+  /** Identifier accepted by `Frame.render`. */
+  name: BundledTheme
+  /** Whether the theme is a light or dark scheme. */
   type: 'light' | 'dark'
 }
 
-const infos: readonly Info[] = themes.map((theme) => ({
+// `bundledThemesInfo` types `id` as a plain string; the set-equality test in
+// `Theme.test.ts` is what keeps this narrowing honest.
+const infos: readonly Info[] = bundledThemesInfo.map((theme) => ({
   displayName: theme.displayName,
-  name: theme.name,
+  name: theme.id as BundledTheme,
   type: theme.type === 'light' ? 'light' : 'dark',
 }))
 
-const byName = new Map(infos.map((entry) => [entry.name, entry]))
+const byName = new Map(infos.map((entry) => [entry.name as string, entry]))
 
 const fallbackBg = { dark: '#101010', light: '#ffffff' }
 const fallbackFg = { dark: '#ededed', light: '#171717' }
@@ -126,6 +159,12 @@ function css(color: Oklch): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+/** Pushes `value` away from `against` until the two are legible together. */
+function contrast(value: number, against: number, minimum = 0.28): number {
+  if (Math.abs(value - against) >= minimum) return value
+  return clamp(against + (against > 0.5 ? -minimum : minimum), 0, 1)
 }
 
 function mix(a: number, b: number, amount: number): number {

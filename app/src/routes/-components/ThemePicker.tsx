@@ -13,7 +13,7 @@ export function ThemePicker(props: ThemePicker.Props) {
   return (
     <Select
       aria-label="Theme"
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => onChange(event.target.value as Theme.Info['name'])}
       size="small"
       value={value}
     >
@@ -32,7 +32,8 @@ export function ThemePicker(props: ThemePicker.Props) {
 
 export declare namespace ThemePicker {
   type Props = {
-    onChange: (theme: string) => void
-    value: string
+    onChange: (theme: Theme.Info['name']) => void
+    /** Must be a theme shiki bundles. */
+    value: Theme.Info['name']
   }
 }

@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
 import { createFileRoute } from '@tanstack/react-router'
 import { Frame as Core, Theme } from 'monoshot'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -9,7 +9,8 @@ import { Segmented } from '#/ui/Segmented.js'
 import { Switch } from '#/ui/Switch.js'
 import { color, font } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
-import { Frame, frameStyles } from './-components/Frame.js'
+import { Frame, paddings } from './-components/Frame.js'
+import type { Padding } from './-components/Frame.js'
 import { ThemePicker } from './-components/ThemePicker.js'
 
 export const Route = createFileRoute('/')({
@@ -43,6 +44,17 @@ const styles = stylex.create({
     padding: 24,
   },
   canvas: { maxWidth: 720, width: '100%' },
+  // Reserves the frame's footprint so the first highlight does not shift the
+  // page, and gives failures somewhere to speak.
+  fallback: {
+    alignItems: 'center',
+    borderRadius: 16,
+    color: color.gray900,
+    display: 'flex',
+    justifyContent: 'center',
+    minHeight: 320,
+  },
+  skeleton: { backgroundColor: color.grayAlpha100 },
   controls: {
     alignItems: 'center',
     display: 'flex',
@@ -56,29 +68,35 @@ const styles = stylex.create({
   controlLabel: { color: color.gray900 },
 })
 
-const paddings = [
-  { label: '16', value: '16' },
-  { label: '32', value: '32' },
-  { label: '64', value: '64' },
-  { label: '128', value: '128' },
-] as const
+const paddingOptions = paddings.map((value) => ({ label: String(value), value }))
 
 function Page() {
-  const [padding, setPadding] = useState<(typeof paddings)[number]['value']>('64')
+  const [padding, setPadding] = useState<Padding>(64)
   const [lineNumbers, setLineNumbers] = useState(false)
-  const [theme, setTheme] = useState('vitesse-dark')
+  const [theme, setTheme] = useState<Theme.Info['name']>('vitesse-dark')
   const [title, setTitle] = useState('')
   const [frame, setFrame] = useState<{ html: string; palette: Theme.derive.Result }>()
+  const [error, setError] = useState<Error>()
+
+  // One renderer per mount: it caches the themes and languages already loaded.
+  const renderer = useMemo(() => Core.create({ langs: ['tsx'] }), [])
 
   useEffect(() => {
     let active = true
-    Core.render({ code: sample, lang: 'tsx', theme: theme as never }).then((result) => {
-      if (active) setFrame({ html: result.html, palette: Theme.derive(result.theme) })
-    })
+    renderer.render({ code: sample, lang: 'tsx', theme }).then(
+      (result) => {
+        if (!active) return
+        setError(undefined)
+        setFrame({ html: result.html, palette: Theme.derive(result.theme) })
+      },
+      (cause: Error) => {
+        if (active) setError(cause)
+      },
+    )
     return () => {
       active = false
     }
-  }, [theme])
+  }, [renderer, theme])
 
   return (
     <main {...stylex.props(styles.page)}>
@@ -92,20 +110,16 @@ function Page() {
 
       <div {...stylex.props(styles.stage)}>
         <div {...stylex.props(styles.canvas)}>
-          {frame && (
-            <Frame
-              onTitleChange={setTitle}
-              padding={Number(padding) as 16 | 32 | 64 | 128}
-              palette={frame.palette}
-              title={title}
-            >
-              <div
-                data-line-numbers={lineNumbers || undefined}
-                // Highlighted markup comes from shiki in the library, not user input.
-                dangerouslySetInnerHTML={{ __html: frame.html }}
-                {...stylex.props(frameStyles.code)}
-              />
+          {error ? (
+            <div role="alert" {...stylex.props(styles.fallback, text.copy14)}>
+              Could not highlight this snippet.
+            </div>
+          ) : frame ? (
+            <Frame onTitleChange={setTitle} padding={padding} palette={frame.palette} title={title}>
+              <Frame.Code html={frame.html} lineNumbers={lineNumbers} />
             </Frame>
+          ) : (
+            <div {...stylex.props(styles.fallback, styles.skeleton)} />
           )}
         </div>
       </div>
@@ -117,7 +131,12 @@ function Page() {
         </div>
         <div {...stylex.props(styles.control)}>
           <span {...stylex.props(styles.controlLabel, text.label13)}>Padding</span>
-          <Segmented label="Padding" onChange={setPadding} options={paddings} value={padding} />
+          <Segmented
+            label="Padding"
+            onChange={setPadding}
+            options={paddingOptions}
+            value={padding}
+          />
         </div>
         <div {...stylex.props(styles.control)}>
           <span {...stylex.props(styles.controlLabel, text.label13)}>Line numbers</span>
