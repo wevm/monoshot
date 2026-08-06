@@ -46,8 +46,11 @@ export function Select(props: Select.Props) {
 }
 
 export declare namespace Select {
+  /** Props for {@link Select}. Extends the native select element. */
   type Props = Omit<ComponentPropsWithoutRef<'select'>, 'className' | 'size' | 'style'> & {
+    /** Control height: 32, 40, or 48 pixels. @default 'medium' */
     size?: 'small' | 'medium' | 'large' | undefined
+    /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | undefined
   }
 }

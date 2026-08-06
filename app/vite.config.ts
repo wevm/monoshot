@@ -33,6 +33,8 @@ export default defineConfig({
         prefix: 'stylex',
       },
     }),
-    react(),
+    // The React Compiler memoizes components automatically, so the app does
+    // not hand-write useMemo/useCallback.
+    react({ babel: { plugins: ['babel-plugin-react-compiler'] } }),
   ],
 })

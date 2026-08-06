@@ -35,8 +35,11 @@ export function Input(props: Input.Props) {
 }
 
 export declare namespace Input {
+  /** Props for {@link Input}. Extends the native input element. */
   type Props = Omit<ComponentPropsWithoutRef<'input'>, 'className' | 'size' | 'style'> & {
+    /** Control height: 32, 40, or 48 pixels. @default 'medium' */
     size?: 'small' | 'medium' | 'large' | undefined
+    /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | undefined
   }
 }
