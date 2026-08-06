@@ -19,6 +19,14 @@ const styles = stylex.create({
     width: 'max-content',
   },
   panel: { bottom: 'calc(100% + 8px)', insetInline: 0, position: 'absolute' },
+  // The color row is a fixed set of chips, so it sizes to them. Matching the
+  // bar would stretch or squeeze it every time the theme name changes length.
+  panelFit: {
+    insetInline: 'auto auto',
+    left: 0,
+    maxWidth: 'calc(100vw - 40px)',
+    width: 'max-content',
+  },
   surface: {
     backgroundColor: color.chrome,
     // Square, like the artwork it controls.
@@ -188,6 +196,9 @@ export function Toolbar(props: Toolbar.Props) {
   // flicker, so the label follows a slower sample of it.
   const shownPadding = useThrottled(padding, 140)
   const previousPadding = usePrevious(shownPadding)
+  const swatchIndex = backgroundIndex(background)
+  const previousSwatchIndex = usePrevious(swatchIndex)
+  const travel = Math.abs(swatchIndex - previousSwatchIndex) * swatchStride
   const themeIndex = themes.findIndex((entry) => entry.name === theme)
   const previousThemeIndex = usePrevious(themeIndex)
   const selected = Theme.info(theme)
@@ -208,7 +219,11 @@ export function Toolbar(props: Toolbar.Props) {
               // Height keeps the spring so the bar is pushed rather than
               // revealed; the blur and fade resolve faster than the movement.
               transition={{ ...spring, filter: fade, opacity: fade }}
-              {...stylex.props(styles.panel, styles.surface)}
+              {...stylex.props(
+                styles.panel,
+                panel === 'background' && styles.panelFit,
+                styles.surface,
+              )}
             >
               {panel === 'theme' ? (
                 <div {...stylex.props(styles.themeList)}>
@@ -237,7 +252,7 @@ export function Toolbar(props: Toolbar.Props) {
                     {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                   >
                     <span {...stylex.props(styles.srOnly)}>Default</span>
-                    {background === 'default' && <Ring />}
+                    {background === 'default' && <Ring travel={travel} />}
                   </button>
                   <button
                     onClick={() => onChange({ background: 'none' })}
@@ -245,7 +260,7 @@ export function Toolbar(props: Toolbar.Props) {
                     {...stylex.props(styles.swatchButton, styles.swatchNone)}
                   >
                     <span {...stylex.props(styles.srOnly)}>None</span>
-                    {background === 'none' && <Ring />}
+                    {background === 'none' && <Ring travel={travel} />}
                   </button>
                   <div {...stylex.props(styles.divider)} />
                   {backgrounds.map((value) => (
@@ -256,7 +271,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
                     >
                       <span {...stylex.props(styles.srOnly)}>{value}</span>
-                      {background === value && <Ring />}
+                      {background === value && <Ring travel={travel} />}
                     </button>
                   ))}
                   <div {...stylex.props(styles.divider)} />
@@ -384,6 +399,15 @@ export const backgrounds = [
   '#d6478f',
 ] as const
 
+/** Where a background sits in the color row, for measuring the ring's travel. */
+function backgroundIndex(background: string) {
+  if (background === 'default') return 0
+  if (background === 'none') return 1
+  const index = backgrounds.indexOf(background as (typeof backgrounds)[number])
+  // A custom color lands on the picker at the end of the row.
+  return index === -1 ? backgrounds.length + 2 : index + 2
+}
+
 /** Reads a background value as the label shown on the bar. */
 function backgroundLabel(background: string) {
   if (background === 'default') return 'Default'
@@ -456,16 +480,34 @@ function Roll(props: {
  * The selection ring. One element shared across every swatch, so choosing a
  * color slides it from the old swatch to the new rather than blinking across.
  */
-function Ring() {
-  return <m.span layoutId="swatch-ring" transition={ring} {...stylex.props(styles.swatchRing)} />
+function Ring(props: { travel: number }) {
+  return (
+    <m.span
+      layoutId="swatch-ring"
+      transition={ring(props.travel)}
+      {...stylex.props(styles.swatchRing)}
+    />
+  )
 }
 
+/** One swatch plus its gap: the distance the ring covers per position. */
+const swatchStride = 29
+
 /**
- * The ring overshoots its target and settles back. Overshoot scales with the
- * distance travelled, so the bounce is tuned against the longest hop in the
- * row (roughly 350px) to peak around six pixels rather than a swatch width.
+ * The ring overshoots its target and settles back.
+ *
+ * A spring's overshoot is a fraction of the distance it travels, so a single
+ * bounce either disappears on a short hop or throws a swatch-width past the
+ * target on a long one. Scaling it by the travel keeps the overshoot at a
+ * roughly constant few pixels wherever the ring lands.
  */
-const ring = { bounce: 0.08, duration: 0.45, type: 'spring' } as const
+function ring(travel: number) {
+  // A spring's overshoot is a fraction of its travel, so a short hop needs a
+  // large bounce to register at all. The floor keeps a long slide from landing
+  // flat; the ceiling keeps a one-swatch hop from flinging past its target.
+  const bounce = Math.min(0.5, Math.max(0.24, 8 / Math.max(travel, 1) / 0.4))
+  return { bounce, duration: 0.45, type: 'spring' } as const
+}
 
 /** Short and firm: the value should land, not float. */
 const roll = { damping: 30, stiffness: 420, type: 'spring' } as const
