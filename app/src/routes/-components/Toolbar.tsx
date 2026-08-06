@@ -136,11 +136,13 @@ export function Toolbar(props: Toolbar.Props) {
         <AnimatePresence initial={false}>
           {panel && (
             <m.div
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              initial={{ height: 0, opacity: 0 }}
+              animate={{ filter: 'blur(0px)', height: 'auto', opacity: 1 }}
+              exit={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
+              initial={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
               key={panel}
-              transition={spring}
+              // Height keeps the spring so the bar is pushed rather than
+              // revealed; the blur and fade resolve faster than the movement.
+              transition={{ ...spring, filter: fade, opacity: fade }}
               {...stylex.props(styles.surface)}
             >
               {panel === 'theme' ? (
@@ -260,6 +262,9 @@ type Panel = 'theme' | 'padding' | undefined
 
 /** Settles quickly without overshooting into wobble. */
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
+
+/** Strong ease-out: the panel resolves early instead of drifting into focus. */
+const fade = { duration: 0.18, ease: [0.23, 1, 0.32, 1] } as const
 
 /** Keeps the last value so a change knows which way to roll. */
 function usePrevious<value>(value: value): value {
