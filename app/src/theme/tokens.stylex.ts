@@ -108,6 +108,12 @@ export const shadow = stylex.defineVars({
   borderInset: 'inset 0 0 0 1px light-dark(#00000014, #ffffff1a)',
   small: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 2px 2px light-dark(#0000000a, #00000029)',
   menu: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000052), 0 4px 8px -4px light-dark(#0000000a, #00000029), 0 16px 24px -8px light-dark(#0000000f, #00000029)',
+  // Chrome floating over the artwork earns its separation from depth alone:
+  // a ring would read as a drawn edge on a surface that is meant to hover.
+  // Three layers (contact, mid, ambient) and no scheme swap, since the
+  // surface sits on the image rather than on the app background.
+  floating:
+    '0 1px 2px rgb(0 0 0 / 0.28), 0 6px 16px -6px rgb(0 0 0 / 0.45), 0 20px 40px -12px rgb(0 0 0 / 0.55)',
   tooltip:
     '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000052), 0 4px 8px light-dark(#0000000a, #00000029)',
   focusRing:

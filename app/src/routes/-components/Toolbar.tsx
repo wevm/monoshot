@@ -23,7 +23,7 @@ const styles = stylex.create({
     backgroundColor: color.chrome,
     // Square, like the artwork it controls.
     borderRadius: 0,
-    boxShadow: shadow.menu,
+    boxShadow: shadow.floating,
     overflow: 'hidden',
   },
   bar: { alignItems: 'center', display: 'flex', gap: 2, padding: 6 },
@@ -43,8 +43,9 @@ const styles = stylex.create({
     paddingBlock: 8,
     paddingInline: 14,
     textAlign: 'start',
+    transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
     transitionDuration: motion.fast,
-    transitionProperty: 'background-color',
+    transitionProperty: 'background-color, transform',
     transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
   },
@@ -71,7 +72,24 @@ const styles = stylex.create({
     outline: 'none',
     padding: 0,
     position: 'relative',
+    // Touch reports a hover on tap, so the grow is pointer-gated.
+    transform: {
+      default: 'scale(1)',
+      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.14)' },
+      ':active': 'scale(0.96)',
+    },
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
     width: 24,
+  },
+  // Sits outside the swatch so the color underneath stays unobscured.
+  swatchRing: {
+    borderRadius: 8,
+    boxShadow: '0 0 0 2px #f5f5f7',
+    inset: -3,
+    pointerEvents: 'none',
+    position: 'absolute',
   },
   swatchColor: (value: string) => ({ backgroundColor: value }),
   // Stands for the theme's own gradient rather than a flat color.
@@ -90,7 +108,6 @@ const styles = stylex.create({
     display: 'grid',
     placeItems: 'center',
   },
-  swatchSelected: { boxShadow: `0 0 0 2px ${'#1c1c1e'}, 0 0 0 4px #f5f5f7` },
   colorInput: { height: '100%', inset: 0, opacity: 0, position: 'absolute', width: '100%' },
   srOnly: {
     clipPath: 'inset(50%)',
@@ -110,6 +127,14 @@ const styles = stylex.create({
     boxShadow: { default: shadow.thumb, ':focus-visible': shadow.focusRing },
     height: 16,
     outline: 'none',
+    transform: {
+      default: 'scale(1)',
+      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.15)' },
+      ':active': 'scale(1.25)',
+    },
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
     width: 16,
   },
   value: { color: color.onChrome, minWidth: 40, textAlign: 'right' },
@@ -209,24 +234,18 @@ export function Toolbar(props: Toolbar.Props) {
                   <button
                     onClick={() => onChange({ background: 'default' })}
                     type="button"
-                    {...stylex.props(
-                      styles.swatchButton,
-                      styles.swatchDefault,
-                      background === 'default' && styles.swatchSelected,
-                    )}
+                    {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                   >
                     <span {...stylex.props(styles.srOnly)}>Default</span>
+                    {background === 'default' && <Ring />}
                   </button>
                   <button
                     onClick={() => onChange({ background: 'none' })}
                     type="button"
-                    {...stylex.props(
-                      styles.swatchButton,
-                      styles.swatchNone,
-                      background === 'none' && styles.swatchSelected,
-                    )}
+                    {...stylex.props(styles.swatchButton, styles.swatchNone)}
                   >
                     <span {...stylex.props(styles.srOnly)}>None</span>
+                    {background === 'none' && <Ring />}
                   </button>
                   <div {...stylex.props(styles.divider)} />
                   {backgrounds.map((value) => (
@@ -234,13 +253,10 @@ export function Toolbar(props: Toolbar.Props) {
                       key={value}
                       onClick={() => onChange({ background: value })}
                       type="button"
-                      {...stylex.props(
-                        styles.swatchButton,
-                        styles.swatchColor(value),
-                        background === value && styles.swatchSelected,
-                      )}
+                      {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
                     >
                       <span {...stylex.props(styles.srOnly)}>{value}</span>
+                      {background === value && <Ring />}
                     </button>
                   ))}
                   <div {...stylex.props(styles.divider)} />
@@ -435,6 +451,21 @@ function Roll(props: {
     </span>
   )
 }
+
+/**
+ * The selection ring. One element shared across every swatch, so choosing a
+ * color slides it from the old swatch to the new rather than blinking across.
+ */
+function Ring() {
+  return <m.span layoutId="swatch-ring" transition={ring} {...stylex.props(styles.swatchRing)} />
+}
+
+/**
+ * The ring overshoots its target and settles back. The travel is the whole
+ * point of a shared indicator, so it is allowed the follow-through that other
+ * surfaces here deliberately avoid.
+ */
+const ring = { bounce: 0.42, duration: 0.55, type: 'spring' } as const
 
 /** Short and firm: the value should land, not float. */
 const roll = { damping: 30, stiffness: 420, type: 'spring' } as const

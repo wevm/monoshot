@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 import { text } from '#/theme/text.js'
-import { color, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   root: {
@@ -16,6 +16,10 @@ const styles = stylex.create({
     opacity: { default: 1, ':disabled': 0.5 },
     outline: 'none',
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
+    transform: { default: 'scale(1)', ':active:not(:disabled)': 'scale(0.97)' },
+    transitionDuration: motion.fast,
+    transitionProperty: 'background-color, transform',
+    transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
   },
   primary: {
