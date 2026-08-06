@@ -66,7 +66,9 @@ export function create(options: create.Options = {}): create.ReturnType {
             },
           ],
         }),
-        theme: instance.getTheme(theme),
+        // Detached: the registry entry is shared, so handing it out would let
+        // one caller's edit change what later renders produce.
+        theme: structuredClone(instance.getTheme(theme)),
       }
     },
   }
@@ -122,7 +124,7 @@ export declare namespace render {
   type ReturnType = {
     /** Highlighted markup: a `pre.shiki` whose lines carry `data-line`. */
     html: string
-    /** The resolved theme, ready for `Theme.derive`. */
+    /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
     theme: ThemeRegistrationResolved
   }
 }

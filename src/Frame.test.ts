@@ -78,3 +78,13 @@ describe('create().dispose', () => {
     await expect(Frame.create().dispose()).resolves.toBeUndefined()
   })
 })
+
+describe('render', () => {
+  test('returns a theme detached from the highlighter cache', async () => {
+    const frame = Frame.create()
+    const first = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'nord' })
+    first.theme.bg = '#ff0000'
+    const second = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'nord' })
+    expect(second.theme.bg).not.toBe('#ff0000')
+  })
+})

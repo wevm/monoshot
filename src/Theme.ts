@@ -30,12 +30,13 @@ export function info(name: string): Info | undefined {
  */
 export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const type = theme.type === 'light' ? 'light' : 'dark'
-  // `||` rather than `??`: an empty string is a missing color, not a value.
-  const background = theme.colors?.['editor.background'] || theme.bg || fallbackBg[type]
-  const foreground = theme.colors?.['editor.foreground'] || theme.fg || fallbackFg[type]
+  // First parseable candidate wins: an unparseable color is as missing as an
+  // absent one, and would otherwise be returned raw as `window.background`.
+  const background = pick([theme.colors?.['editor.background'], theme.bg], fallbackBg[type])
+  const foreground = pick([theme.colors?.['editor.foreground'], theme.fg], fallbackFg[type])
 
-  const bg = toOklch(background) ?? toOklch(fallbackBg[type])!
-  const fg = toOklch(foreground) ?? toOklch(fallbackFg[type])!
+  const bg = toOklch(background)!
+  const fg = toOklch(foreground)!
   const accent = pickAccent(theme)
 
   // Achromatic themes (min-light, vesper, ...) have no hue to rotate, so the
@@ -141,6 +142,12 @@ const byName = new Map(infos.map((entry) => [entry.name as string, entry]))
 
 const fallbackBg = { dark: '#101010', light: '#ffffff' }
 const fallbackFg = { dark: '#ededed', light: '#171717' }
+
+/** First candidate a color parser accepts, else the fallback. */
+function pick(candidates: readonly (string | undefined)[], fallback: string): string {
+  for (const candidate of candidates) if (candidate && toOklch(candidate)) return candidate
+  return fallback
+}
 
 const oklch = converter('oklch')
 

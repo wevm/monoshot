@@ -408,7 +408,12 @@ function useEdges() {
   const [rect, setRect] = useState<Edges>()
 
   useLayoutEffect(() => {
-    if (!node) return
+    // Without the frame there is nothing to crop, so the guides go with it
+    // rather than framing whatever the error state renders instead.
+    if (!node) {
+      setRect(undefined)
+      return
+    }
     const measure = () => {
       const box = node.getBoundingClientRect()
       setRect({

@@ -44,7 +44,22 @@ describe('info', () => {
   })
 })
 
+describe('list', () => {
+  test('hands out a frozen array', () => {
+    expect(Object.isFrozen(Theme.list())).toBe(true)
+  })
+})
+
 describe('derive', () => {
+  test('falls back when a theme color is present but unparseable', () => {
+    const result = Theme.derive({
+      colors: { 'editor.background': 'not-a-color', 'editor.foreground': '' },
+      type: 'dark',
+    } as never)
+    expect(parse(result.window.background)).toBeDefined()
+    expect(parse(result.window.foreground)).toBeDefined()
+  })
+
   test.for(Object.keys(bundledThemes) as BundledTheme[])(
     'emits parseable, separated colors for %s',
     async (name) => {

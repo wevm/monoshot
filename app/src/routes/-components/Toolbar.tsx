@@ -132,7 +132,7 @@ const styles = stylex.create({
   // Sits outside the swatch so the color underneath stays unobscured.
   swatchRing: {
     borderRadius: 8,
-    boxShadow: '0 0 0 2px #f5f5f7',
+    boxShadow: `0 0 0 2px ${color.onChrome}`,
     inset: -3,
     pointerEvents: 'none',
     position: 'absolute',
@@ -149,6 +149,8 @@ const styles = stylex.create({
     backgroundSize: '14px 14px',
   },
   swatchCustom: {
+    // The input inside is transparent, so the label carries its focus ring.
+    boxShadow: { default: null, ':focus-within': shadow.focusRing },
     backgroundImage:
       'conic-gradient(#d64541, #e8a33a, #f2d04b, #4caf6a, #2f9ec4, #4258d6, #a855c7, #d64541)',
     display: 'grid',
@@ -185,8 +187,9 @@ const styles = stylex.create({
     paddingBlock: 8,
     paddingInline: 16,
     textAlign: 'start',
+    transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
     transitionDuration: motion.fast,
-    transitionProperty: 'background-color, color',
+    transitionProperty: 'background-color, color, transform',
     transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
   },
@@ -208,6 +211,8 @@ const styles = stylex.create({
 export function Toolbar(props: Toolbar.Props) {
   const { background, lineNumbers, onChange, theme, titleBar } = props
   const [panel, setPanel] = useState<Panel>()
+  // A hex the palette does not carry belongs to the custom picker.
+  const custom = background.startsWith('#') && !backgrounds.includes(background as never)
   const swatchIndex = backgroundIndex(background)
   const previousSwatchIndex = usePrevious(swatchIndex)
   const travel = Math.abs(swatchIndex - previousSwatchIndex) * swatchStride
@@ -220,6 +225,26 @@ export function Toolbar(props: Toolbar.Props) {
 
   const surface = useRef<HTMLDivElement>(null)
   const bar = useRef<HTMLDivElement>(null)
+  const root = useRef<HTMLDivElement>(null)
+
+  // Standard dismissal for a panel that is not a Base UI popup: Escape from
+  // anywhere, and a press that lands outside the toolbar.
+  useEffect(() => {
+    if (!panel) return
+    function dismiss(event: Event) {
+      if (event.target instanceof Node && root.current?.contains(event.target)) return
+      setPanel(undefined)
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPanel(undefined)
+    }
+    window.addEventListener('keydown', escape)
+    window.addEventListener('pointerdown', dismiss)
+    return () => {
+      window.removeEventListener('keydown', escape)
+      window.removeEventListener('pointerdown', dismiss)
+    }
+  }, [panel])
 
   // Reaching a control by key should leave the keyboard where the work is, so
   // opening a panel moves focus onto the option already in effect.
@@ -280,7 +305,7 @@ export function Toolbar(props: Toolbar.Props) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div {...stylex.props(styles.root)}>
+      <div ref={root} {...stylex.props(styles.root)}>
         <AnimatePresence initial={false}>
           {panel && (
             <m.div
@@ -364,11 +389,15 @@ export function Toolbar(props: Toolbar.Props) {
                   <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
                     <span {...stylex.props(styles.srOnly)}>Custom color</span>
                     <input
+                      aria-pressed={custom}
+                      data-option={custom ? 'selected' : ''}
                       onChange={(event) => onChange({ background: event.target.value })}
+                      onFocus={(event) => onChange({ background: event.target.value })}
                       type="color"
                       value={background.startsWith('#') ? background : '#3b82d6'}
                       {...stylex.props(styles.colorInput)}
                     />
+                    {custom && <Ring travel={travel} />}
                   </label>
                 </div>
               ) : null}
@@ -475,7 +504,17 @@ function backgroundLabel(background: string) {
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
 
 /** Strong ease-out: the panel resolves early instead of drifting into focus. */
-const fade = { duration: 0.18, ease: [0.23, 1, 0.32, 1] } as const
+const fade = { duration: seconds(motion.fast), ease: bezier(motion.out) } as const
+
+/** Reads a `motion` duration const as the seconds Motion expects. */
+function seconds(value: string): number {
+  return Number.parseFloat(value) / (value.endsWith('ms') ? 1000 : 1)
+}
+
+/** Reads a `motion` curve const as the control points Motion expects. */
+function bezier(value: string): [number, number, number, number] {
+  return value.slice('cubic-bezier('.length, -1).split(',').map(Number) as never
+}
 
 /** Keeps the last value so a change knows which way to roll. */
 function usePrevious<value>(value: value): value {

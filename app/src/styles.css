@@ -98,7 +98,7 @@
   [data-line-numbers] .shiki .line::before {
     margin-right: 20px;
     opacity: 0.4;
-    width: 2ch;
+    width: var(--gutter, 2ch);
   }
 
   @media (prefers-reduced-motion: reduce) {

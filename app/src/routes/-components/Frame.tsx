@@ -47,6 +47,9 @@ const styles = stylex.create({
     transitionDuration: motion.medium,
     transitionProperty: 'padding, background-image, background-color',
     transitionTimingFunction: motion.out,
+    // `MotionConfig` governs Motion components, not this CSS transition, so
+    // the preference has to be honored here too.
+    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0s' },
   },
   // A drag has to land on the pointer, not ease toward it: the easing would
   // trail every move and leave the handles off their edges mid-gesture.
@@ -155,8 +158,10 @@ export function Frame(props: Frame.Props) {
   // client-only, so the server branch is a fallback rather than a real case.
   const widthMax =
     typeof window === 'undefined' ? 1280 : Math.max(width, Math.min(1280, window.innerWidth - 320))
-  // The window keeps a usable width whatever the artwork is sized to.
+  // The window keeps a usable width whatever the artwork is sized to. Both
+  // bounds move together, so neither handle can squeeze the code away.
   const paddingMax = Math.min(160, Math.max(0, Math.floor((width - 240) / 2)))
+  const widthMin = Math.max(360, padding * 2 + 240)
 
   return (
     <MotionConfig reducedMotion="user">
@@ -247,7 +252,7 @@ export function Frame(props: Frame.Props) {
             label="Frame width, left edge"
             onDragging={setDragging}
             max={widthMax}
-            min={360}
+            min={widthMin}
             onChange={onWidthChange}
             step={16}
             value={width}
@@ -259,7 +264,7 @@ export function Frame(props: Frame.Props) {
             label="Frame width, right edge"
             onDragging={setDragging}
             max={widthMax}
-            min={360}
+            min={widthMin}
             onChange={onWidthChange}
             step={16}
             value={width}
@@ -286,9 +291,11 @@ function Handle(props: Handle.Props) {
     const move = (next: PointerEvent) => onChange(clamp(value + (along(next) - start) * factor))
     const end = () => {
       onDragging(false)
+      window.removeEventListener('pointercancel', end)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', end)
     }
+    window.addEventListener('pointercancel', end)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', end)
   }
@@ -296,6 +303,11 @@ function Handle(props: Handle.Props) {
   // A pointer-only handle strands keyboard users, so the pair doubles as a
   // slider: right and up raise the value whichever edge holds focus.
   function nudge(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      onChange(event.key === 'Home' ? min : max)
+      return
+    }
     const direction =
       event.key === 'ArrowRight' || event.key === 'ArrowUp'
         ? 1
@@ -400,12 +412,17 @@ export namespace Frame {
     // lands in an export exactly as it reads here.
     useEffect(() => {
       let consumed = 0
+      let last = 0
       for (const line of root.current?.querySelectorAll<HTMLElement>('.line') ?? []) {
         const caret = /^(\s*\/\/\s*)\^\?\s*$/.exec(line.textContent ?? '')
         if (!caret) {
           // Every consumed query line shifts the numbering of the rest up.
+          // A converted line has no number left to read, and the effect runs
+          // twice in development.
           const number = Number(line.dataset['line'])
-          if (consumed && number) line.dataset['line'] = String(number - consumed)
+          if (!Number.isFinite(number)) continue
+          if (consumed) line.dataset['line'] = String(number - consumed)
+          last = Math.max(last, number - consumed)
           continue
         }
         consumed += 1
@@ -418,6 +435,8 @@ export namespace Frame {
         body.textContent = query
         line.appendChild(body)
       }
+      // A fixed two-character gutter clips the leading digit past line 99.
+      root.current?.style.setProperty('--gutter', `${String(Math.max(last, 10)).length}ch`)
     }, [html, query])
 
     return (
