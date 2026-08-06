@@ -27,9 +27,12 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
     "@cloudflare/vite-plugin": "catalog:",
+    "@rolldown/plugin-babel": "catalog:",
     "@stylexjs/unplugin": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "@types/babel__core": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
