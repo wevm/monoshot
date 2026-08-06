@@ -77,7 +77,7 @@ const styles = stylex.create({
   },
   handleX: { cursor: 'ew-resize', insetBlock: 0, width: 20 },
   handleY: { cursor: 'ns-resize', height: 20, insetInline: 0 },
-  handleCorner: { bottom: 0, cursor: 'nwse-resize', height: 22, right: 0, width: 22 },
+  handleCorner: { bottom: 0, cursor: 'nwse-resize', height: 30, right: 0, width: 30 },
   // The cross-axis inset above already pins the other pair, so naming both
   // sides here keeps one rule working for either orientation.
   handleStart: { left: 0, top: 0 },
@@ -95,11 +95,12 @@ const styles = stylex.create({
   // the radius, so the control shows the value it holds.
   gripCorner: (value: number) => ({
     borderBottomStyle: 'solid',
-    borderBottomWidth: 2,
+    // The same stroke the bar grips use, so the set reads as one family.
+    borderBottomWidth: 4,
     borderColor: color.onChrome,
     borderEndEndRadius: value,
     borderRightStyle: 'solid',
-    borderRightWidth: 2,
+    borderRightWidth: 4,
     filter: 'drop-shadow(0 0 1px rgb(0 0 0 / 0.55))',
     height: '100%',
     width: '100%',
