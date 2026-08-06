@@ -24,7 +24,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   // racing to build a highlighter each.
   let highlighter: Promise<Highlighter> | undefined
 
-  async function load(parameters: load.Options): Promise<Highlighter> {
+  async function resolve(parameters: load.Options): Promise<Highlighter> {
     const { lang, theme } = parameters
     highlighter ??= createHighlighter({ langs: [...langs], themes: [...themes] })
     const instance = await highlighter
@@ -36,10 +36,12 @@ export function create(options: create.Options = {}): create.ReturnType {
   }
 
   return {
-    load,
+    async load(parameters) {
+      await resolve(parameters)
+    },
     async render(parameters) {
       const { code, lang, theme } = parameters
-      const instance = await load({ lang, theme })
+      const instance = await resolve({ lang, theme })
       return {
         html: instance.codeToHtml(code, {
           lang,
@@ -67,8 +69,11 @@ export declare namespace create {
   }
 
   type ReturnType = {
-    /** Resolves the highlighter, loading the theme and language on first use. */
-    load: (options: load.Options) => Promise<Highlighter>
+    /**
+     * Loads a theme and language ahead of time so the next `render` is
+     * immediate. The highlighter itself stays private to the instance.
+     */
+    load: (options: load.Options) => Promise<void>
     /**
      * Highlights code and returns the markup a frame renders.
      *

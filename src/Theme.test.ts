@@ -48,8 +48,8 @@ describe('derive', () => {
   test.for(Object.keys(bundledThemes) as BundledTheme[])(
     'emits parseable, separated colors for %s',
     async (name) => {
-      const highlighter = await frame.load({ lang: 'ts', theme: name })
-      const result = Theme.derive(highlighter.getTheme(name))
+      const rendered = await frame.render({ code: 'const a = 1', lang: 'ts', theme: name })
+      const result = Theme.derive(rendered.theme)
       const colors = [
         result.backdrop.from,
         result.backdrop.to,
@@ -72,8 +72,8 @@ describe('derive', () => {
   )
 
   test('keeps achromatic themes neutral instead of emitting NaN hues', async () => {
-    const highlighter = await frame.load({ lang: 'ts', theme: 'min-light' })
-    const result = Theme.derive(highlighter.getTheme('min-light'))
+    const rendered = await frame.render({ code: 'a', lang: 'ts', theme: 'min-light' })
+    const result = Theme.derive(rendered.theme)
     expect(result.backdrop.from).not.toContain('NaN')
     expect(result.type).toBe('light')
   })

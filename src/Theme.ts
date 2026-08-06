@@ -87,23 +87,25 @@ export declare namespace derive {
   }
 }
 
-/** Theme metadata as published by shiki. */
+/** Theme metadata as published by shiki. Frozen: callers share one instance. */
 export type Info = {
   /** Human-readable name for a picker. */
-  displayName: string
+  readonly displayName: string
   /** Identifier accepted by `Frame.render`. */
-  name: BundledTheme
+  readonly name: BundledTheme
   /** Whether the theme is a light or dark scheme. */
-  type: 'light' | 'dark'
+  readonly type: 'light' | 'dark'
 }
 
 // `bundledThemesInfo` types `id` as a plain string; the set-equality test in
 // `Theme.test.ts` is what keeps this narrowing honest.
-const infos: readonly Info[] = bundledThemesInfo.map((theme) => ({
-  displayName: theme.displayName,
-  name: theme.id as BundledTheme,
-  type: theme.type === 'light' ? 'light' : 'dark',
-}))
+const infos: readonly Info[] = bundledThemesInfo.map((theme) =>
+  Object.freeze({
+    displayName: theme.displayName,
+    name: theme.id as BundledTheme,
+    type: theme.type === 'light' ? 'light' : ('dark' as const),
+  }),
+)
 
 const byName = new Map(infos.map((entry) => [entry.name as string, entry]))
 

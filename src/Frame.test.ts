@@ -1,31 +1,24 @@
 import * as Frame from './Frame.js'
 
 describe('create', () => {
-  test('reuses one highlighter across renders', async () => {
+  test('serves several themes from one instance', async () => {
     const frame = Frame.create()
-    const [first, second] = await Promise.all([
+    await Promise.all([
       frame.load({ lang: 'ts', theme: 'vitesse-dark' }),
       frame.load({ lang: 'tsx', theme: 'nord' }),
     ])
-    expect(first).toBe(second)
-    expect(first.getLoadedThemes()).toEqual(expect.arrayContaining(['vitesse-dark', 'nord']))
-    expect(first.getLoadedLanguages()).toEqual(expect.arrayContaining(['ts', 'tsx']))
-  })
-
-  test('keeps instances isolated from each other', async () => {
-    const one = Frame.create()
-    const other = Frame.create()
-    const [a, b] = await Promise.all([
-      one.load({ lang: 'ts', theme: 'nord' }),
-      other.load({ lang: 'ts', theme: 'nord' }),
+    const [first, second] = await Promise.all([
+      frame.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' }),
+      frame.render({ code: 'const a = 1', lang: 'tsx', theme: 'nord' }),
     ])
-    expect(a).not.toBe(b)
+    expect(first.theme.name).toBe('vitesse-dark')
+    expect(second.theme.name).toBe('nord')
   })
 
   test('preloads the resources it is given', async () => {
     const frame = Frame.create({ langs: ['ts'], themes: ['nord'] })
-    const highlighter = await frame.load({ lang: 'ts', theme: 'nord' })
-    expect(highlighter.getLoadedThemes()).toContain('nord')
+    const result = await frame.render({ code: 'a', lang: 'ts', theme: 'nord' })
+    expect(result.theme.name).toBe('nord')
   })
 })
 
