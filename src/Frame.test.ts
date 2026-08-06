@@ -64,3 +64,17 @@ describe('render', () => {
     ).rejects.toThrow()
   })
 })
+
+describe('create().dispose', () => {
+  test('releases the highlighter and leaves the renderer usable', async () => {
+    const frame = Frame.create()
+    const before = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+    await frame.dispose()
+    const after = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+    expect(after.html).toBe(before.html)
+  })
+
+  test('is a no-op before the first render', async () => {
+    await expect(Frame.create().dispose()).resolves.toBeUndefined()
+  })
+})

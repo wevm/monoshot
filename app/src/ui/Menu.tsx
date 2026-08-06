@@ -4,11 +4,13 @@ import type { ReactNode } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Button } from './Button.js'
-import { color, motion, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   popup: {
     backdropFilter: 'blur(32px) saturate(180%)',
+    // The portal lands under `body`, outside the element that sets the font.
+    fontFamily: font.mono,
     backgroundColor: {
       default: color.backgroundTranslucent,
       '@media (prefers-reduced-transparency: reduce)': color.background,
@@ -61,9 +63,9 @@ export function Menu(props: Menu.Props) {
   const { children, label, style } = props
   return (
     <Base.Root>
-      <Base.Trigger render={<Button variant="tertiary" />} {...stylex.props(style)}>
-        {label}
-      </Base.Trigger>
+      {/* Through Button's own `style`: a forwarded `className` would be
+          replaced by the class Button generates for itself. */}
+      <Base.Trigger render={<Button style={style} variant="tertiary" />}>{label}</Base.Trigger>
       <Base.Portal>
         <Base.Positioner
           align="end"

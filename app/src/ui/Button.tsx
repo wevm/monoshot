@@ -80,11 +80,21 @@ const typography = { small: text.button12, medium: text.button14, large: text.bu
 
 /** Button in the Geist control family. `square` renders an icon-only button and requires an accessible name. */
 export function Button(props: Button.Props) {
-  const { children, size = 'medium', square, style, variant = 'secondary', ...rest } = props
+  const {
+    children,
+    size = 'medium',
+    square,
+    style,
+    type = 'button',
+    variant = 'secondary',
+    ...rest
+  } = props
   return (
     <button
-      type="button"
       {...rest}
+      // After the spread: an explicit `type: undefined` would otherwise fall
+      // through to the browser's `submit` default inside a form.
+      type={type}
       {...stylex.props(
         styles.root,
         typography[size],

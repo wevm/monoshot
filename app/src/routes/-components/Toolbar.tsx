@@ -43,7 +43,17 @@ const styles = stylex.create({
     boxShadow: shadow.floating,
     overflow: 'hidden',
   },
-  bar: { alignItems: 'center', display: 'flex', gap: 2, padding: 6 },
+  // The items keep their min-content widths, so a phone-width bar scrolls
+  // rather than pushing its trailing controls past the viewport.
+  bar: {
+    alignItems: 'center',
+    display: 'flex',
+    gap: 2,
+    maxWidth: '100%',
+    overflowX: 'auto',
+    padding: 6,
+    scrollbarWidth: 'none',
+  },
   // Two lines: what the control is, and what it is set to.
   item: {
     alignItems: 'flex-start',
@@ -293,6 +303,7 @@ export function Toolbar(props: Toolbar.Props) {
                 <div {...stylex.props(styles.themeList)}>
                   {themes.map((entry) => (
                     <button
+                      aria-pressed={entry.name === theme}
                       data-option={entry.name === theme ? 'selected' : ''}
                       key={entry.name}
                       onClick={() => onChange({ theme: entry.name })}
@@ -313,6 +324,7 @@ export function Toolbar(props: Toolbar.Props) {
               ) : panel === 'background' ? (
                 <div {...stylex.props(styles.colorRow)}>
                   <button
+                    aria-pressed={background === 'default'}
                     data-option={background === 'default' ? 'selected' : ''}
                     onClick={() => onChange({ background: 'default' })}
                     onFocus={() => onChange({ background: 'default' })}
@@ -323,6 +335,7 @@ export function Toolbar(props: Toolbar.Props) {
                     {background === 'default' && <Ring travel={travel} />}
                   </button>
                   <button
+                    aria-pressed={background === 'none'}
                     data-option={background === 'none' ? 'selected' : ''}
                     onClick={() => onChange({ background: 'none' })}
                     onFocus={() => onChange({ background: 'none' })}
@@ -335,6 +348,7 @@ export function Toolbar(props: Toolbar.Props) {
                   <div {...stylex.props(styles.divider)} />
                   {backgrounds.map((value) => (
                     <button
+                      aria-pressed={background === value}
                       data-option={background === value ? 'selected' : ''}
                       key={value}
                       onClick={() => onChange({ background: value })}

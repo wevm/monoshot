@@ -92,6 +92,7 @@ export declare namespace derive {
      * artwork reads as one continuous color.
      */
     page: {
+      /** The canvas color itself. */
       background: string
       /** Readable against `page.background`. */
       foreground: string
@@ -124,12 +125,16 @@ export type Info = {
 
 // `bundledThemesInfo` types `id` as a plain string; the set-equality test in
 // `Theme.test.ts` is what keeps this narrowing honest.
-const infos: readonly Info[] = bundledThemesInfo.map((theme) =>
-  Object.freeze({
-    displayName: theme.displayName,
-    name: theme.id as BundledTheme,
-    type: theme.type === 'light' ? 'light' : ('dark' as const),
-  }),
+// The container is frozen as well as its entries: `list()` hands out this very
+// array, so an ordinary `sort()` would reorder it for every later caller.
+const infos: readonly Info[] = Object.freeze(
+  bundledThemesInfo.map((theme) =>
+    Object.freeze({
+      displayName: theme.displayName,
+      name: theme.id as BundledTheme,
+      type: theme.type === 'light' ? 'light' : ('dark' as const),
+    }),
+  ),
 )
 
 const byName = new Map(infos.map((entry) => [entry.name as string, entry]))

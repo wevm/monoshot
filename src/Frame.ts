@@ -26,7 +26,14 @@ export function create(options: create.Options = {}): create.ReturnType {
 
   async function resolve(parameters: load.Options): Promise<Highlighter> {
     const { lang, theme } = parameters
-    highlighter ??= createHighlighter({ langs: [...langs], themes: [...themes] })
+    // A rejected promise must not be cached, or one transient failure would
+    // poison every later render on this renderer.
+    highlighter ??= createHighlighter({ langs: [...langs], themes: [...themes] }).catch(
+      (cause: unknown) => {
+        highlighter = undefined
+        throw cause
+      },
+    )
     const instance = await highlighter
     await Promise.all([
       instance.getLoadedThemes().includes(theme) ? undefined : instance.loadTheme(theme),
@@ -36,6 +43,11 @@ export function create(options: create.Options = {}): create.ReturnType {
   }
 
   return {
+    async dispose() {
+      const instance = await highlighter?.catch(() => undefined)
+      highlighter = undefined
+      instance?.dispose()
+    },
     async load(parameters) {
       await resolve(parameters)
     },
@@ -70,6 +82,11 @@ export declare namespace create {
 
   type ReturnType = {
     /**
+     * Releases the highlighter and the grammars it loaded. The renderer stays
+     * usable: the next `render` builds a fresh highlighter.
+     */
+    dispose: () => Promise<void>
+    /**
      * Loads a theme and language ahead of time so the next `render` is
      * immediate. The highlighter itself stays private to the instance.
      */
@@ -85,7 +102,9 @@ export declare namespace create {
 
 export declare namespace load {
   type Options = {
+    /** Language grammar to load. */
     lang: BundledLanguage
+    /** Theme to load. */
     theme: BundledTheme
   }
 }

@@ -56,7 +56,6 @@
   },
   "dependencies": {
     "culori": "catalog:",
-    "shiki": "catalog:",
-    "tm-themes": "catalog:"
+    "shiki": "catalog:"
   }
 }

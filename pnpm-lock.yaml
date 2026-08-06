@@ -78,9 +78,6 @@ catalogs:
     shiki:
       specifier: 4.4.2
       version: 4.4.2
-    tm-themes:
-      specifier: 1.12.3
-      version: 1.12.3
     typescript:
       specifier: ~5.9.3
       version: 5.9.3
@@ -110,9 +107,6 @@ importers:
       shiki:
         specifier: 'catalog:'
         version: 4.4.2
-      tm-themes:
-        specifier: 'catalog:'
-        version: 1.12.3
     devDependencies:
       '@changesets/cli':
         specifier: 'catalog:'
@@ -2884,9 +2878,6 @@ packages:
     resolution: {integrity: sha512-yau8yJdTt989Mm0Bd/236QnzEiPf2xLLTqUZRUJOo/3CB078LSwzei343DgtJVmfJKJE3TMINY1u42SQsP6mXw==}
     engines: {node: '>=14.0.0'}
 
-  tm-themes@1.12.3:
-    resolution: {integrity: sha512-DiuwChs9cpdGmu71483ld0+IsBQQxLpNFsUvz8WizzmiycQXJLNYHj0IgUlhrslk9BexmFn6lSLaAiyll5QD5Q==}
-
   to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
@@ -5605,8 +5596,6 @@ snapshots:
   tinypool@2.1.0: {}
 
   tinyrainbow@3.1.1: {}
-
-  tm-themes@1.12.3: {}
 
   to-regex-range@5.0.1:
     dependencies:
