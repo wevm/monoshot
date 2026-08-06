@@ -106,11 +106,11 @@
 ## Repository Layout
 
 - The repo root is the published `monoshot` library: flat PascalCase namespace modules in `src/` with colocated tests, built with `zile`, checked with `vp`.
-- `app/` is the private web app (`@monoshot/app`): TanStack Start + Hono on Cloudflare Workers, StyleX design system. It consumes the library via `workspace:*`.
+- `app/` is the private web app (`app`): TanStack Start + Hono on Cloudflare Workers, StyleX design system. It consumes the library via `workspace:*`.
 - Library core stays pure and runtime-agnostic. Browser, CLI, and Worker behavior live in thin adapters (`./headless`, `./api` entrypoints, `app/`).
 
 ## Commands
 
 - `pnpm check` formats and lints (mutating). `pnpm check:types` type-checks the library; the app has its own `check:types`.
 - `pnpm test` runs library tests. `pnpm build` builds the library with zile.
-- `pnpm --filter @monoshot/app dev` runs the web app; `gen:types` regenerates `worker-configuration.d.ts` after wrangler config changes.
+- `pnpm --filter app dev` runs the web app; `gen:types` regenerates `worker-configuration.d.ts` after wrangler config changes.

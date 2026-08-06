@@ -87,7 +87,7 @@ monoshot/
 │   ├── Api.ts                  # ./api entry: Hono route factory (Browser Run binding), POST /image
 │   ├── bin.ts + cli/           # incur CLI: render/share/themes commands → CLI + --mcp + skills
 │   └── internal/
-└── app/                        # PRIVATE web app workspace (@monoshot/app), wallet-next-style internals
+└── app/                        # PRIVATE web app workspace (app), wallet-next-style internals
     ├── wrangler.json           # main: ./worker/index.ts, nodejs_compat, browser binding (API PR), KV (share PR)
     ├── vite.config.ts          # cloudflare + tanstackStart + stylex.vite() + react + icons
     ├── worker/index.ts         # Hono: /api (health, image via lib Api, share), /s/:id on root app, Start fall-through
