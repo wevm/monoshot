@@ -39,8 +39,9 @@ export function hover(types: Types): Extension {
         }
       },
       // The types are already in hand, so waiting only makes the editor feel
-      // slower than it is.
-      { hoverTime: 0 },
+      // slower than it is. One millisecond rather than zero: CodeMirror reads
+      // this as `hoverTime || 300`, so a falsy value restores the default.
+      { hoverTime: 1 },
     ),
     EditorView.domEventHandlers({
       mousedown(event, view) {
