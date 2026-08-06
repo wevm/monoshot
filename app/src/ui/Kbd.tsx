@@ -26,8 +26,11 @@ export function Kbd(props: Kbd.Props) {
 }
 
 export declare namespace Kbd {
+  /** Props for {@link Kbd}. */
   type Props = {
+    /** Key or chord to display. */
     children: ReactNode
+    /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | undefined
   }
 }

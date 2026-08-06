@@ -38,9 +38,11 @@ export function Tooltip(props: Tooltip.Props) {
 }
 
 export declare namespace Tooltip {
+  /** Props for {@link Tooltip}. */
   type Props = {
     /** The focusable control the tooltip describes. */
     children: ReactElement
+    /** Hint text shown on hover and focus. */
     label: string
   }
 }

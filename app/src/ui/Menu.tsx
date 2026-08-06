@@ -65,15 +65,22 @@ Menu.Item = function Item(props: Menu.Item.Props) {
 }
 
 export declare namespace Menu {
+  /** Props for {@link Menu}. */
   type Props = {
+    /** Menu items. */
     children: ReactNode
+    /** Trigger content. */
     label: ReactNode
+    /** Styles merged onto the trigger. */
     style?: stylex.StyleXStyles | undefined
   }
 
   namespace Item {
+    /** Props for {@link Menu.Item}. Extends Base UI's menu item. */
     type Props = Omit<Base.Item.Props, 'className' | 'render' | 'style'> & {
+      /** Item label. */
       children: ReactNode
+      /** Trailing content, such as a keyboard shortcut. */
       hint?: ReactNode | undefined
     }
   }

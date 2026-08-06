@@ -3,18 +3,31 @@ import { useSyncExternalStore } from 'react'
 /** Color scheme override. `system` defers to the OS preference. */
 export type Scheme = 'system' | 'light' | 'dark'
 
-const storageKey = 'monoshot.scheme'
+/** Where the override lives. Read by the pre-paint script in the root route. */
+export const storageKey = 'monoshot.scheme'
 const listeners = new Set<() => void>()
 
 let scheme: Scheme = 'system'
+
+function read(): string | null {
+  try {
+    return localStorage.getItem(storageKey)
+  } catch {
+    return null
+  }
+}
 
 function parse(value: string | null): Scheme {
   return value === 'light' || value === 'dark' ? value : 'system'
 }
 
-/** Reads the persisted scheme and applies it. Called once on client mount. */
+/**
+ * Adopts the scheme the pre-paint script already applied, so the store agrees
+ * with the document. Safe to call from any route.
+ */
 export function hydrate() {
-  set(parse(localStorage.getItem(storageKey)))
+  scheme = parse(read())
+  for (const listener of listeners) listener()
 }
 
 export function get(): Scheme {
@@ -27,7 +40,12 @@ export function get(): Scheme {
  */
 export function set(next: Scheme) {
   scheme = next
-  localStorage.setItem(storageKey, next)
+  try {
+    localStorage.setItem(storageKey, next)
+  } catch {
+    // Private browsing and blocked storage: the scheme still applies for this
+    // session, it just does not persist.
+  }
   document.documentElement.style.colorScheme = next === 'system' ? '' : next
   for (const listener of listeners) listener()
 }

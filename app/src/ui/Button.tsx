@@ -95,11 +95,16 @@ export function Button(props: Button.Props) {
 }
 
 export declare namespace Button {
+  /** Props for {@link Button}. Extends the native button element. */
   type Props = Omit<ComponentPropsWithoutRef<'button'>, 'className' | 'style'> & {
     children?: ReactNode | undefined
+    /** Control height: 32, 40, or 48 pixels. @default 'medium' */
     size?: 'small' | 'medium' | 'large' | undefined
+    /** Renders an icon-only square. Requires `aria-label`. */
     square?: boolean | undefined
+    /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | readonly stylex.StyleXStyles[] | undefined
+    /** Visual weight. One primary action per surface. @default 'secondary' */
     variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | undefined
   }
 }

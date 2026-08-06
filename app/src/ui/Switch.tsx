@@ -47,7 +47,9 @@ export function Switch(props: Switch.Props) {
 }
 
 export declare namespace Switch {
+  /** Props for {@link Switch}. Extends Base UI's switch root. */
   type Props = Omit<Base.Root.Props, 'className' | 'render' | 'style'> & {
+    /** Styles merged onto the track. */
     style?: stylex.StyleXStyles | undefined
   }
 }
