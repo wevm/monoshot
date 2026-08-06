@@ -43,13 +43,35 @@
   }
 
   /* Shiki emits the highlighted markup, so the gutter is styled here rather
-     than through StyleX, which cannot target injected descendants. */
-  [data-line-numbers] .line::before {
+     than through StyleX, which cannot target injected descendants. It is always
+     present and collapses to zero width, so toggling it slides the code across
+     instead of snapping. */
+  .shiki .line::before {
     content: attr(data-line);
     display: inline-block;
+    margin-right: 0;
+    opacity: 0;
+    overflow: hidden;
+    text-align: right;
+    transition:
+      width 240ms cubic-bezier(0.23, 1, 0.32, 1),
+      margin-right 240ms cubic-bezier(0.23, 1, 0.32, 1),
+      opacity 160ms cubic-bezier(0.23, 1, 0.32, 1);
+    vertical-align: top;
+    width: 0;
+  }
+
+  /* Scoped through `.shiki` so it outranks the collapsed base rule rather than
+     relying on source order. */
+  [data-line-numbers] .shiki .line::before {
     margin-right: 20px;
     opacity: 0.4;
-    text-align: right;
     width: 2ch;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shiki .line::before {
+      transition-property: opacity;
+    }
   }
 }

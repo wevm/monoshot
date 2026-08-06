@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
+import { MotionConfig, motion as m } from 'motion/react'
 import type { Theme } from 'monoshot'
 import type { ReactNode } from 'react'
 
@@ -74,44 +75,55 @@ const styles = stylex.create({
 export function Frame(props: Frame.Props) {
   const { background, children, onTitleChange, padding, palette, title, titleBar } = props
   return (
-    <div
-      {...stylex.props(
-        styles.root,
-        styles.palette({
-          angle: palette.backdrop.angle,
-          background: palette.window.background,
-          border: palette.window.border,
-          from: palette.backdrop.from,
-          title: palette.window.title,
-          to: palette.backdrop.to,
-        }),
-        background && styles.backdrop,
-        styles.padding(padding),
-      )}
-    >
-      <div {...stylex.props(styles.window, styles.windowShadow)}>
-        {titleBar && (
-          <div {...stylex.props(styles.titleBar)}>
-            <div aria-hidden {...stylex.props(styles.lights)}>
-              <span {...stylex.props(styles.light)} />
-              <span {...stylex.props(styles.light)} />
-              <span {...stylex.props(styles.light)} />
-            </div>
-            <input
-              aria-label="Title"
-              onChange={(event) => onTitleChange(event.target.value)}
-              placeholder="untitled"
-              spellCheck={false}
-              value={title}
-              {...stylex.props(styles.title, text.label13)}
-            />
-          </div>
+    <MotionConfig reducedMotion="user">
+      <div
+        {...stylex.props(
+          styles.root,
+          styles.palette({
+            angle: palette.backdrop.angle,
+            background: palette.window.background,
+            border: palette.window.border,
+            from: palette.backdrop.from,
+            title: palette.window.title,
+            to: palette.backdrop.to,
+          }),
+          background && styles.backdrop,
+          styles.padding(padding),
         )}
-        <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>{children}</div>
+      >
+        <m.div layout transition={spring} {...stylex.props(styles.window, styles.windowShadow)}>
+          {titleBar && (
+            <div {...stylex.props(styles.titleBar)}>
+              <div aria-hidden {...stylex.props(styles.lights)}>
+                <span {...stylex.props(styles.light)} />
+                <span {...stylex.props(styles.light)} />
+                <span {...stylex.props(styles.light)} />
+              </div>
+              <input
+                aria-label="Title"
+                onChange={(event) => onTitleChange(event.target.value)}
+                placeholder="untitled"
+                spellCheck={false}
+                value={title}
+                {...stylex.props(styles.title, text.label13)}
+              />
+            </div>
+          )}
+          <m.div
+            layout
+            transition={spring}
+            {...stylex.props(styles.body, !titleBar && styles.bodyBare)}
+          >
+            {children}
+          </m.div>
+        </m.div>
       </div>
-    </div>
+    </MotionConfig>
   )
 }
+
+/** Matches the toolbar, so the whole surface settles at one rate. */
+const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
 
 export declare namespace Frame {
   /** Props for {@link Frame}. */

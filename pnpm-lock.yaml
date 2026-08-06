@@ -81,6 +81,9 @@ catalogs:
     tm-themes:
       specifier: 1.12.3
       version: 1.12.3
+    torph:
+      specifier: ^0.1.0
+      version: 0.1.0
     typescript:
       specifier: ~5.9.3
       version: 5.9.3
@@ -165,6 +168,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
+      torph:
+        specifier: 'catalog:'
+        version: 0.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
@@ -2891,6 +2897,23 @@ packages:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
 
+  torph@0.1.0:
+    resolution: {integrity: sha512-2HxoKBIjydwsVilfP44Dawsc6Ou4iL00GgnCvs4raL+Oc8EfY1kKyAxm+wmPYtVRdgdUoSIWUeaaIShNadxQPQ==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+      svelte: '>=5'
+      vue: '>=3'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+
   totalist@3.0.1:
     resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
     engines: {node: '>=6'}
@@ -5611,6 +5634,11 @@ snapshots:
   to-regex-range@5.0.1:
     dependencies:
       is-number: 7.0.0
+
+  torph@0.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   totalist@3.0.1: {}
 

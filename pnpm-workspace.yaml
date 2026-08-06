@@ -26,6 +26,7 @@ catalog:
   motion: ^13.0.0
   react: ^19.2.5
   react-dom: ^19.2.5
+  torph: ^0.1.0
   shiki: 4.4.2
   tm-themes: 1.12.3
   typescript: ~5.9.3

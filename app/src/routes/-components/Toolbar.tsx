@@ -3,6 +3,7 @@ import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import { Theme } from 'monoshot'
 import { useState } from 'react'
+import { TextMorph } from 'torph/react'
 
 import { text } from '#/theme/text.js'
 import { color, motion, shadow } from '../../theme/tokens.stylex.js'
@@ -173,7 +174,7 @@ export function Toolbar(props: Toolbar.Props) {
           )}
         </AnimatePresence>
 
-        <div {...stylex.props(styles.surface, styles.bar)}>
+        <m.div layout transition={spring} {...stylex.props(styles.surface, styles.bar)}>
           <Item
             onClick={() => toggle('theme')}
             open={panel === 'theme'}
@@ -205,7 +206,7 @@ export function Toolbar(props: Toolbar.Props) {
             title="Title bar"
             value={titleBar ? 'On' : 'Off'}
           />
-        </div>
+        </m.div>
       </div>
     </MotionConfig>
   )
@@ -257,17 +258,25 @@ function Item(props: {
 }) {
   const { onClick, open, pressed, title, value } = props
   return (
-    <button
+    <m.button
       // Two stacked spans would otherwise read as one run-together name.
       aria-expanded={open}
       aria-label={`${title}: ${value}`}
       aria-pressed={pressed}
+      layout
       onClick={onClick}
+      transition={spring}
       type="button"
       {...stylex.props(styles.item, open && styles.itemOpen)}
     >
       <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>
-      <span {...stylex.props(styles.itemValue, text.button14)}>{value}</span>
-    </button>
+      <TextMorph
+        duration={0.22}
+        ease={{ damping: 26, stiffness: 320 }}
+        {...stylex.props(styles.itemValue, text.button14)}
+      >
+        {value}
+      </TextMorph>
+    </m.button>
   )
 }
