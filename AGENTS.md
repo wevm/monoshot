@@ -122,3 +122,14 @@
 - `pnpm check` formats and lints (mutating). `pnpm check:types` type-checks the library; the app has its own `check:types`.
 - `pnpm test` runs library tests. `pnpm build` builds the library with zile.
 - `pnpm --filter app dev` runs the web app; `gen:types` regenerates `worker-configuration.d.ts` after wrangler config changes.
+
+## Motion Conventions
+
+- Every interactive element acknowledges the pointer. A control with no press state reads as a picture of a control.
+- Press feedback is `transform: scale(0.97)` on `:active`, 140ms, on the element itself. It fires on press, not on release.
+- Hover growth is `scale(1.14)` for swatch-sized targets and stays behind `@media (hover: hover) and (pointer: fine)`; touch reports a hover on tap.
+- Animate `transform` and `opacity`. `height` is allowed where there is no transform equivalent (a collapsing panel), and `filter` only where the blur is the effect being asked for.
+- Curves and durations come from the `motion` consts in `app/src/theme/tokens.stylex.ts`, never hand-rolled per component: `out` for entrances and presses, `inOut` for a value moving between two known states.
+- Springs belong to surfaces the user can interrupt or that carry momentum (a panel opening, a value rolling). Fixed curves belong to hover and press.
+- A selection that moves between siblings uses one shared element with Motion's `layoutId` so it slides, rather than one indicator per sibling blinking on and off.
+- Reduced motion is part of the implementation, not a follow-up: wrap Motion trees in `MotionConfig reducedMotion="user"` and keep opacity while dropping movement.

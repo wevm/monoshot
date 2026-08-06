@@ -70,11 +70,15 @@ export function Segmented<const value extends string | number>(props: Segmented.
 }
 
 export declare namespace Segmented {
+  /** Props for {@link Segmented}. Always controlled: exactly one option is active. */
   type Props<value extends string | number> = {
     /** Accessible name for the group. */
     label: string
+    /** Receives the option the user selected. */
     onChange: (value: value) => void
+    /** Choices, in display order. */
     options: readonly { label: string; value: value }[]
+    /** Styles merged onto the track. */
     style?: stylex.StyleXStyles | undefined
     /** Must be one of `options`. */
     value: NoInfer<value>

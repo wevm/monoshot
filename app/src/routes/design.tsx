@@ -23,7 +23,7 @@ const styles = stylex.create({
   page: {
     backgroundColor: color.background,
     color: color.gray1000,
-    fontFamily: font.sans,
+    fontFamily: font.mono,
     minHeight: '100dvh',
     paddingBlock: 40,
   },

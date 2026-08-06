@@ -8,6 +8,10 @@ export const color = stylex.defineVars({
   background: 'light-dark(#fff, #0a0a0a)',
   backgroundSecondary: 'light-dark(#fafafa, #000)',
 
+  // Floating surfaces let the page through: a translucent fill plus a blur
+  // reads as a layer above the work rather than a hole punched in it.
+  backgroundTranslucent: 'light-dark(#ffffff8f, #0a0a0a99)',
+
   gray100: 'light-dark(#f2f2f2, #1a1a1a)',
   gray200: 'light-dark(#ebebeb, #1f1f1f)',
   gray300: 'light-dark(#e6e6e6, #292929)',
@@ -77,17 +81,28 @@ export const color = stylex.defineVars({
   // Text that sits on a solid colored surface, where the scheme's own
   // foreground would disappear.
   onSolid: '#fff',
+
+  // Floating tools over the artwork read as their own dark surface in both
+  // schemes, the way Apple's markup bar does, so they never invert with the app.
+  chrome: '#1c1c1e',
+  chromeTranslucent: '#1c1c1e99',
+  onChrome: '#f5f5f7',
+  onChromeSecondary: '#98989d',
+  chromeHover: '#ffffff1f',
+  chromeActive: '#ffffff33',
 })
 
 export const font = stylex.defineVars({
   mono: "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
-  sans: "'Geist Variable', system-ui, -apple-system, sans-serif",
 })
 
+// Square by default: the artwork has hard edges, so the interface does too.
+// The code window is the one rounded surface.
 export const radius = stylex.defineVars({
-  control: '6px',
-  floating: '12px',
-  fullscreen: '16px',
+  code: '12px',
+  control: '0px',
+  floating: '0px',
+  fullscreen: '0px',
 })
 
 // Vercel's shadow-border pattern: a 1px alpha ring composed with soft shadows,
@@ -97,11 +112,28 @@ export const shadow = stylex.defineVars({
   border: '0 0 0 1px light-dark(#00000014, #ffffff25)',
   borderInset: 'inset 0 0 0 1px light-dark(#00000014, #ffffff1a)',
   small: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 2px 2px light-dark(#0000000a, #00000029)',
-  menu: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000052), 0 4px 8px -4px light-dark(#0000000a, #00000029), 0 16px 24px -8px light-dark(#0000000f, #00000029)',
+  menu: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000038), 0 4px 8px -4px light-dark(#00000008, #0000001c), 0 16px 24px -12px light-dark(#0000000a, #0000001c)',
+  // Chrome floating over the artwork earns its separation from depth alone:
+  // a ring would read as a drawn edge on a surface that is meant to hover.
+  // Three layers (contact, mid, ambient) and no scheme swap, since the
+  // surface sits on the image rather than on the app background.
+  floating:
+    '0 1px 2px rgb(0 0 0 / 0.16), 0 6px 16px -8px rgb(0 0 0 / 0.24), 0 20px 40px -16px rgb(0 0 0 / 0.3)',
   tooltip:
     '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000052), 0 4px 8px light-dark(#0000000a, #00000029)',
   focusRing:
     '0 0 0 2px light-dark(#fff, #000), 0 0 0 4px light-dark(oklch(57.61% 0.2508 258.23), oklch(71.7% 0.1648 250.794))',
   thumb: '0 1px 2px light-dark(#00000029, #00000052)',
   window: '0 24px 48px -12px light-dark(#00000026, #00000059)',
+})
+
+// Inlined at build time: no CSS variables generated.
+export const motion = stylex.defineConsts({
+  /** Decelerating curve for surfaces settling into place (out-expo). */
+  out: 'cubic-bezier(0.19, 1, 0.22, 1)',
+  /** Symmetric curve for a value moving between two known states (in-out-quint). */
+  inOut: 'cubic-bezier(0.86, 0, 0.07, 1)',
+  fast: '140ms',
+  medium: '260ms',
+  slow: '420ms',
 })

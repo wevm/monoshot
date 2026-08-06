@@ -10,7 +10,7 @@ const styles = stylex.create({
       ':is([data-checked])': color.gray1000,
     },
     borderStyle: 'none',
-    borderRadius: 999,
+    borderRadius: 0,
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
     cursor: { default: 'pointer', ':disabled': 'not-allowed' },
     display: 'inline-block',
@@ -25,7 +25,7 @@ const styles = stylex.create({
   thumb: {
     // Inverts with the track so the thumb keeps contrast in both states.
     backgroundColor: { default: color.onSolid, ':is([data-checked])': color.background },
-    borderRadius: 999,
+    borderRadius: 0,
     boxShadow: shadow.thumb,
     display: 'block',
     height: 16,

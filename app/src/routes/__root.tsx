@@ -26,6 +26,8 @@ export const Route = createRootRoute({
 })
 
 function Layout() {
+  // Every route reads the stored scheme, not just the one that can change it.
+  useEffect(() => Scheme.hydrate(), [])
   return (
     <>
       <StylexDevReload />
@@ -40,7 +42,9 @@ const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.sto
 
 function Document({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // The pre-paint script sets `color-scheme` before React hydrates, which
+    // React would otherwise report as a mismatched attribute.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

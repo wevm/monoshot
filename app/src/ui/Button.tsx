@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 import { text } from '#/theme/text.js'
-import { color, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   root: {
@@ -16,6 +16,10 @@ const styles = stylex.create({
     opacity: { default: 1, ':disabled': 0.5 },
     outline: 'none',
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
+    transform: { default: 'scale(1)', ':active:not(:disabled)': 'scale(0.97)' },
+    transitionDuration: motion.fast,
+    transitionProperty: 'background-color, transform',
+    transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
   },
   primary: {
@@ -36,6 +40,7 @@ const styles = stylex.create({
     boxShadow: { default: shadow.border, ':focus-visible': shadow.focusRing },
     color: color.gray1000,
   },
+  // Sits on whatever surface hosts it, so it takes that surface's text color.
   tertiary: {
     backgroundColor: {
       default: 'transparent',
@@ -43,7 +48,7 @@ const styles = stylex.create({
       ':active:not(:disabled)': color.grayAlpha200,
       ':is([data-popup-open])': color.grayAlpha100,
     },
-    color: color.gray1000,
+    color: 'inherit',
   },
   danger: {
     backgroundColor: color.red800,
@@ -75,11 +80,21 @@ const typography = { small: text.button12, medium: text.button14, large: text.bu
 
 /** Button in the Geist control family. `square` renders an icon-only button and requires an accessible name. */
 export function Button(props: Button.Props) {
-  const { children, size = 'medium', square, style, variant = 'secondary', ...rest } = props
+  const {
+    children,
+    size = 'medium',
+    square,
+    style,
+    type = 'button',
+    variant = 'secondary',
+    ...rest
+  } = props
   return (
     <button
-      type="button"
       {...rest}
+      // After the spread: an explicit `type: undefined` would otherwise fall
+      // through to the browser's `submit` default inside a form.
+      type={type}
       {...stylex.props(
         styles.root,
         typography[size],

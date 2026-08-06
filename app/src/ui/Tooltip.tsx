@@ -3,7 +3,7 @@ import * as stylex from '@stylexjs/stylex'
 import type { ReactElement } from 'react'
 
 import { text } from '#/theme/text.js'
-import { color, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, font, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   popup: {
@@ -11,6 +11,8 @@ const styles = stylex.create({
     borderRadius: radius.control,
     boxShadow: shadow.tooltip,
     color: color.gray1000,
+    // The portal lands under `body`, outside the element that sets the font.
+    fontFamily: font.mono,
     paddingBlock: 4,
     paddingInline: 8,
     whiteSpace: 'nowrap',
