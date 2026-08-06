@@ -4,6 +4,7 @@ import { Frame as Core, Theme } from 'monoshot'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { query } from '#/lib/annotations.js'
+import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
@@ -153,6 +154,7 @@ const styles = stylex.create({
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
+const names = themes.map((entry) => entry.name)
 
 function Page() {
   const [settings, setSettings] = useState<
@@ -208,6 +210,24 @@ function Page() {
   const nextArrow = useRef<HTMLButtonElement>(null)
   const [pressed, setPressed] = useState<number>()
   const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Themes load their own chunk on first use, so an unvisited one costs a
+  // round trip. Warming the list outward from the opening theme keeps every
+  // switch after the page settles instant. Runs once: the sweep covers the
+  // whole list wherever it starts.
+  useEffect(() => {
+    const controller = new AbortController()
+    void Warm.themes({
+      from: settings.theme,
+      // The full sweep is a couple of megabytes of chunks, so a metered
+      // connection gets the neighbours the arrows reach and nothing more.
+      limit: metered() ? 4 : names.length,
+      list: names,
+      load: (theme) => renderer.load({ lang: 'tsx', theme }),
+      signal: controller.signal,
+    })
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     function walk(event: KeyboardEvent) {
@@ -453,6 +473,15 @@ type Edges = {
   right: number
   top: number
   width: number
+}
+
+/** Whether the connection asks callers to go easy on data. */
+function metered() {
+  const { connection } = navigator as Navigator & {
+    connection?: { effectiveType?: string; saveData?: boolean } | undefined
+  }
+  if (!connection) return false
+  return connection.saveData === true || /^(slow-)?2g$/.test(connection.effectiveType ?? '')
 }
 
 /** Rough perceptual lightness of a `#rrggbb` color, from 0 to 1. */
