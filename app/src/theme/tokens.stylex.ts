@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex'
 // backgrounds, 900-1000 text and icons. Values transcribed from Vercel's
 // published palette (grays as hex, chromatic scales as oklch).
 export const color = stylex.defineVars({
-  background: 'light-dark(#fff, #000)',
+  background: 'light-dark(#fff, #0a0a0a)',
   backgroundSecondary: 'light-dark(#fafafa, #000)',
 
   gray100: 'light-dark(#f2f2f2, #1a1a1a)',
@@ -74,10 +74,9 @@ export const color = stylex.defineVars({
   green900: 'light-dark(oklch(51.75% 0.1453 147.65), oklch(73.1% 0.2158 148.29))',
   green1000: 'light-dark(oklch(29.15% 0.1197 147.38), oklch(96.76% 0.056 154.18))',
 
-  // Semantic aliases (duplicated literals: defineVars values must be static).
-  foreground: 'light-dark(#171717, #ededed)',
-  foregroundSecondary: 'light-dark(#4d4d4d, #a0a0a0)',
-  focus: 'light-dark(oklch(57.61% 0.2508 258.23), oklch(71.7% 0.1648 250.794))',
+  // Text that sits on a solid colored surface, where the scheme's own
+  // foreground would disappear.
+  onSolid: '#fff',
 })
 
 export const font = stylex.defineVars({
@@ -103,25 +102,6 @@ export const shadow = stylex.defineVars({
     '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000052), 0 4px 8px light-dark(#0000000a, #00000029)',
   focusRing:
     '0 0 0 2px light-dark(#fff, #000), 0 0 0 4px light-dark(oklch(57.61% 0.2508 258.23), oklch(71.7% 0.1648 250.794))',
-  focusBorder:
-    '0 0 0 1px light-dark(#0000003d, #ffffff3d), 0 0 0 4px light-dark(#00000029, #ffffff3d)',
-})
-
-// Inlined at build time: no CSS variables generated.
-export const space = stylex.defineConsts({
-  '1': '4px',
-  '2': '8px',
-  '3': '12px',
-  '4': '16px',
-  '6': '24px',
-  '8': '32px',
-  '10': '40px',
-  '16': '64px',
-})
-
-export const control = stylex.defineConsts({
-  tiny: '24px',
-  small: '32px',
-  medium: '40px',
-  large: '48px',
+  thumb: '0 1px 2px light-dark(#00000029, #00000052)',
+  window: '0 24px 48px -12px light-dark(#00000026, #00000059)',
 })

@@ -17,6 +17,16 @@
   body {
     -webkit-font-smoothing: antialiased;
   }
+
+  /* Form controls do not inherit type by default, so every button, input, and
+     select would silently fall back to the system font. */
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    letter-spacing: inherit;
+  }
 }
 
 @layer tokens {
@@ -24,5 +34,24 @@
     /* light-dark() is inert without color-scheme; the OS preference drives the
        scheme until a manual override toggles it on <html>. */
     color-scheme: light dark;
+  }
+
+  body {
+    font-family:
+      'Geist Variable',
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+
+  /* Shiki emits the highlighted markup, so the gutter is styled here rather
+     than through StyleX, which cannot target injected descendants. */
+  [data-line-numbers] .line::before {
+    content: attr(data-line);
+    display: inline-block;
+    margin-right: 20px;
+    opacity: 0.4;
+    text-align: right;
+    width: 2ch;
   }
 }

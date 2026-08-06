@@ -1,12 +1,11 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
-import type { ReactNode } from 'react'
+import type { ReactElement } from 'react'
 
 import { text } from '#/theme/text.js'
 import { color, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
-  trigger: { display: 'inline-flex' },
   popup: {
     backgroundColor: color.background,
     borderRadius: radius.control,
@@ -18,29 +17,30 @@ const styles = stylex.create({
   },
 })
 
-/** Hover and focus tooltip. Positioning, delay, and `aria-describedby` wiring come from Base UI. */
+/**
+ * Hover and focus tooltip around a single focusable child.
+ *
+ * Base UI does not expose the popup text to assistive technology, so the child
+ * still needs its own accessible name; treat the tooltip as a sighted-user hint.
+ */
 export function Tooltip(props: Tooltip.Props) {
-  const { children, label, style } = props
+  const { children, label } = props
   return (
-    <Base.Provider>
-      <Base.Root>
-        <Base.Trigger render={<span />} {...stylex.props(styles.trigger, style)}>
-          {children}
-        </Base.Trigger>
-        <Base.Portal>
-          <Base.Positioner side="top" sideOffset={6}>
-            <Base.Popup {...stylex.props(styles.popup, text.label13)}>{label}</Base.Popup>
-          </Base.Positioner>
-        </Base.Portal>
-      </Base.Root>
-    </Base.Provider>
+    <Base.Root>
+      <Base.Trigger render={children} />
+      <Base.Portal>
+        <Base.Positioner side="top" sideOffset={6}>
+          <Base.Popup {...stylex.props(styles.popup, text.label13)}>{label}</Base.Popup>
+        </Base.Positioner>
+      </Base.Portal>
+    </Base.Root>
   )
 }
 
 export declare namespace Tooltip {
   type Props = {
-    children: ReactNode
+    /** The focusable control the tooltip describes. */
+    children: ReactElement
     label: string
-    style?: stylex.StyleXStyles | undefined
   }
 }
