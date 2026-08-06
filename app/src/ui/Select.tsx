@@ -10,19 +10,15 @@ const styles = stylex.create({
     backgroundColor: color.background,
     borderStyle: 'none',
     borderRadius: radius.control,
-    boxShadow: {
-      default: shadow.border,
-      ':hover': shadow.border,
-      ':focus-visible': shadow.focusRing,
-    },
+    boxShadow: { default: shadow.border, ':focus-visible': shadow.focusRing },
     color: color.gray1000,
     cursor: 'pointer',
     outline: 'none',
     paddingInlineEnd: 28,
     paddingInlineStart: 10,
   },
-  // The chevron is a background image so the control keeps one box and the
-  // native picker stays in charge of the popup.
+  // A background image rather than a mask: masking a `select` clips the whole
+  // control. The stroke matches gray700, which is identical in both schemes.
   chevron: {
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='%238f8f8f' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E")`,
     backgroundPosition: 'right 8px center',

@@ -24,9 +24,9 @@ const styles = stylex.create({
   },
   thumb: {
     // Inverts with the track so the thumb keeps contrast in both states.
-    backgroundColor: { default: '#fff', ':is([data-checked])': color.background },
+    backgroundColor: { default: color.onSolid, ':is([data-checked])': color.background },
     borderRadius: 999,
-    boxShadow: '0 1px 2px #00000029',
+    boxShadow: shadow.thumb,
     display: 'block',
     height: 16,
     insetInlineStart: { default: 2, ':is([data-checked])': 18 },

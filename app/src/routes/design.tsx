@@ -156,11 +156,11 @@ const typeLevels = [
   { name: 'button-14', style: text.button14 },
 ] as const
 
-const paddings = [
-  { label: '16', value: '16' },
-  { label: '32', value: '32' },
-  { label: '64', value: '64' },
-  { label: '128', value: '128' },
+const paddingOptions = [
+  { label: '16', value: 16 },
+  { label: '32', value: 32 },
+  { label: '64', value: 64 },
+  { label: '128', value: 128 },
 ] as const
 
 function Section(props: { children: ReactNode; title: string }) {
@@ -173,7 +173,7 @@ function Section(props: { children: ReactNode; title: string }) {
 }
 
 function Page() {
-  const [padding, setPadding] = useState<(typeof paddings)[number]['value']>('64')
+  const [padding, setPadding] = useState<(typeof paddingOptions)[number]['value']>(64)
   const [checked, setChecked] = useState(true)
   return (
     <main {...stylex.props(styles.page)}>
@@ -231,7 +231,12 @@ function Page() {
 
         <Section title="Controls">
           <div {...stylex.props(styles.row)}>
-            <Segmented label="Padding" onChange={setPadding} options={paddings} value={padding} />
+            <Segmented
+              label="Padding"
+              onChange={setPadding}
+              options={paddingOptions}
+              value={padding}
+            />
             <Switch aria-label="Show background" checked={checked} onCheckedChange={setChecked} />
             <Tooltip label="Copy image">
               <Button size="small" variant="tertiary">

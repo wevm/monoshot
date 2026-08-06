@@ -19,18 +19,19 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   primary: {
-    backgroundColor: {
-      default: color.gray1000,
-      ':hover:not(:disabled)': color.gray900,
-      ':active:not(:disabled)': color.gray800,
-    },
+    // Hover and active shift by opacity so the ramp stays monotonic in both
+    // schemes; stepping down the gray scale inverts direction in dark.
+    backgroundColor: color.gray1000,
     color: color.background,
+    opacity: { default: 1, ':hover:not(:disabled)': 0.85, ':active:not(:disabled)': 0.75 },
   },
   secondary: {
     backgroundColor: {
       default: color.background,
       ':hover:not(:disabled)': color.grayAlpha100,
       ':active:not(:disabled)': color.grayAlpha200,
+      // Buttons that open a popup stay tinted while it is open.
+      ':is([data-popup-open])': color.grayAlpha100,
     },
     boxShadow: { default: shadow.border, ':focus-visible': shadow.focusRing },
     color: color.gray1000,
@@ -40,16 +41,14 @@ const styles = stylex.create({
       default: 'transparent',
       ':hover:not(:disabled)': color.grayAlpha100,
       ':active:not(:disabled)': color.grayAlpha200,
+      ':is([data-popup-open])': color.grayAlpha100,
     },
     color: color.gray1000,
   },
   danger: {
-    backgroundColor: {
-      default: color.red800,
-      ':hover:not(:disabled)': color.red900,
-      ':active:not(:disabled)': color.red700,
-    },
-    color: '#fff',
+    backgroundColor: color.red800,
+    color: color.onSolid,
+    opacity: { default: 1, ':hover:not(:disabled)': 0.9, ':active:not(:disabled)': 0.8 },
   },
   small: { height: 32, paddingInline: 10 },
   medium: { height: 40, paddingInline: 14 },
@@ -100,7 +99,7 @@ export declare namespace Button {
     children?: ReactNode | undefined
     size?: 'small' | 'medium' | 'large' | undefined
     square?: boolean | undefined
-    style?: stylex.StyleXStyles | undefined
+    style?: stylex.StyleXStyles | readonly stylex.StyleXStyles[] | undefined
     variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | undefined
   }
 }
