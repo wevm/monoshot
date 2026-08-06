@@ -1,6 +1,5 @@
 @layer reset, vendor, tokens;
 
-@import '@fontsource-variable/geist' layer(vendor);
 @import '@fontsource-variable/geist-mono' layer(vendor);
 
 @layer reset {
@@ -34,14 +33,13 @@
     /* light-dark() is inert without color-scheme; the OS preference drives the
        scheme until a manual override toggles it on <html>. */
     color-scheme: light dark;
+    /* Lets the toolbar transition to and from its content-sized width and
+       height as its contents swap. */
+    interpolate-size: allow-keywords;
   }
 
   body {
-    font-family:
-      'Geist Variable',
-      system-ui,
-      -apple-system,
-      sans-serif;
+    font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   }
 
   /* Shiki emits the highlighted markup, so the gutter is styled here rather

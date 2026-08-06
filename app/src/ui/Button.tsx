@@ -36,6 +36,7 @@ const styles = stylex.create({
     boxShadow: { default: shadow.border, ':focus-visible': shadow.focusRing },
     color: color.gray1000,
   },
+  // Sits on whatever surface hosts it, so it takes that surface's text color.
   tertiary: {
     backgroundColor: {
       default: 'transparent',
@@ -43,7 +44,7 @@ const styles = stylex.create({
       ':active:not(:disabled)': color.grayAlpha200,
       ':is([data-popup-open])': color.grayAlpha100,
     },
-    color: color.gray1000,
+    color: 'inherit',
   },
   danger: {
     backgroundColor: color.red800,

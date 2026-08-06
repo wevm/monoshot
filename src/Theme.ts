@@ -52,9 +52,11 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
     // behind the artwork whatever the theme.
     page: {
       background: css({
-        c: hue === undefined ? 0 : 0.02,
+        c: hue === undefined ? 0 : 0.05,
         h: hue,
-        l: clamp(bg.l * 0.55, 0.04, 0.14),
+        // Sits just off the window rather than falling away to black, so the
+        // theme still reads in the shell.
+        l: type === 'dark' ? clamp(bg.l + 0.06, 0.16, 0.32) : 0.2,
       }),
       foreground: css({ c: hue === undefined ? 0 : 0.01, h: hue, l: 0.93 }),
     },

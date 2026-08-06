@@ -89,7 +89,6 @@ export const color = stylex.defineVars({
 
 export const font = stylex.defineVars({
   mono: "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
-  sans: "'Geist Variable', system-ui, -apple-system, sans-serif",
 })
 
 export const radius = stylex.defineVars({
@@ -112,4 +111,15 @@ export const shadow = stylex.defineVars({
     '0 0 0 2px light-dark(#fff, #000), 0 0 0 4px light-dark(oklch(57.61% 0.2508 258.23), oklch(71.7% 0.1648 250.794))',
   thumb: '0 1px 2px light-dark(#00000029, #00000052)',
   window: '0 24px 48px -12px light-dark(#00000026, #00000059)',
+})
+
+// Inlined at build time: no CSS variables generated.
+export const motion = stylex.defineConsts({
+  /** Decelerating curve for surfaces settling into place (out-expo). */
+  out: 'cubic-bezier(0.19, 1, 0.22, 1)',
+  /** Symmetric curve for a value moving between two known states (in-out-quint). */
+  inOut: 'cubic-bezier(0.86, 0, 0.07, 1)',
+  fast: '140ms',
+  medium: '260ms',
+  slow: '420ms',
 })

@@ -3,7 +3,7 @@ import type { Theme } from 'monoshot'
 import type { ReactNode } from 'react'
 
 import { text } from '#/theme/text.js'
-import { font, radius, shadow } from '../../theme/tokens.stylex.js'
+import { font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   // Backdrop and window colors are per-theme, so they arrive as CSS variables
@@ -18,7 +18,13 @@ const styles = stylex.create({
   }),
   // Square by design: the artwork's edge is the image's edge, so only the
   // window inside it is rounded.
-  root: { display: 'flex', justifyContent: 'center' },
+  root: {
+    display: 'flex',
+    justifyContent: 'center',
+    transitionDuration: motion.medium,
+    transitionProperty: 'padding, background-image',
+    transitionTimingFunction: motion.out,
+  },
   backdrop: {
     backgroundImage:
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
@@ -60,11 +66,13 @@ const styles = stylex.create({
     '::placeholder': { color: 'var(--window-title)' },
   },
   body: { paddingBlock: 4, paddingInline: 16 },
+  // Without the title bar the code needs its own breathing room at the top.
+  bodyBare: { paddingBlock: 8 },
 })
 
 /** The exported artwork: a gradient backdrop around a themed code window. */
 export function Frame(props: Frame.Props) {
-  const { background, children, onTitleChange, padding, palette, title } = props
+  const { background, children, onTitleChange, padding, palette, title, titleBar } = props
   return (
     <div
       {...stylex.props(
@@ -82,22 +90,24 @@ export function Frame(props: Frame.Props) {
       )}
     >
       <div {...stylex.props(styles.window, styles.windowShadow)}>
-        <div {...stylex.props(styles.titleBar)}>
-          <div aria-hidden {...stylex.props(styles.lights)}>
-            <span {...stylex.props(styles.light)} />
-            <span {...stylex.props(styles.light)} />
-            <span {...stylex.props(styles.light)} />
+        {titleBar && (
+          <div {...stylex.props(styles.titleBar)}>
+            <div aria-hidden {...stylex.props(styles.lights)}>
+              <span {...stylex.props(styles.light)} />
+              <span {...stylex.props(styles.light)} />
+              <span {...stylex.props(styles.light)} />
+            </div>
+            <input
+              aria-label="Title"
+              onChange={(event) => onTitleChange(event.target.value)}
+              placeholder="untitled"
+              spellCheck={false}
+              value={title}
+              {...stylex.props(styles.title, text.label13)}
+            />
           </div>
-          <input
-            aria-label="Title"
-            onChange={(event) => onTitleChange(event.target.value)}
-            placeholder="untitled"
-            spellCheck={false}
-            value={title}
-            {...stylex.props(styles.title, text.label13)}
-          />
-        </div>
-        <div {...stylex.props(styles.body)}>{children}</div>
+        )}
+        <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>{children}</div>
       </div>
     </div>
   )
@@ -115,6 +125,8 @@ export declare namespace Frame {
     palette: Theme.derive.Result
     /** Title-bar text. Empty shows the placeholder. */
     title: string
+    /** Shows the window chrome: traffic lights and the title field. */
+    titleBar: boolean
   }
 }
 

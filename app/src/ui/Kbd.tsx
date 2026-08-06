@@ -12,7 +12,7 @@ const styles = stylex.create({
     boxShadow: shadow.border,
     color: color.gray900,
     display: 'inline-flex',
-    fontFamily: font.sans,
+    fontFamily: font.mono,
     height: 20,
     justifyContent: 'center',
     minWidth: 20,

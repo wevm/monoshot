@@ -88,7 +88,7 @@ describe('derive', () => {
           "to": "oklch(0.27304230872217733 0 0)",
         },
         "page": {
-          "background": "oklch(0.09517326979719755 0 0)",
+          "background": "oklch(0.23304230872217735 0 0)",
           "foreground": "oklch(0.93 0 0)",
         },
         "type": "dark",

@@ -4,11 +4,21 @@ import type { ReactNode } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Button } from './Button.js'
-import { color, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   popup: {
     backgroundColor: color.background,
+    // Base UI stamps these while the popup enters and leaves.
+    opacity: { default: 1, ':is([data-starting-style], [data-ending-style])': 0 },
+    transform: {
+      default: 'translateY(0) scale(1)',
+      ':is([data-starting-style], [data-ending-style])': 'translateY(-4px) scale(0.98)',
+    },
+    transformOrigin: 'top right',
+    transitionDuration: motion.fast,
+    transitionProperty: 'opacity, transform',
+    transitionTimingFunction: motion.out,
     borderRadius: radius.floating,
     boxShadow: shadow.menu,
     display: 'flex',
@@ -42,7 +52,7 @@ export function Menu(props: Menu.Props) {
   const { children, label, style } = props
   return (
     <Base.Root>
-      <Base.Trigger render={<Button />} {...stylex.props(style)}>
+      <Base.Trigger render={<Button variant="tertiary" />} {...stylex.props(style)}>
         {label}
       </Base.Trigger>
       <Base.Portal>
