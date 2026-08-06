@@ -283,6 +283,11 @@ function Handle(props: Handle.Props) {
   const along = (event: { clientX: number; clientY: number }) =>
     axis === 'x' ? event.clientX : event.clientY
 
+  // A drag outlives the events that started it, so its listeners have to come
+  // off if the handle is unmounted mid-gesture.
+  const release = useRef<(() => void) | undefined>(undefined)
+  useEffect(() => () => release.current?.(), [])
+
   // Pointer capture keeps the drag alive past the handle's own bounds.
   function begin(event: ReactPointerEvent<HTMLButtonElement>) {
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -290,11 +295,13 @@ function Handle(props: Handle.Props) {
     const start = along(event)
     const move = (next: PointerEvent) => onChange(clamp(value + (along(next) - start) * factor))
     const end = () => {
+      release.current = undefined
       onDragging(false)
       window.removeEventListener('pointercancel', end)
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', end)
     }
+    release.current = end
     window.addEventListener('pointercancel', end)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', end)
