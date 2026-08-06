@@ -103,6 +103,14 @@
 - Treat `pnpm check` as mutating because it applies fixes. Inspect and keep only task-related changes.
 - Run `git diff --check` and inspect the final diff before reporting completion.
 
+## UI Conventions
+
+- Build interactive components on Base UI (`@base-ui/react`). Do not hand-roll focus management, dismissal, positioning, roving focus, or ARIA wiring, and do not reimplement behavior with React state that a Base UI primitive already owns.
+- Style Base UI parts with StyleX through their `data-*` state attributes (`:is([data-checked])`, `:is([data-highlighted])`, `:is([data-popup-open])`), never JavaScript-toggled classes.
+- Native elements are correct when the platform already provides the whole behavior (`input`, `select`, `button`); reach for Base UI as soon as a component needs a popup, a group, or coordinated state.
+- Color comes from `light-dark()` tokens in `theme/tokens.stylex.ts`. Never write a scheme-specific override at a use site.
+- `.stylex.ts` files hold only `defineVars`/`defineConsts` named exports, and must be imported relatively: the StyleX compiler resolves them itself and does not understand the `#/*` subpath imports used everywhere else.
+
 ## Repository Layout
 
 - The repo root is the published `monoshot` library: flat PascalCase namespace modules in `src/` with colocated tests, built with `zile`, checked with `vp`.

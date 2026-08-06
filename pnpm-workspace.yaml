@@ -5,6 +5,7 @@ packages:
 catalog:
   '@changesets/cli': ^2.29.0
   '@cloudflare/vite-plugin': ^1.51.0
+  '@base-ui/react': ^1.7.0
   '@fontsource-variable/geist': ^5.3.0
   '@fontsource-variable/geist-mono': ^5.3.0
   '@stylexjs/stylex': 0.19.0

@@ -5,6 +5,7 @@
 Build a code-screenshot generator (ray.so alternative) supporting every shiki theme and language, with TypeScript-playground-style auto-type-acquisition and twoslash annotations rendered live while editing and baked into exports — shipped as a **wevm-style npm library** consumed by a web app, a CLI + MCP server (incur), and an HTTP API (Hono), so agents and programs can generate code images.
 
 User decisions:
+
 - New repo, wevm library standards (ox / viem v3 / frog / incur patterns); copy **wevm/frog's AGENTS.md** in for TS/lib patterns (full verbatim copy captured in the research scratchpad).
 - Library surface reused by: CLI + MCP via **wevm/incur**, and an API via **Hono** on Cloudflare Workers.
 - Web app: Vite + TanStack Start + Hono worker (wallet-next-style internals). **StyleX** design system, Geist-inspired colors/typography, `light-dark()` theming.
@@ -16,6 +17,7 @@ User decisions:
 - Name: **monoshot** (npm-available).
 
 Research (source-verified 2026-08-05/06; the outputs below were session-local research artifacts — their distilled facts are inlined in this document):
+
 - `tasks/w3ywvnz17.output` — ray.so internals, @typescript/ata, twoslash/@shikijs/twoslash, shiki 4.4.2, DOM-export libraries.
 - `tasks/wwmpdecqv.output` — architecture design + adversarial critique (blocker fixes folded in below).
 - `tasks/wp4jajbdy.output` — StyleX 0.19 integration + Geist token tables (scratchpad: `stylex.md`, `geist.md`, raw Vercel CSS).
@@ -24,12 +26,14 @@ Research (source-verified 2026-08-05/06; the outputs below were session-local re
 ## Key research facts
 
 ### Engine (unchanged from reviewed design)
+
 - **Editor**: CodeMirror 6 (textarea overlay breaks under twoslash's in-flow blocks; Monaco is multi-MB, no mobile). Own the ~200-line shiki-token bridge; block widgets from a StateField; `@codemirror/lint` push-model squiggles.
 - **shiki 4.4.2** + `@shikijs/twoslash 4.4.2` (version-locked): `createHighlighterCore` + JS regex engine (no wasm), lazy per-theme/lang chunks, `tm-themes` metadata for the 65-theme picker. `rendererRich({ queryRendering: 'line', errorRendering: 'line' })` makes annotations in-flow static blocks that bake into images; identifier hovers stay `:hover`-gated (editor-only).
 - **twoslash 0.3.9 / twoslash-cdn 0.3.9**: `typescript` pinned **`~5.9.3`** (npm latest 7.x is the Go port, no JS API; no twoslash path on TS 7 yet). Browser/worker: twoslash-cdn (ATA + vfs, IndexedDB fetch cache). **Node: `createTwoslasher()` defaults to an FS-backed vfs** — local `node_modules` types resolve free; ATA covers standalone snippets. `noErrorValidation` for keystroke tolerance. **Twoslash strips notations and remaps positions** (`result.code !== input`); with hidden notations every annotation position maps cleaned→raw via `meta.removals`.
 - **Browser export**: `@zumer/snapdom` (foreignObject capture, Safari warmup, font subsetting), `modern-screenshot` fallback seam. Satori rejected (cannot render twoslash CSS).
 
 ### wevm library standards (verified against ox@main, viem@v3, frog@main, incur@main, zile@main)
+
 - **Topology: library at repo root**, apps as sibling workspaces — frog's `pnpm-workspace.yaml` is literally `packages: [., app]` with `app/` a private Cloudflare Worker depending on `frog: workspace:*`. Not a `packages/` monorepo. `site/` (vocs) optional later.
 - **Modules**: flat PascalCase namespace files in `src/` (`Frame.ts`, `Theme.ts`), colocated `X.test.ts`/`X.test-d.ts`, `internal/` private, `src/index.ts` re-exports namespaces (`export * as Frame from './Frame.js'`), `src/version.ts`.
 - **Build: zile** (v0.0.30): exports point at source with a **`src` condition** (`{ "src": "./src/index.ts", "types": "./dist/index.d.ts", "default": "./dist/index.js" }`), `[!start-pkg]` package.json marker splits dev manifest from published manifest, `bin` + `bin.src` convention, `zile dev` symlinks on postinstall, publish = `zile publish:prepare && changeset publish && zile publish:post`.
@@ -38,6 +42,7 @@ Research (source-verified 2026-08-05/06; the outputs below were session-local re
 - **incur 0.4.26**: `Cli.create(name, { args/options/env/output: zod, run(c) })` → one definition yields CLI, **stdio MCP server (`--mcp`)**, agent registration (`mcp add`), **HTTP handler `cli.fetch` with a streamable-HTTP `/mcp` endpoint + JSON command API + `/openapi.json`** (works as a Worker default export or mounted in Hono), and generated skill files (`skills add`). Same-package `bin` is the wevm pattern (frog). Pre-1.0: pin exact (frog pins 0.4.25); depends on an alpha MCP SDK.
 
 ### Headless rendering (CLI + API)
+
 - **Invariant: every non-browser surface screenshots the same standalone HTML in Chromium.** The library emits a self-contained document (pre-rendered annotations, one inlined stylesheet, Geist Mono as data-URL `@font-face`, no JS).
 - **CLI**: `puppeteer-core@^25` — system Chrome via `channel: 'chrome'` / `computeSystemExecutablePath`, `PUPPETEER_EXECUTABLE_PATH` override, consent-gated `@puppeteer/browsers` download fallback (~180 MB; `chrome-headless-shell` ~95–115 MB behind a fidelity-warning flag). Ships behind a `./headless` entrypoint with puppeteer-core as an optional peer so library consumers never download Chrome.
 - **Worker API**: Cloudflare **Browser Run** (formerly Browser Rendering) — `@cloudflare/puppeteer` 1.3.0, `browser` binding, `setContent(html)` + `document.fonts.ready` + element screenshot with `deviceScaleFactor`; session reuse via `sessions()`/`connect()`/`disconnect()` + `keep_alive`. Paid plan includes 10 browser-hours/mo then $0.09/h (a ~2 s render ≈ $0.00005); free tier (10 min/day, 1 launch/20 s) is demo-only — **the API effectively requires Workers Paid**. The REST Quick Action `/screenshot` (accepts raw `html` + `selector` + `viewport.deviceScaleFactor`) is a valid zero-puppeteer v0.
@@ -46,6 +51,7 @@ Research (source-verified 2026-08-05/06; the outputs below were session-local re
 - **takumi** (`@takumi-rs/*`, real CSS-selector support, 1.5 MB gzip wasm, WOFF2 fonts via API) is the only credible non-Chromium engine — deferred as an optional "fast, close-but-not-pixel-identical" mode; not in v1.
 
 ### StyleX (0.19.0) + Geist — app design system
+
 - `@stylexjs/unplugin` → `stylex.vite()` **before** the React plugin; for TanStack Start + `@cloudflare/vite-plugin` mirror the official redwoodsdk example: `devMode: 'css-only'`, `devPersistToDisk: true`, `runtimeInjection: false`, `useCSSLayers` object form; dev `<link href="/virtual:stylex.css">` in the root route head + client `import('virtual:stylex:css-only')` (virtual module name must match devMode — issue #1621). No first-party Start recipe — validate in the scaffold PR.
 - Tokens: `stylex.defineVars` in `.stylex.ts` files with **`light-dark()`** color values (documented pattern; colors only — shadows use `@media` condition objects); `defineConsts` for breakpoints; `createTheme` for scoped overrides. `:root { color-scheme: light dark }`; manual override toggles `color-scheme`.
 - Geist values extracted from Vercel production CSS (snapshot; rename tokens, "Geist-inspired"): 9 scales + backgrounds, 10 steps with official semantics (100–300 bg, 400–600 borders, 700–800 high-contrast, 900–1000 text), full light+dark oklch tables; exact type scale (heading/copy/label/button); shadow-border materials; radii 6/12; 4 px spacing; control heights 24/32/40/48. Fonts: `@fontsource-variable/geist` + `@fontsource-variable/geist-mono`.
@@ -55,11 +61,11 @@ Research (source-verified 2026-08-05/06; the outputs below were session-local re
 
 **Library core is pure and runtime-agnostic**: frame model → shiki+twoslash hast/HTML → standalone-document emitter. Surfaces are thin adapters:
 
-| Surface | Twoslash compute | Raster |
-|---|---|---|
-| Web app | twoslash-cdn in a Web Worker (IndexedDB cache) | snapdom on the live offscreen DOM |
-| CLI + MCP (incur) | twoslash Node FS-vfs (+ ATA for standalone snippets) | puppeteer-core + system/downloaded Chrome |
-| API (Hono on Workers) | in-Worker twoslash (paid; KV-cached ATA) | Browser Run `setContent` + element screenshot |
+| Surface               | Twoslash compute                                     | Raster                                        |
+| --------------------- | ---------------------------------------------------- | --------------------------------------------- |
+| Web app               | twoslash-cdn in a Web Worker (IndexedDB cache)       | snapdom on the live offscreen DOM             |
+| CLI + MCP (incur)     | twoslash Node FS-vfs (+ ATA for standalone snippets) | puppeteer-core + system/downloaded Chrome     |
+| API (Hono on Workers) | in-Worker twoslash (paid; KV-cached ATA)             | Browser Run `setContent` + element screenshot |
 
 **One keystroke (app)**: CM6 dispatch → [sync] shiki token StateField recolors; widgets/diagnostics map through `tr.changes` → [async 300 ms] worker `runSync` → hydrate + `render.annotated` + `meta.removals` position map → block widgets + lint → [async 1 s, import-lines changed] ATA `prepareTypes` with progress events. Hash write debounced 500 ms via the router.
 
@@ -116,6 +122,7 @@ Catalog pins that matter: `@stylexjs/stylex 0.19.0` + `@stylexjs/unplugin 0.19.0
 ## App specifics (carried from the reviewed design, critique fixes included)
 
 - **Design system (StyleX + Geist)**: `app/src/theme/tokens.stylex.ts` (renamed Geist oklch scales via `light-dark()`, type scale, shadow-border materials, radii/spacing/control heights), `consts.stylex.ts`, `tokens.css` (only `--code-*` metrics + `--twoslash-*`); `@layer reset, vendor, tokens, stylex.*`; `src/ui/` primitives per Geist control specs; `/design` gallery route; scheme toggle via `color-scheme`.
+- **Behavior comes from Base UI (`@base-ui/react`)**: tooltips, menus, switches, and toggle groups use its primitives for focus management, dismissal, positioning, and ARIA wiring; StyleX styles them through their `data-*` state attributes. Never hand-roll that behavior with React state.
 - **Editor bridges** (`app/src/lib/editor/`): shiki token StateField (undebounced `codeToTokensBase`); twoslash block widgets from a StateField provided **directly** (CM6 block-widget rule), margins neutralized so height accounting matches, `eq()` on html, `docVersion` re-checked immediately before every dispatch + `line <= doc.lines` clamp; lint via push `setDiagnostics`, ranges clamped, squiggle recolored from the derived error token.
 - **Worker client** (`app/src/lib/twoslash/`): lazy spawn on first TS-family edit; 300 ms run / 1 s ATA debounce (import-line prefilter); monotonic docVersion delivery; drain-to-latest in the worker after cold init; consecutive-failure notice; ATA typo detection via wrapped fetcher; `ata:*` progress events → AtaStatus pill.
 - **Metrics contract (editor ↔ export)**: shared CSS block (`--code-*`) sets font/size/line-height/letter-spacing/tab-size/`white-space: pre-wrap`/no ligatures; `.cm-line` padding zeroed; export line numbers as an out-of-flow column mirroring the gutter; CM6 `height: auto`. Parity e2e asserts equal line boxes/y-offsets on a 120-line wrapped snippet.
@@ -128,43 +135,43 @@ Catalog pins that matter: `@stylexjs/stylex 0.19.0` + `@stylexjs/unplugin 0.19.0
 Branches `jxom/<slug>`; conventional-commit titles; each PR deployable (library PRs land dark behind unpublished exports until release).
 
 **PR 1 — `chore: scaffold`.** Workspace (`packages: [., app]`), library skeleton (zile + `[!start-pkg]` + exports with `src` condition + changesets + vp + tsconfig refs + `src/index.ts`/`version.ts`), AGENTS.md (frog copy + addenda), app shell (TanStack Start + Cloudflare + Hono `/api/health` + StyleX wiring + fontsource Geist), CI (check/types/test/build/size-limit) + preview deploy.
-*Spikes inside*: StyleX dev wiring under Start + Cloudflare (`css-only` + `devPersistToDisk` + virtual-module link — no first-party recipe); a trivial module Web Worker chunks correctly (de-risks PR 7).
-*Verify*: `pnpm dev` serves a StyleX-styled shell; `curl /api/health`; `zile build` + `tsc -b` + `vp test` green; preview deploys.
+_Spikes inside_: StyleX dev wiring under Start + Cloudflare (`css-only` + `devPersistToDisk` + virtual-module link — no first-party recipe); a trivial module Web Worker chunks correctly (de-risks PR 7).
+_Verify_: `pnpm dev` serves a StyleX-styled shell; `curl /api/health`; `zile build` + `tsc -b` + `vp test` green; preview deploys.
 
 **PR 2 — `feat(app): design system`.** Geist-inspired StyleX tokens (`light-dark()` oklch scales, type scale, materials), `@layer` order, `src/ui` primitives, `/design` gallery, scheme toggle.
-*Verify*: gallery renders every primitive in both schemes; focus/hover per Geist specs; dev/prod cascade parity.
+_Verify_: gallery renders every primitive in both schemes; focus/hover per Geist specs; dev/prod cascade parity.
 
-**PR 3 — `feat: frame core + design prototype`** *(the immediate focus)*. Library v0: `Theme.list`/`Theme.derive` v0 (bg-lighten gradient + fixed twoslash palette per light/dark; full OKLCH derivation iterates later), `Frame.render` (shiki only, no twoslash), highlighter singleton. App: full editor-page UI with a **static** rendered sample incl. a mocked twoslash box — header, `Frame` (gradient, chrome, traffic lights, title input, padding presets, resize handles), `Controls`, `ThemePicker` (all 65, lazy chunks), visual-only `ExportMenu`.
-*Verify*: deployed preview is a convincing prototype; theme switch recolors coherently for `github-light`, `synthwave-84`, `min-light`, `vitesse-dark`, `red`; design review on this PR (screenshots in thread).
+**PR 3 — `feat: frame core + design prototype`** _(the immediate focus)_. Library v0: `Theme.list`/`Theme.derive` v0 (bg-lighten gradient + fixed twoslash palette per light/dark; full OKLCH derivation iterates later), `Frame.render` (shiki only, no twoslash), highlighter singleton. App: full editor-page UI with a **static** rendered sample incl. a mocked twoslash box — header, `Frame` (gradient, chrome, traffic lights, title input, padding presets, resize handles), `Controls`, `ThemePicker` (all 65, lazy chunks), visual-only `ExportMenu`.
+_Verify_: deployed preview is a convincing prototype; theme switch recolors coherently for `github-light`, `synthwave-84`, `min-light`, `vitesse-dark`, `red`; design review on this PR (screenshots in thread).
 
 **PR 4 — `feat(app): editing`.** CM6 replaces the static render: editor assembly, shiki token bridge, CM6 theme from `Theme.derive`, metrics contract, language auto-detect, in-memory store wiring controls.
-*Pre-work spike*: CM6-vs-`<pre>` parity (wrapped lines, tabs, widgets, line numbers → equal line boxes, caret accuracy).
-*Verify*: no keystroke lag at 100 lines; parity e2e green; Python/Rust paste auto-detects.
+_Pre-work spike_: CM6-vs-`<pre>` parity (wrapped lines, tabs, widgets, line numbers → equal line boxes, caret accuracy).
+_Verify_: no keystroke lag at 100 lines; parity e2e green; Python/Rust paste auto-detects.
 
 **PR 5 — `feat: codec + shareable URLs`.** Library `Codec` (schema + hash serialize/deserialize + tests); app hash wiring through the router, restore on load, copy-URL.
-*Verify*: reload restores state exactly; round-trip unit tests; no router-location desync.
+_Verify_: reload restores state exactly; round-trip unit tests; no router-location desync.
 
 **PR 6 — `feat(app): browser export`.** `render`/`export` app modules, functional ExportMenu (PNG 2x/4x/6x, SVG, copy image, scale persistence).
-*Verify*: PNG dimensions = frame size × scale (Playwright decodes blob); transparent PNG; clipboard in Chrome + macOS Safari (manual); no placeholders/handles in exports.
+_Verify_: PNG dimensions = frame size × scale (Playwright decodes blob); transparent PNG; clipboard in Chrome + macOS Safari (manual); no placeholders/handles in exports.
 
 **PR 7 — `feat: twoslash engine` (lands dark).** Library `Twoslash` (types, `mapPositions`, Node runner); app worker (`twoslash.worker.ts`, twoslash-cdn + unstorage IndexedDB + wrapped fetcher) + protocol + client. Unit tests; no UI change.
-*Pre-work spike*: twoslash 0.3.9 notation semantics — diff `result.code` vs input; validate the `meta.removals` map everything depends on.
-*Verify*: protocol/hydrate/mapPositions tests; worker chunks separately (size-limit guards the entry).
+_Pre-work spike_: twoslash 0.3.9 notation semantics — diff `result.code` vs input; validate the `meta.removals` map everything depends on.
+_Verify_: protocol/hydrate/mapPositions tests; worker chunks separately (size-limit guards the entry).
 
 **PR 8 — `feat(app): live twoslash`.** Block widgets, lint, twoslash branch in the render path, `--twoslash-*` derivation in `Theme.derive`, AtaStatus, toggle.
-*Verify*: `^?` type box < 500 ms warm at raw-doc positions; error squiggle + line; `import { ref } from 'vue'` → ATA pill → real types (second session: IndexedDB hits); typo'd import surfaces "types not found"; half-typed code never blanks; non-TS docs never spawn the worker.
+_Verify_: `^?` type box < 500 ms warm at raw-doc positions; error squiggle + line; `import { ref } from 'vue'` → ATA pill → real types (second session: IndexedDB hits); typo'd import surfaces "types not found"; half-typed code never blanks; non-TS docs never spawn the worker.
 
 **PR 9 — `feat(app): annotated exports`.** Export consumes the cached annotated render (notation lines hidden per product decision); build-time precomputed default-snippet annotations; bundle-budget e2e.
-*Verify*: 6x PNG bakes the `^?` box theme-coherently; landing renders annotations without loading typescript.
+_Verify_: 6x PNG bakes the `^?` box theme-coherently; landing renders annotations without loading typescript.
 
 **PR 10 — `feat: headless + CLI + MCP`.** Library `Frame.toDocument()` emitter, `./headless` (puppeteer-core adapter + Chrome discovery/download), incur CLI (`render`/`share`/`themes`) with `--mcp`.
-*Verify*: `monoshot render foo.ts -o out.png` matches the app export for the same state (same-OS Chrome); `monoshot render --twoslash` on a snippet importing `vue` resolves types via ATA; `--mcp` serves tools an MCP client can call; scale clamp at the 16,384 px cap.
+_Verify_: `monoshot render foo.ts -o out.png` matches the app export for the same state (same-OS Chrome); `monoshot render --twoslash` on a snippet importing `vue` resolves types via ATA; `--mcp` serves tools an MCP client can call; scale clamp at the 16,384 px cap.
 
 **PR 11 — `feat: image API`.** Library `Api` route factory (Browser Run binding, session reuse, in-Worker twoslash with KV-cached ATA maps — or Quick Actions REST as v0); app worker mounts `POST /api/image`; wrangler `browser` binding + `gen:types`.
-*Verify*: worker test round-trips state → PNG; latency acceptable warm (session reuse); startup benchmark for the typescript bundle inside the 1 s global-scope budget.
+_Verify_: worker test round-trips state → PNG; latency acceptable warm (session reuse); startup benchmark for the typescript bundle inside the 1 s global-scope budget.
 
 **PR 12 — `chore: share links + polish`.** `worker/share.ts` + `/s/:id`, short-link UI + long-URL warning, Alt+click line highlights, keyboard shortcuts (⌘S/⌘C/⌘⇧C), scale clamp UI, Safari/iOS + mobile pass, full e2e sweep, changeset + first npm release.
-*Verify*: `pnpm test` + `pnpm test:e2e` + builds + size-limit green; short link restores identical state; publish dry-run (`publint`, `attw`) clean.
+_Verify_: `pnpm test` + `pnpm test:e2e` + builds + size-limit green; short link restores identical state; publish dry-run (`publint`, `attw`) clean.
 
 ## Risks carried forward
 
