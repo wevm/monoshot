@@ -405,7 +405,7 @@ export function Toolbar(props: Toolbar.Props) {
           )}
         </AnimatePresence>
 
-        <m.div layout ref={bar} transition={spring} {...stylex.props(styles.surface, styles.bar)}>
+        <m.div layout ref={bar} transition={morph} {...stylex.props(styles.surface, styles.bar)}>
           <Item
             onClick={() => toggle('theme')}
             open={panel === 'theme'}
@@ -502,6 +502,10 @@ function backgroundLabel(background: string) {
 
 /** Settles quickly without overshooting into wobble. */
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
+
+// The bar moving between two known widths is not a gesture with momentum, so
+// it settles without overshoot; bounce here reads as the surface flexing.
+const morph = { bounce: 0, duration: 0.3, type: 'spring' } as const
 
 /** Strong ease-out: the panel resolves early instead of drifting into focus. */
 const fade = { duration: seconds(motion.fast), ease: bezier(motion.out) } as const
@@ -642,7 +646,7 @@ function Item(props: {
       aria-pressed={pressed}
       layout
       onClick={onClick}
-      transition={spring}
+      transition={morph}
       type="button"
       {...stylex.props(styles.item, open && styles.itemOpen)}
     >

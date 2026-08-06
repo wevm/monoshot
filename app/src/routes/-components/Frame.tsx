@@ -77,15 +77,7 @@ const styles = stylex.create({
   },
   handleX: { cursor: 'ew-resize', insetBlock: 0, width: 20 },
   handleY: { cursor: 'ns-resize', height: 20, insetInline: 0 },
-  // Rides the corner it rounds: the arc's midpoint sits about 0.3r in from the
-  // corner, so the grip drifts inward as the radius grows.
-  handleCorner: (offset: number) => ({
-    bottom: offset - 10,
-    cursor: 'nwse-resize',
-    height: 20,
-    right: offset - 10,
-    width: 20,
-  }),
+  handleCorner: { bottom: 0, cursor: 'nwse-resize', height: 22, right: 0, width: 22 },
   // The cross-axis inset above already pins the other pair, so naming both
   // sides here keeps one rule working for either orientation.
   handleStart: { left: 0, top: 0 },
@@ -99,7 +91,19 @@ const styles = stylex.create({
   },
   gripX: { height: 40, width: 4 },
   gripY: { height: 4, width: 40 },
-  gripCorner: { height: 8, width: 8 },
+  // A right angle tracing the corner it sets: the bracket's own curve follows
+  // the radius, so the control shows the value it holds.
+  gripCorner: (value: number) => ({
+    borderBottomStyle: 'solid',
+    borderBottomWidth: 2,
+    borderColor: color.onChrome,
+    borderEndEndRadius: value,
+    borderRightStyle: 'solid',
+    borderRightWidth: 2,
+    filter: 'drop-shadow(0 0 1px rgb(0 0 0 / 0.55))',
+    height: '100%',
+    width: '100%',
+  }),
   backdrop: {
     backgroundImage:
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
@@ -291,7 +295,7 @@ export function Frame(props: Frame.Props) {
             edge="end"
             factor={-2}
             label="Corner radius"
-            max={48}
+            max={24}
             min={0}
             onChange={onRadiusChange}
             onDragging={setDragging}
@@ -373,15 +377,15 @@ function Handle(props: Handle.Props) {
       type="button"
       {...stylex.props(
         styles.handle,
-        axis === 'xy' ? styles.handleCorner(12 + Math.round(value * 0.3)) : null,
+        axis === 'xy' ? styles.handleCorner : null,
         axis === 'x' ? styles.handleX : axis === 'y' ? styles.handleY : null,
         axis === 'xy' ? null : edge === 'start' ? styles.handleStart : styles.handleEnd,
       )}
     >
       <span
         {...stylex.props(
-          styles.grip,
-          axis === 'x' ? styles.gripX : axis === 'y' ? styles.gripY : styles.gripCorner,
+          axis === 'xy' ? styles.gripCorner(value) : styles.grip,
+          axis === 'x' ? styles.gripX : axis === 'y' ? styles.gripY : null,
         )}
       />
     </button>
