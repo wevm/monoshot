@@ -14,19 +14,24 @@ export type Types = Record<string, Annotation.Annotation>
  */
 export function hover(types: Types): Extension {
   return [
-    hoverTooltip((view, pos) => {
-      const identifier = Identifier.at(view.state.doc, pos)
-      const type = identifier && types[identifier.name]
-      if (!identifier || !type) return null
-      return {
-        // Below the identifier, where pinning will leave it: hovering previews
-        // the pinned block in place rather than somewhere else.
-        above: false,
-        create: () => ({ dom: Annotation.element(type) }),
-        end: identifier.to,
-        pos: identifier.from,
-      }
-    }),
+    hoverTooltip(
+      (view, pos) => {
+        const identifier = Identifier.at(view.state.doc, pos)
+        const type = identifier && types[identifier.name]
+        if (!identifier || !type) return null
+        return {
+          // Below the identifier, where pinning will leave it: hovering previews
+          // the pinned block in place rather than somewhere else.
+          above: false,
+          create: () => ({ dom: Annotation.element(type) }),
+          end: identifier.to,
+          pos: identifier.from,
+        }
+      },
+      // The types are already in hand, so waiting only makes the editor feel
+      // slower than it is.
+      { hoverTime: 0 },
+    ),
     EditorView.domEventHandlers({
       click(event, view) {
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
