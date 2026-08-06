@@ -90,6 +90,13 @@
     width: 0;
   }
 
+  /* Every identifier that has a type says so while the pointer is in the
+     editor, the way a type-aware editor marks what it knows about. */
+  .twoslash-mark {
+    text-decoration: underline dotted currentColor;
+    text-underline-offset: 4px;
+  }
+
   /* One surface for a type, wherever it is shown: the hover and the pinned
      block differ in where they sit, not in how they look. */
   .twoslash {

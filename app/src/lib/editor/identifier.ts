@@ -26,6 +26,13 @@ export function at(doc: Text, pos: number): Identifier | undefined {
   return undefined
 }
 
+/** Every identifier in a line, as offsets within that line. */
+export function* all(text: string): Generator<{ from: number; name: string; to: number }> {
+  word.lastIndex = 0
+  for (let match = word.exec(text); match; match = word.exec(text))
+    yield { from: match.index, name: match[0], to: match.index + match[0].length }
+}
+
 /**
  * The line a `^?` caret in `line` points at, and the identifier under it. The
  * caret addresses the line above, which is where twoslash reads it from.
