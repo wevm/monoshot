@@ -31,10 +31,12 @@ const styles = stylex.create({
     minWidth: 200,
     outline: 'none',
     padding: 4,
-    // Clears the page's own layers: the menu portals out of `main`, so it needs
-    // to outrank the crop guides and the toolbar rather than trail them.
-    zIndex: 10,
   },
+  // Clears the page's own layers: the menu portals out of `main`, so it has to
+  // outrank the crop guides and the toolbar rather than trail them. Floating UI
+  // puts a transform on the positioner, making it the stacking context, so the
+  // z-index belongs here and not on the popup inside it.
+  positioner: { zIndex: 10 },
   item: {
     alignItems: 'center',
     backgroundColor: {
@@ -63,7 +65,12 @@ export function Menu(props: Menu.Props) {
         {label}
       </Base.Trigger>
       <Base.Portal>
-        <Base.Positioner align="end" side="bottom" sideOffset={6}>
+        <Base.Positioner
+          align="end"
+          side="bottom"
+          sideOffset={6}
+          {...stylex.props(styles.positioner)}
+        >
           <Base.Popup {...stylex.props(styles.popup)}>{children}</Base.Popup>
         </Base.Positioner>
       </Base.Portal>
