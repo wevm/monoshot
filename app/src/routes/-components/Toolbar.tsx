@@ -53,10 +53,10 @@ const styles = stylex.create({
   itemValue: { color: color.onChrome },
   // The row is exactly one line tall and clips, so a rolling character can
   // never ride up over the label above it.
-  rollRow: { display: 'flex', lineHeight: 1.4, overflow: 'hidden' },
+  rollRow: { display: 'flex', lineHeight: 1.4, overflow: 'hidden', position: 'relative' },
   // One cell per character; both the outgoing and incoming glyph share it, so
   // the row keeps its width while a character changes.
-  rollCell: { display: 'grid', justifyItems: 'center' },
+  rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
   sliderRow: { alignItems: 'center', display: 'flex', gap: 16, padding: 16 },
@@ -123,6 +123,8 @@ export function Toolbar(props: Toolbar.Props) {
   // flicker, so the label follows a slower sample of it.
   const shownPadding = useThrottled(padding, 140)
   const previousPadding = usePrevious(shownPadding)
+  const themeIndex = themes.findIndex((entry) => entry.name === theme)
+  const previousThemeIndex = usePrevious(themeIndex)
   const selected = Theme.info(theme)
 
   // Clicking the open control closes it, so the bar is its own dismiss target.
@@ -195,7 +197,7 @@ export function Toolbar(props: Toolbar.Props) {
             onClick={() => toggle('theme')}
             open={panel === 'theme'}
             title="Theme"
-            up
+            up={themeIndex >= previousThemeIndex}
             value={selected?.displayName ?? theme}
           />
           <Item
