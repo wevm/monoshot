@@ -57,6 +57,17 @@
     --code-annotation-size: 12px;
   }
 
+  /* Curves and durations, authoritative here so plain CSS and StyleX read the
+     same values; `theme/tokens.stylex.ts` derives its `motion` consts from
+     these rather than restating them. */
+  :root {
+    --motion-out: cubic-bezier(0.19, 1, 0.22, 1);
+    --motion-in-out: cubic-bezier(0.86, 0, 0.07, 1);
+    --motion-fast: 140ms;
+    --motion-medium: 260ms;
+    --motion-slow: 420ms;
+  }
+
   /* Shiki emits `pre > code`, and both carry UA font defaults that would
      otherwise win over anything inherited from the frame. */
   .shiki,
@@ -93,10 +104,26 @@
   /* Every identifier that has a type says so while the pointer is in the
      editor, the way a type-aware editor marks what it knows about. */
   .twoslash-mark {
-    /* Dimmed: the marks answer "what can I hover" without competing with the
-       code they sit under. */
-    text-decoration: underline dotted color-mix(in oklab, currentColor 45%, transparent);
+    /* Always decorated, revealed on approach: fading the color rather than
+       adding the marks means they can transition at all, and it keeps the
+       reveal out of the editor's state. Dimmed, so they answer "what can I
+       hover" without competing with the code they sit under. */
+    text-decoration: underline dotted transparent;
     text-underline-offset: 4px;
+    transition: text-decoration-color var(--motion-fast) var(--motion-out);
+  }
+
+  .cm-content:hover .twoslash-mark {
+    text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
+  }
+
+  /* A type arriving: it settles from just above, so the eye follows it down to
+     where it lands rather than finding it already there. */
+  @keyframes twoslash-in {
+    from {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
   }
 
   /* One surface for a type, wherever it is shown: the hover and the pinned
@@ -113,8 +140,10 @@
   }
 
   /* The hover floats over code, so the same tint is composited onto the window
-     rather than left transparent. Same color, but nothing reads through it. */
+     rather than left transparent. Same color, but nothing reads through it.
+     It appears often, so it barely moves: enough to register, not to notice. */
   .cm-tooltip .twoslash {
+    animation: twoslash-in var(--motion-fast) var(--motion-out) both;
     background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
     margin-top: 4px;
   }
@@ -128,6 +157,9 @@
   }
 
   .twoslash-block > .twoslash {
+    /* Pinning is deliberate and pushes the code below it down, so this one
+       earns more travel than the hover it replaces. */
+    animation: twoslash-in var(--motion-medium) var(--motion-out) both;
     /* Offset by the notch inset, so the notch itself lands on the caret. The
        indent sits on the box, leaving the line-number gutter where it is. */
     margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
@@ -158,6 +190,16 @@
   @media (prefers-reduced-motion: reduce) {
     .shiki .line::before {
       transition-property: opacity;
+    }
+  }
+}
+
+/* Motion is the reveal, not the message: without it the surfaces still arrive,
+   they just stop travelling to get there. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes twoslash-in {
+    from {
+      opacity: 0;
     }
   }
 }

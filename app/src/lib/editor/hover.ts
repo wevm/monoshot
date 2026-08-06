@@ -1,4 +1,4 @@
-import { StateEffect, StateField } from '@codemirror/state'
+import { StateField } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
 import { Decoration, EditorView, hoverTooltip } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
@@ -18,9 +18,6 @@ export function hover(types: Types): Extension {
   // The identifier the last single click toggled, so a second click of the
   // same gesture can put it back rather than leaving a pin behind.
   let last: Identifier.Identifier | undefined
-  // Mirrors the field, so moving within the code does not dispatch on every
-  // token the pointer crosses.
-  let inside = false
 
   return [
     marks(types),
@@ -64,43 +61,20 @@ export function hover(types: Types): Extension {
         last = identifier
         return false
       },
-      // `mouseover`/`mouseout` rather than enter and leave: only these bubble,
-      // and CodeMirror delegates from the content element.
-      mouseout(event, view) {
-        const to = event.relatedTarget
-        if (to instanceof Node && view.contentDOM.contains(to)) return false
-        inside = false
-        view.dispatch({ effects: setHovered.of(false) })
-        return false
-      },
-      mouseover(_event, view) {
-        if (inside) return false
-        inside = true
-        view.dispatch({ effects: setHovered.of(true) })
-        return false
-      },
     }),
   ]
 }
 
-/** Whether the pointer is over the editor, so the marks can come and go. */
-const setHovered = StateEffect.define<boolean>()
-
 /**
- * Underlines every identifier that has a type, while the pointer is over the
- * editor. Nothing advertises itself until you go looking, and then everything
- * worth hovering says so at once.
+ * Marks every identifier that has a type. The marks are always here; the
+ * stylesheet reveals them when the pointer is over the code, so nothing
+ * advertises itself until you go looking.
  */
 function marks(types: Types): Extension {
   return StateField.define<DecorationSet>({
-    create: () => Decoration.none,
-    update(value, transaction) {
-      for (const effect of transaction.effects)
-        if (effect.is(setHovered))
-          return effect.value ? build(transaction.state.doc, types) : Decoration.none
-      if (value === Decoration.none) return value
-      return build(transaction.state.doc, types)
-    },
+    create: (state) => build(state.doc, types),
+    update: (value, transaction) =>
+      transaction.docChanged ? build(transaction.state.doc, types) : value,
     provide: (field) => EditorView.decorations.from(field),
   })
 }
