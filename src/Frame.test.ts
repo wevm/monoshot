@@ -88,3 +88,27 @@ describe('render', () => {
     expect(second.theme.bg).not.toBe('#ff0000')
   })
 })
+
+describe('tokens', () => {
+  test('returns one array of tokens per line', async () => {
+    const frame = Frame.create()
+    const result = await frame.tokens({
+      code: 'const a = 1\nconst b = 2',
+      lang: 'ts',
+      theme: 'vitesse-dark',
+    })
+    expect(result.tokens.length).toBe(2)
+    expect(result.tokens[0]?.map((token) => token.content).join('')).toBe('const a = 1')
+    expect(result.tokens[0]?.every((token) => typeof token.color === 'string')).toBe(true)
+  })
+
+  test('offsets are absolute, so a line maps back to the document', async () => {
+    const frame = Frame.create()
+    const code = 'const a = 1\nconst b = 2'
+    const result = await frame.tokens({ code, lang: 'ts', theme: 'vitesse-dark' })
+    const second = result.tokens[1]?.[0]
+    expect(
+      code.slice(second?.offset ?? 0, (second?.offset ?? 0) + (second?.content.length ?? 0)),
+    ).toBe(second?.content)
+  })
+})

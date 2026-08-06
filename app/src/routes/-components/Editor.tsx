@@ -1,0 +1,106 @@
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { Compartment, EditorState } from '@codemirror/state'
+import { EditorView, keymap, lineNumbers as gutter } from '@codemirror/view'
+import * as stylex from '@stylexjs/stylex'
+import type { Theme } from 'monoshot'
+import { useEffect, useRef } from 'react'
+
+import { highlight, setTokens } from '#/lib/editor/highlight.js'
+import type { Token } from '#/lib/editor/highlight.js'
+import { query as queries, setQuery } from '#/lib/editor/query.js'
+import { theme } from '#/lib/editor/theme.js'
+
+const styles = stylex.create({
+  root: {
+    // Metrics live in the shared `--code-*` properties; only the box is here.
+    paddingBlock: 12,
+  },
+})
+
+/** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
+export function Editor(props: Editor.Props) {
+  const { code, lineNumbers, onCodeChange, palette, query, tokens } = props
+
+  const host = useRef<HTMLDivElement>(null)
+  const view = useRef<EditorView>(null)
+  // Held in a ref so changing the handler never rebuilds the editor.
+  const onChange = useRef(onCodeChange)
+  onChange.current = onCodeChange
+  const palettes = useRef(new Compartment()).current
+  const gutters = useRef(new Compartment()).current
+
+  useEffect(() => {
+    const parent = host.current
+    if (!parent) return
+    const instance = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: code,
+        extensions: [
+          history(),
+          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          EditorView.lineWrapping,
+          highlight,
+          queries,
+          gutters.of(lineNumbers ? gutter() : []),
+          palettes.of(theme(palette)),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) onChange.current(update.state.doc.toString())
+          }),
+        ],
+      }),
+    })
+    view.current = instance
+    return () => {
+      view.current = null
+      instance.destroy()
+    }
+    // Built once: the document and palette are pushed in below rather than
+    // rebuilding the editor and losing the cursor on every keystroke.
+  }, [])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: palettes.reconfigure(theme(palette)) })
+  }, [palette, palettes])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: gutters.reconfigure(lineNumbers ? gutter() : []) })
+  }, [gutters, lineNumbers])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: setTokens.of(tokens) })
+  }, [tokens])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: setQuery.of(query) })
+  }, [query])
+
+  // A code change from outside, such as restoring a shared snippet.
+  useEffect(() => {
+    const instance = view.current
+    if (!instance || instance.state.doc.toString() === code) return
+    instance.dispatch({
+      changes: { from: 0, insert: code, to: instance.state.doc.length },
+    })
+  }, [code])
+
+  return <div ref={host} {...stylex.props(styles.root)} />
+}
+
+export declare namespace Editor {
+  /** Props for {@link Editor}. */
+  type Props = {
+    /** The document. Changing it from outside replaces the editor's content. */
+    code: string
+    /** Shows the line-number gutter. */
+    lineNumbers: boolean
+    /** Receives every edit. */
+    onCodeChange: (code: string) => void
+    /** Colors the editor to match the frame it sits in. */
+    palette: Theme.derive.Result
+    /** Type a `^?` line resolves to. Omitted leaves the line as written. */
+    query?: string | undefined
+    /** Shiki tokens for the current document, one array per line. */
+    tokens: readonly (readonly Token[])[]
+  }
+}

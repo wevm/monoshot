@@ -8,6 +8,7 @@ import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
+import { Editor } from './-components/Editor.js'
 import { Frame } from './-components/Frame.js'
 import { Toolbar } from './-components/Toolbar.js'
 
@@ -167,16 +168,22 @@ function Page() {
     width: 640,
   })
   const [title, setTitle] = useState('')
-  const [frame, setFrame] = useState<{ html: string; palette: Theme.derive.Result }>()
+  const [code, setCode] = useState(sample)
+  const [frame, setFrame] = useState<{
+    palette: Theme.derive.Result
+    tokens: Editor.Props['tokens']
+  }>()
   const [error, setError] = useState<Error>()
 
+  // Tokens are the editor's colors, so this reruns on every edit as well as
+  // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
     let active = true
-    renderer.render({ code: sample, lang: 'tsx', theme: settings.theme }).then(
+    renderer.tokens({ code, lang: 'tsx', theme: settings.theme }).then(
       (result) => {
         if (!active) return
         setError(undefined)
-        setFrame({ html: result.html, palette: Theme.derive(result.theme) })
+        setFrame({ palette: Theme.derive(result.theme), tokens: result.tokens })
       },
       (cause: Error) => {
         if (active) setError(cause)
@@ -185,7 +192,7 @@ function Page() {
     return () => {
       active = false
     }
-  }, [settings.theme])
+  }, [code, settings.theme])
 
   const [measure, rect] = useEdges()
 
@@ -382,7 +389,14 @@ function Page() {
                 titleBar={settings.titleBar}
                 width={settings.width}
               >
-                <Frame.Code html={frame.html} lineNumbers={settings.lineNumbers} query={query} />
+                <Editor
+                  code={code}
+                  lineNumbers={settings.lineNumbers}
+                  onCodeChange={setCode}
+                  palette={frame.palette}
+                  query={query}
+                  tokens={frame.tokens}
+                />
               </Frame>
             </div>
           ) : (
