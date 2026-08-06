@@ -49,7 +49,7 @@ const styles = stylex.create({
     transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
   },
-  itemOpen: { backgroundColor: color.chromeActive },
+  itemOpen: { backgroundColor: color.chromeHover },
   itemTitle: { color: color.onChromeSecondary },
   itemValue: { color: color.onChrome },
   // The row is exactly one line tall and clips, so a rolling character can
@@ -461,11 +461,11 @@ function Ring() {
 }
 
 /**
- * The ring overshoots its target and settles back. The travel is the whole
- * point of a shared indicator, so it is allowed the follow-through that other
- * surfaces here deliberately avoid.
+ * The ring overshoots its target and settles back. Overshoot scales with the
+ * distance travelled, so the bounce is tuned against the longest hop in the
+ * row (roughly 350px) to peak around six pixels rather than a swatch width.
  */
-const ring = { bounce: 0.42, duration: 0.55, type: 'spring' } as const
+const ring = { bounce: 0.08, duration: 0.45, type: 'spring' } as const
 
 /** Short and firm: the value should land, not float. */
 const roll = { damping: 30, stiffness: 420, type: 'spring' } as const
