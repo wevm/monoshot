@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
 import { createFileRoute } from '@tanstack/react-router'
 import { Frame as Core, Theme } from 'monoshot'
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -47,13 +47,15 @@ const styles = stylex.create({
     paddingBottom: 120,
     paddingInline: 24,
   },
-  canvas: { maxWidth: 720, width: '100%' },
+  canvas: { maxWidth: '100%' },
   // Crop guides: dashed lines continuing the artwork's edges across the
   // viewport. Fixed and measured, so they never add to the page's own size.
-  guides: { inset: 0, pointerEvents: 'none', position: 'fixed' },
+  // Above the artwork: a solid fill would otherwise paint over the guides,
+  // which is exactly the case where the crop edge is hardest to see.
+  guides: { inset: 0, pointerEvents: 'none', position: 'fixed', zIndex: 1 },
   // A hairline drawn as a background rather than a border, so it stays exactly
   // one device-independent pixel and the dashes keep an even rhythm.
-  guide: { opacity: 0.2, position: 'absolute' },
+  guide: { opacity: 0.3, position: 'absolute' },
   guideRow: (edge: { from: number; to: number; top: number }) => ({
     backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 8px)',
     height: 1,
@@ -77,6 +79,61 @@ const styles = stylex.create({
     justifyContent: 'center',
     minHeight: 320,
   },
+  // The whole guide region beside the artwork is the target; its contents sit
+  // at the page edge, chevron outboard and destination name inboard. The band
+  // stops short of the artwork so the frame's own width handle stays reachable.
+  arrow: {
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderStyle: 'none',
+    color: 'inherit',
+    cursor: 'pointer',
+    display: 'flex',
+    opacity: { default: 0.35, ':hover': 1, ':focus-visible': 1 },
+    outline: 'none',
+    paddingInline: 28,
+    position: 'fixed',
+    transitionDuration: motion.fast,
+    transitionProperty: 'opacity',
+    transitionTimingFunction: motion.out,
+    zIndex: 2,
+  },
+  arrowAt: (box: { height: number; top: number; width: number }) => ({
+    height: box.height,
+    top: box.top,
+    width: box.width,
+  }),
+  arrowStart: { justifyContent: 'flex-start', left: 0 },
+  arrowEnd: { justifyContent: 'flex-end', right: 0 },
+  // A band this large cannot scale on press, so the press lands on its
+  // contents. `:active` never reaches a child and arrow keys never raise it at
+  // all, so both pointer and key presses drive the same state instead.
+  arrowInner: {
+    alignItems: 'center',
+    display: 'flex',
+    gap: 6,
+    transform: 'scale(1)',
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
+  },
+  arrowInnerEnd: { flexDirection: 'row-reverse' },
+  arrowInnerPressed: { transform: 'scale(0.92)' },
+  // A key cap carrying the arrow key that does the same thing. Both surfaces
+  // mix from the inherited text color, so it sits on any theme's page.
+  arrowKey: {
+    alignItems: 'center',
+    backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
+    borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
+    borderStyle: 'solid',
+    borderWidth: 1,
+    display: 'flex',
+    height: 15,
+    justifyContent: 'center',
+    minWidth: 15,
+    paddingInline: 3,
+  },
+  arrowName: { whiteSpace: 'nowrap' },
   // Floats over the artwork so opening a taller panel never reflows the page.
   controls: {
     bottom: 24,
@@ -92,14 +149,16 @@ const styles = stylex.create({
 
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
+const themes = Theme.list()
 
 function Page() {
-  const [settings, setSettings] = useState<Toolbar.State>({
+  const [settings, setSettings] = useState<Toolbar.State & { padding: number; width: number }>({
     background: 'default',
     lineNumbers: false,
     padding: 64,
     theme: 'vitesse-dark',
     titleBar: true,
+    width: 640,
   })
   const [title, setTitle] = useState('')
   const [frame, setFrame] = useState<{ html: string; palette: Theme.derive.Result }>()
@@ -124,6 +183,56 @@ function Page() {
 
   const [measure, rect] = useEdges()
 
+  // The list wraps at both ends, so every step lands on a theme.
+  const themeIndex = themes.findIndex((entry) => entry.name === settings.theme)
+  const at = (direction: number) => themes[(themeIndex + direction + themes.length) % themes.length]
+  const previousTheme = at(-1)
+  const nextTheme = at(1)
+
+  // Reads the theme off current state, so the key listener never goes stale.
+  function step(direction: number) {
+    setSettings((current) => {
+      const index = themes.findIndex((entry) => entry.name === current.theme)
+      const entry = themes[(index + direction + themes.length) % themes.length]
+      return entry ? { ...current, theme: entry.name } : current
+    })
+  }
+
+  const previousArrow = useRef<HTMLButtonElement>(null)
+  const nextArrow = useRef<HTMLButtonElement>(null)
+  const [pressed, setPressed] = useState<number>()
+  const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => {
+    function walk(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+      const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
+      if (!direction || !(event.target instanceof Element)) return
+      // A field or a frame handle owns its own arrow keys.
+      if (event.target.closest('input, textarea, [role="slider"], [contenteditable]')) return
+      event.preventDefault()
+      step(direction)
+      // Focus the side that fired, so the key press has somewhere to land,
+      // and hold the press just long enough to read as one.
+      const arrow = direction === -1 ? previousArrow : nextArrow
+      arrow.current?.focus()
+      setPressed(direction)
+      clearTimeout(release.current)
+      release.current = setTimeout(() => setPressed(undefined), 140)
+    }
+    window.addEventListener('keydown', walk)
+    return () => {
+      clearTimeout(release.current)
+      window.removeEventListener('keydown', walk)
+    }
+  }, [])
+
+  // A dark fill lands on the same near-black the shell mixes to, leaving no
+  // visible artwork edge, so the guides carry the crop the whole way across.
+  const bleed =
+    settings.background === 'none' ||
+    (settings.background.startsWith('#') && lightness(settings.background) < 0.2)
+
   // With no backdrop the window is the whole artwork, so the shell takes the
   // window's own colors and the two read as one surface.
   const canvas = (() => {
@@ -142,11 +251,11 @@ function Page() {
   return (
     <main {...stylex.props(styles.page, canvas ? styles.canvasColor(canvas) : null)}>
       {rect && (
-        // With a backdrop the guides stop at the artwork; with a transparent
-        // frame there is no edge to respect, so they run the full screen.
+        // With a backdrop the guides stop at the artwork; with nothing to
+        // respect at that edge they run the full screen.
         <div aria-hidden {...stylex.props(styles.guides)}>
           {[rect.top, rect.bottom].map((top) =>
-            (settings.background === 'none'
+            (bleed
               ? [{ from: 0, to: rect.width }]
               : [
                   { from: 0, to: rect.left },
@@ -160,7 +269,7 @@ function Page() {
             )),
           )}
           {[rect.left, rect.right].map((left) =>
-            (settings.background === 'none'
+            (bleed
               ? [{ from: 0, to: rect.height }]
               : [
                   { from: 0, to: rect.top },
@@ -174,6 +283,71 @@ function Page() {
             )),
           )}
         </div>
+      )}
+
+      {rect && (
+        <>
+          <button
+            aria-keyshortcuts="ArrowLeft"
+            aria-label={`Previous theme: ${previousTheme?.displayName}`}
+            onClick={() => step(-1)}
+            onPointerCancel={() => setPressed(undefined)}
+            onPointerDown={() => setPressed(-1)}
+            onPointerLeave={() => setPressed(undefined)}
+            onPointerUp={() => setPressed(undefined)}
+            ref={previousArrow}
+            type="button"
+            {...stylex.props(
+              styles.arrow,
+              styles.arrowStart,
+              styles.arrowAt({
+                height: rect.bottom - rect.top,
+                top: rect.top,
+                width: Math.max(0, rect.left - 12),
+              }),
+            )}
+          >
+            <span {...stylex.props(styles.arrowInner, pressed === -1 && styles.arrowInnerPressed)}>
+              <kbd {...stylex.props(styles.arrowKey, text.label10)}>←</kbd>
+              <span aria-hidden {...stylex.props(styles.arrowName, text.label12)}>
+                {previousTheme?.displayName}
+              </span>
+            </span>
+          </button>
+          <button
+            aria-keyshortcuts="ArrowRight"
+            aria-label={`Next theme: ${nextTheme?.displayName}`}
+            onClick={() => step(1)}
+            onPointerCancel={() => setPressed(undefined)}
+            onPointerDown={() => setPressed(1)}
+            onPointerLeave={() => setPressed(undefined)}
+            onPointerUp={() => setPressed(undefined)}
+            ref={nextArrow}
+            type="button"
+            {...stylex.props(
+              styles.arrow,
+              styles.arrowEnd,
+              styles.arrowAt({
+                height: rect.bottom - rect.top,
+                top: rect.top,
+                width: Math.max(0, rect.width - rect.right - 12),
+              }),
+            )}
+          >
+            <span
+              {...stylex.props(
+                styles.arrowInner,
+                styles.arrowInnerEnd,
+                pressed === 1 && styles.arrowInnerPressed,
+              )}
+            >
+              <kbd {...stylex.props(styles.arrowKey, text.label10)}>→</kbd>
+              <span aria-hidden {...stylex.props(styles.arrowName, text.label12)}>
+                {nextTheme?.displayName}
+              </span>
+            </span>
+          </button>
+        </>
       )}
 
       <header {...stylex.props(styles.header)}>
@@ -191,11 +365,14 @@ function Page() {
             <div ref={measure}>
               <Frame
                 background={settings.background}
+                onPaddingChange={(padding) => setSettings((current) => ({ ...current, padding }))}
                 onTitleChange={setTitle}
+                onWidthChange={(width) => setSettings((current) => ({ ...current, width }))}
                 padding={settings.padding}
                 palette={frame.palette}
                 title={title}
                 titleBar={settings.titleBar}
+                width={settings.width}
               >
                 <Frame.Code html={frame.html} lineNumbers={settings.lineNumbers} />
               </Frame>
@@ -263,4 +440,14 @@ type Edges = {
   right: number
   top: number
   width: number
+}
+
+/** Rough perceptual lightness of a `#rrggbb` color, from 0 to 1. */
+function lightness(hex: string) {
+  if (hex.length !== 7) return 1
+  const value = Number.parseInt(hex.slice(1), 16)
+  if (Number.isNaN(value)) return 1
+  return (
+    (0.299 * ((value >> 16) & 255) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255
+  )
 }

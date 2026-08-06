@@ -25,6 +25,9 @@ export const text = stylex.create({
   label14: { fontSize: 14, fontWeight: 400, lineHeight: '20px' },
   label13: { fontSize: 13, fontWeight: 400, lineHeight: '16px' },
   label12: { fontSize: 12, fontWeight: 400, lineHeight: '16px' },
+  // Below the Geist scale: micro labels such as key caps, where 12px reads as
+  // a second value rather than an annotation.
+  label10: { fontSize: 10, fontWeight: 400, lineHeight: '12px' },
 
   button16: { fontSize: 16, fontWeight: 500, lineHeight: '20px' },
   button14: { fontSize: 14, fontWeight: 500, lineHeight: '20px' },

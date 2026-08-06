@@ -1,13 +1,16 @@
-import { Slider } from '@base-ui/react/slider'
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import { Theme } from 'monoshot'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import { text } from '#/theme/text.js'
 import { color, motion, shadow } from '../../theme/tokens.stylex.js'
 
 const themes = Theme.list()
+
+/** The key that reaches each control from anywhere on the page. */
+const shortcuts = { background: 'b', lineNumbers: 'l', theme: 't', titleBar: 'w' } as const
 
 const styles = stylex.create({
   root: {
@@ -19,12 +22,14 @@ const styles = stylex.create({
     width: 'max-content',
   },
   panel: { bottom: 'calc(100% + 8px)', insetInline: 0, position: 'absolute' },
-  // The color row is a fixed set of chips, so it sizes to them. Matching the
-  // bar would stretch or squeeze it every time the theme name changes length.
+  // The color row is a fixed set of chips, so it sizes to them and centers on
+  // the bar. Matching the bar would stretch or squeeze it every time the theme
+  // name changes length.
   panelFit: {
     insetInline: 'auto auto',
-    left: 0,
+    left: '50%',
     maxWidth: 'calc(100vw - 40px)',
+    transform: 'translateX(-50%)',
     width: 'max-content',
   },
   surface: {
@@ -58,7 +63,23 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   itemOpen: { backgroundColor: color.chromeHover },
+  itemHeading: { alignItems: 'center', display: 'flex', gap: 6 },
   itemTitle: { color: color.onChromeSecondary },
+  // The key that reaches this control, in the same cap the theme arrows use.
+  itemKey: {
+    alignItems: 'center',
+    backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
+    borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
+    borderStyle: 'solid',
+    borderWidth: 1,
+    color: color.onChromeSecondary,
+    display: 'flex',
+    height: 13,
+    justifyContent: 'center',
+    minWidth: 13,
+    paddingInline: 2,
+    textTransform: 'uppercase',
+  },
   itemValue: { color: color.onChrome },
   // The row is exactly one line tall and clips, so a rolling character can
   // never ride up over the label above it.
@@ -68,12 +89,15 @@ const styles = stylex.create({
   rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
-  sliderRow: { alignItems: 'center', display: 'flex', gap: 16, padding: 16 },
   colorRow: { alignItems: 'center', display: 'flex', gap: 5, overflowX: 'auto', padding: 12 },
   swatchButton: {
     borderStyle: 'none',
     borderRadius: 6,
-    boxShadow: { default: null, ':focus-visible': shadow.focusRing },
+    // A hairline edge, so a near-black chip still reads against the panel.
+    boxShadow: {
+      default: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)',
+      ':focus-visible': shadow.focusRing,
+    },
     cursor: 'pointer',
     flexShrink: 0,
     height: 24,
@@ -125,28 +149,6 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     width: 1,
   },
-  slider: { display: 'flex', flex: 1 },
-  track: { backgroundColor: color.chromeHover, height: 4, width: '100%' },
-  indicator: { backgroundColor: color.onChrome },
-  thumb: {
-    backgroundColor: color.onChrome,
-    // Round, like the physical control it stands in for.
-    borderRadius: 999,
-    boxShadow: { default: shadow.thumb, ':focus-visible': shadow.focusRing },
-    height: 16,
-    outline: 'none',
-    transform: {
-      default: 'scale(1)',
-      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.15)' },
-      ':active': 'scale(1.25)',
-    },
-    transitionDuration: motion.fast,
-    transitionProperty: 'transform',
-    transitionTimingFunction: motion.out,
-    width: 16,
-  },
-  value: { color: color.onChrome, minWidth: 40, textAlign: 'right' },
-  label: { color: color.onChromeSecondary },
   themeList: {
     display: 'flex',
     flexDirection: 'column',
@@ -190,12 +192,8 @@ const styles = stylex.create({
  * and a panel opens above it, spanning its width.
  */
 export function Toolbar(props: Toolbar.Props) {
-  const { background, lineNumbers, onChange, padding, theme, titleBar } = props
+  const { background, lineNumbers, onChange, theme, titleBar } = props
   const [panel, setPanel] = useState<Panel>()
-  // A dragged value changes many times a second. Morphing every step reads as
-  // flicker, so the label follows a slower sample of it.
-  const shownPadding = useThrottled(padding, 140)
-  const previousPadding = usePrevious(shownPadding)
   const swatchIndex = backgroundIndex(background)
   const previousSwatchIndex = usePrevious(swatchIndex)
   const travel = Math.abs(swatchIndex - previousSwatchIndex) * swatchStride
@@ -205,6 +203,66 @@ export function Toolbar(props: Toolbar.Props) {
 
   // Clicking the open control closes it, so the bar is its own dismiss target.
   const toggle = (next: Panel) => setPanel((current) => (current === next ? undefined : next))
+
+  const surface = useRef<HTMLDivElement>(null)
+  const bar = useRef<HTMLDivElement>(null)
+
+  // Reaching a control by key should leave the keyboard where the work is, so
+  // opening a panel moves focus onto the option already in effect.
+  useEffect(() => {
+    if (!panel) return
+    const options = surface.current?.querySelectorAll<HTMLElement>('[data-option]')
+    if (!options?.length) return
+    const current = [...options].find((option) => option.dataset['option'] === 'selected')
+    ;(current ?? options[0])?.focus()
+  }, [panel])
+
+  // The panel owns the arrow keys while it is open, so the page's own theme
+  // stepping never fires underneath it.
+  function navigate(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.stopPropagation()
+      setPanel(undefined)
+      // Hand the keyboard back to the control that opened the panel.
+      if (panel)
+        bar.current
+          ?.querySelector<HTMLElement>(`[aria-keyshortcuts="${shortcuts[panel]}"]`)
+          ?.focus()
+      return
+    }
+    const step =
+      event.key === 'ArrowDown' || event.key === 'ArrowRight'
+        ? 1
+        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+          ? -1
+          : 0
+    const options = [...(surface.current?.querySelectorAll<HTMLElement>('[data-option]') ?? [])]
+    const index = options.indexOf(document.activeElement as HTMLElement)
+    if (!step || index < 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    options[(index + step + options.length) % options.length]?.focus()
+  }
+
+  useEffect(() => {
+    function press(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+      if (
+        event.target instanceof Element &&
+        event.target.closest('input, textarea, [contenteditable]')
+      )
+        return
+      const shortcut = event.key.toLowerCase()
+      if (shortcut === shortcuts.theme) toggle('theme')
+      else if (shortcut === shortcuts.background) toggle('background')
+      else if (shortcut === shortcuts.lineNumbers) onChange({ lineNumbers: !lineNumbers })
+      else if (shortcut === shortcuts.titleBar) onChange({ titleBar: !titleBar })
+      else return
+      event.preventDefault()
+    }
+    window.addEventListener('keydown', press)
+    return () => window.removeEventListener('keydown', press)
+  })
 
   return (
     <MotionConfig reducedMotion="user">
@@ -216,6 +274,8 @@ export function Toolbar(props: Toolbar.Props) {
               exit={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
               initial={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
               key={panel}
+              onKeyDown={navigate}
+              ref={surface}
               // Height keeps the spring so the bar is pushed rather than
               // revealed; the blur and fade resolve faster than the movement.
               transition={{ ...spring, filter: fade, opacity: fade }}
@@ -229,8 +289,10 @@ export function Toolbar(props: Toolbar.Props) {
                 <div {...stylex.props(styles.themeList)}>
                   {themes.map((entry) => (
                     <button
+                      data-option={entry.name === theme ? 'selected' : ''}
                       key={entry.name}
                       onClick={() => onChange({ theme: entry.name })}
+                      onFocus={() => onChange({ theme: entry.name })}
                       ref={entry.name === theme ? reveal : null}
                       type="button"
                       {...stylex.props(
@@ -247,7 +309,9 @@ export function Toolbar(props: Toolbar.Props) {
               ) : panel === 'background' ? (
                 <div {...stylex.props(styles.colorRow)}>
                   <button
+                    data-option={background === 'default' ? 'selected' : ''}
                     onClick={() => onChange({ background: 'default' })}
+                    onFocus={() => onChange({ background: 'default' })}
                     type="button"
                     {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                   >
@@ -255,7 +319,9 @@ export function Toolbar(props: Toolbar.Props) {
                     {background === 'default' && <Ring travel={travel} />}
                   </button>
                   <button
+                    data-option={background === 'none' ? 'selected' : ''}
                     onClick={() => onChange({ background: 'none' })}
+                    onFocus={() => onChange({ background: 'none' })}
                     type="button"
                     {...stylex.props(styles.swatchButton, styles.swatchNone)}
                   >
@@ -265,8 +331,10 @@ export function Toolbar(props: Toolbar.Props) {
                   <div {...stylex.props(styles.divider)} />
                   {backgrounds.map((value) => (
                     <button
+                      data-option={background === value ? 'selected' : ''}
                       key={value}
                       onClick={() => onChange({ background: value })}
+                      onFocus={() => onChange({ background: value })}
                       type="button"
                       {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
                     >
@@ -285,56 +353,25 @@ export function Toolbar(props: Toolbar.Props) {
                     />
                   </label>
                 </div>
-              ) : (
-                <div {...stylex.props(styles.sliderRow)}>
-                  <span {...stylex.props(styles.label, text.label13)}>Padding</span>
-                  <Slider.Root
-                    max={160}
-                    min={0}
-                    onValueChange={(value) => onChange({ padding: value as number })}
-                    step={2}
-                    value={padding}
-                    {...stylex.props(styles.slider)}
-                  >
-                    <Slider.Control {...stylex.props(styles.slider)}>
-                      <Slider.Track {...stylex.props(styles.track)}>
-                        <Slider.Indicator {...stylex.props(styles.indicator)} />
-                        <Slider.Thumb {...stylex.props(styles.thumb)} />
-                      </Slider.Track>
-                    </Slider.Control>
-                  </Slider.Root>
-                  <Roll
-                    digits
-                    style={[styles.value, text.copy13]}
-                    up={shownPadding >= previousPadding}
-                    value={String(shownPadding)}
-                  />
-                </div>
-              )}
+              ) : null}
             </m.div>
           )}
         </AnimatePresence>
 
-        <m.div layout transition={spring} {...stylex.props(styles.surface, styles.bar)}>
+        <m.div layout ref={bar} transition={spring} {...stylex.props(styles.surface, styles.bar)}>
           <Item
             onClick={() => toggle('theme')}
             open={panel === 'theme'}
+            shortcut={shortcuts.theme}
             title="Theme"
             up={themeIndex <= previousThemeIndex}
             value={selected?.displayName ?? theme}
-          />
-          <Item
-            digits
-            onClick={() => toggle('padding')}
-            open={panel === 'padding'}
-            title="Padding"
-            up={shownPadding >= previousPadding}
-            value={String(shownPadding)}
           />
           <div {...stylex.props(styles.divider)} />
           <Item
             onClick={() => onChange({ lineNumbers: !lineNumbers })}
             pressed={lineNumbers}
+            shortcut={shortcuts.lineNumbers}
             up
             title="Line numbers"
             value={lineNumbers ? 'On' : 'Off'}
@@ -342,6 +379,7 @@ export function Toolbar(props: Toolbar.Props) {
           <Item
             onClick={() => toggle('background')}
             open={panel === 'background'}
+            shortcut={shortcuts.background}
             title="Background"
             up
             value={backgroundLabel(background)}
@@ -349,6 +387,7 @@ export function Toolbar(props: Toolbar.Props) {
           <Item
             onClick={() => onChange({ titleBar: !titleBar })}
             pressed={titleBar}
+            shortcut={shortcuts.titleBar}
             up
             title="Title bar"
             value={titleBar ? 'On' : 'Off'}
@@ -371,18 +410,17 @@ export declare namespace Toolbar {
     /** `default`, `none`, or a hex color for the frame's backdrop. */
     background: string
     lineNumbers: boolean
-    /** Frame padding, in pixels. */
-    padding: number
     theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
     titleBar: boolean
   }
 }
 
-type Panel = 'theme' | 'padding' | 'background' | undefined
+type Panel = 'theme' | 'background' | undefined
 
 /** `default` paints the theme's gradient; `none` exports a transparent frame. */
 export const backgrounds = [
+  '#000000',
   '#1c1c1e',
   '#8e8e93',
   '#ffffff',
@@ -513,31 +551,6 @@ function ring(travel: number) {
 const roll = { damping: 30, stiffness: 420, type: 'spring' } as const
 
 /**
- * Samples a fast-changing value on an interval so each morph can finish. The
- * trailing update always runs, so the label settles on the real value.
- */
-function useThrottled<value>(value: value, ms: number): value {
-  const [shown, setShown] = useState(value)
-  const last = useRef(0)
-
-  useEffect(() => {
-    const elapsed = Date.now() - last.current
-    if (elapsed >= ms) {
-      last.current = Date.now()
-      setShown(value)
-      return
-    }
-    const timer = setTimeout(() => {
-      last.current = Date.now()
-      setShown(value)
-    }, ms - elapsed)
-    return () => clearTimeout(timer)
-  }, [ms, value])
-
-  return shown
-}
-
-/**
  * Centers the selected theme in the list. Sets `scrollTop` directly because
  * `scrollIntoView` walks up and scrolls the page too.
  */
@@ -555,16 +568,19 @@ function Item(props: {
   onClick: () => void
   open?: boolean
   pressed?: boolean
+  /** Key that reaches this control from anywhere. */
+  shortcut: string
   title: string
   /** Direction the value rolls: up for a larger or enabled value. */
   up: boolean
   value: string
 }) {
-  const { digits, onClick, open, pressed, title, up, value } = props
+  const { digits, onClick, open, pressed, shortcut, title, up, value } = props
   return (
     <m.button
       // Two stacked spans would otherwise read as one run-together name.
       aria-expanded={open}
+      aria-keyshortcuts={shortcut}
       aria-label={`${title}: ${value}`}
       aria-pressed={pressed}
       layout
@@ -573,7 +589,10 @@ function Item(props: {
       type="button"
       {...stylex.props(styles.item, open && styles.itemOpen)}
     >
-      <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>
+      <span {...stylex.props(styles.itemHeading)}>
+        <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>
+        <kbd {...stylex.props(styles.itemKey, text.label10)}>{shortcut}</kbd>
+      </span>
       <Roll digits={digits} style={[styles.itemValue, text.button14]} up={up} value={value} />
     </m.button>
   )
