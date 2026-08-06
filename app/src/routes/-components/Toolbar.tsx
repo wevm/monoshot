@@ -179,6 +179,7 @@ export function Toolbar(props: Toolbar.Props) {
                     </Slider.Control>
                   </Slider.Root>
                   <Roll
+                    digits
                     style={[styles.value, text.copy13]}
                     up={shownPadding >= previousPadding}
                     value={String(shownPadding)}
@@ -198,6 +199,7 @@ export function Toolbar(props: Toolbar.Props) {
             value={selected?.displayName ?? theme}
           />
           <Item
+            digits
             onClick={() => toggle('padding')}
             open={panel === 'padding'}
             title="Padding"
@@ -267,16 +269,24 @@ function usePrevious<value>(value: value): value {
 }
 
 /**
- * A value that rolls character by character: each position animates only when
- * its own character changes, the way an odometer leaves settled digits alone.
+ * A value that rolls out of view while its replacement rolls in behind it.
+ *
+ * `digits` splits the value so each position animates only when its own
+ * character changes, the way an odometer leaves settled digits alone. Words
+ * roll whole: a shared letter staying put would break the wheel.
  */
-function Roll(props: { style: stylex.StyleXStyles[]; up: boolean; value: string }) {
-  const { style, up, value } = props
+function Roll(props: {
+  digits?: boolean | undefined
+  style: stylex.StyleXStyles[]
+  up: boolean
+  value: string
+}) {
+  const { digits, style, up, value } = props
   const offset = up ? '-100%' : '100%'
   const from = up ? '100%' : '-100%'
   return (
     <span {...stylex.props(styles.rollRow, style)}>
-      {[...value].map((character, index) => (
+      {(digits ? [...value] : [value]).map((character, index) => (
         // Position is the identity here: the character is the animating key.
         // eslint-disable-next-line react/no-array-index-key
         <span key={index} {...stylex.props(styles.rollCell)}>
@@ -339,6 +349,8 @@ function reveal(node: HTMLButtonElement | null) {
 const swatches = { dark: '#1c1c1c', light: '#f5f5f5' }
 
 function Item(props: {
+  /** Rolls each character on its own, for values that read as a number. */
+  digits?: boolean | undefined
   onClick: () => void
   open?: boolean
   pressed?: boolean
@@ -347,7 +359,7 @@ function Item(props: {
   up: boolean
   value: string
 }) {
-  const { onClick, open, pressed, title, up, value } = props
+  const { digits, onClick, open, pressed, title, up, value } = props
   return (
     <m.button
       // Two stacked spans would otherwise read as one run-together name.
@@ -361,7 +373,7 @@ function Item(props: {
       {...stylex.props(styles.item, open && styles.itemOpen)}
     >
       <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>
-      <Roll style={[styles.itemValue, text.button14]} up={up} value={value} />
+      <Roll digits={digits} style={[styles.itemValue, text.button14]} up={up} value={value} />
     </m.button>
   )
 }
