@@ -103,12 +103,6 @@
     white-space: pre-wrap;
   }
 
-  /* CodeMirror dresses its own tooltip, which would show through. */
-  .cm-tooltip:has(.twoslash) {
-    background: none;
-    border: none;
-  }
-
   /* The hover floats over code, so the same tint is composited onto the window
      rather than left transparent. Same color, but nothing reads through it. */
   .cm-tooltip .twoslash {

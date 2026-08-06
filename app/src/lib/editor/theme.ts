@@ -29,6 +29,10 @@ export function theme(palette: Theme.derive.Result): Extension {
         lineHeight: 'var(--code-line-height)',
         tabSize: 'var(--code-tab-size)',
       },
+      // The annotation draws its own surface, so CodeMirror's tooltip chrome
+      // has to step aside. It belongs here rather than in the stylesheet:
+      // CodeMirror injects its styles unlayered, and unlayered always wins.
+      '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
       // The gutter is part of the artwork, so it recedes rather than sitting
       // on a panel of its own.
       '.cm-gutters': {
