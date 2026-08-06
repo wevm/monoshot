@@ -89,18 +89,18 @@ const styles = stylex.create({
     borderRadius: 999,
     boxShadow: shadow.floating,
   },
-  gripX: { height: 40, width: 4 },
-  gripY: { height: 4, width: 40 },
+  gripX: { height: 40, width: 3 },
+  gripY: { height: 3, width: 40 },
   // A right angle tracing the corner it sets: the bracket's own curve follows
   // the radius, so the control shows the value it holds.
   gripCorner: (value: number) => ({
     borderBottomStyle: 'solid',
     // The same stroke the bar grips use, so the set reads as one family.
-    borderBottomWidth: 4,
+    borderBottomWidth: 3,
     borderColor: color.onChrome,
     borderEndEndRadius: value,
     borderRightStyle: 'solid',
-    borderRightWidth: 4,
+    borderRightWidth: 3,
     filter: 'drop-shadow(0 0 1px rgb(0 0 0 / 0.55))',
     height: '100%',
     width: '100%',
