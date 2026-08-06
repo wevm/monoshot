@@ -93,7 +93,9 @@
   /* Every identifier that has a type says so while the pointer is in the
      editor, the way a type-aware editor marks what it knows about. */
   .twoslash-mark {
-    text-decoration: underline dotted currentColor;
+    /* Dimmed: the marks answer "what can I hover" without competing with the
+       code they sit under. */
+    text-decoration: underline dotted color-mix(in oklab, currentColor 45%, transparent);
     text-underline-offset: 4px;
   }
 
