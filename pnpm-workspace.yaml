@@ -6,6 +6,10 @@ catalog:
   '@changesets/cli': ^2.29.0
   '@cloudflare/vite-plugin': ^1.51.0
   '@base-ui/react': ^1.7.0
+  '@types/culori': ^4.0.1
+  culori: ^4.0.2
+  shiki: 4.4.2
+  'tm-themes': 1.12.3
   '@fontsource-variable/geist': ^5.3.0
   '@fontsource-variable/geist-mono': ^5.3.0
   '@stylexjs/stylex': 0.19.0

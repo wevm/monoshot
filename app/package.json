@@ -24,7 +24,8 @@
     "hono": "catalog:",
     "monoshot": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "shiki": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
