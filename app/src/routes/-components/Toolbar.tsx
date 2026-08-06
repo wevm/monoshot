@@ -197,7 +197,7 @@ export function Toolbar(props: Toolbar.Props) {
             onClick={() => toggle('theme')}
             open={panel === 'theme'}
             title="Theme"
-            up={themeIndex >= previousThemeIndex}
+            up={themeIndex <= previousThemeIndex}
             value={selected?.displayName ?? theme}
           />
           <Item
