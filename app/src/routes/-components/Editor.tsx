@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react'
 
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
+import { hover } from '#/lib/editor/hover.js'
 import { query as queries, setQuery } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 
@@ -19,7 +20,7 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const { code, lineNumbers, onCodeChange, palette, query, tokens } = props
+  const { code, lineNumbers, onCodeChange, palette, tokens, types } = props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
@@ -28,6 +29,7 @@ export function Editor(props: Editor.Props) {
   onChange.current = onCodeChange
   const palettes = useRef(new Compartment()).current
   const gutters = useRef(new Compartment()).current
+  const hovers = useRef(new Compartment()).current
 
   useEffect(() => {
     const parent = host.current
@@ -42,6 +44,7 @@ export function Editor(props: Editor.Props) {
           EditorView.lineWrapping,
           highlight,
           queries,
+          hovers.of(hover(types)),
           gutters.of(lineNumbers ? gutter() : []),
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
@@ -72,8 +75,10 @@ export function Editor(props: Editor.Props) {
   }, [tokens])
 
   useEffect(() => {
-    view.current?.dispatch({ effects: setQuery.of(query) })
-  }, [query])
+    view.current?.dispatch({
+      effects: [hovers.reconfigure(hover(types)), setQuery.of(types)],
+    })
+  }, [hovers, types])
 
   // A code change from outside, such as restoring a shared snippet.
   useEffect(() => {
@@ -98,8 +103,8 @@ export declare namespace Editor {
     onCodeChange: (code: string) => void
     /** Colors the editor to match the frame it sits in. */
     palette: Theme.derive.Result
-    /** Type a `^?` line resolves to. Omitted leaves the line as written. */
-    query?: string | undefined
+    /** Types by identifier, shown on hover and under a pinned `^?` caret. */
+    types: Record<string, string>
     /** Shiki tokens for the current document, one array per line. */
     tokens: readonly (readonly Token[])[]
   }

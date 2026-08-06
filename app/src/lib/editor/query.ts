@@ -3,8 +3,10 @@ import type { Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
-/** Sets the type a `^?` query resolves to, or clears it. */
-export const setQuery = StateEffect.define<string | undefined>()
+import * as Identifier from './identifier.js'
+
+/** Sets the types a `^?` caret can resolve to, keyed by identifier. */
+export const setQuery = StateEffect.define<Record<string, string>>()
 
 /**
  * Replaces a `^?` comment line with the type it asks about. The line is not
@@ -12,39 +14,43 @@ export const setQuery = StateEffect.define<string | undefined>()
  * an export carries it the same way the editor shows it.
  */
 export const query = StateField.define<Value>({
-  create: () => ({ decorations: Decoration.none, type: undefined }),
+  create: () => ({ decorations: Decoration.none, types: {} }),
   update(value, transaction) {
     for (const effect of transaction.effects)
       if (effect.is(setQuery))
-        return { decorations: build(transaction.state.doc, effect.value), type: effect.value }
+        return { decorations: build(transaction.state.doc, effect.value), types: effect.value }
     if (!transaction.docChanged) return value
     // A caret line can appear or move with any edit, so the set is rebuilt
-    // rather than mapped; only its answer arrives out of band.
-    return { decorations: build(transaction.state.doc, value.type), type: value.type }
+    // rather than mapped; only the types arrive out of band.
+    return { decorations: build(transaction.state.doc, value.types), types: value.types }
   },
   provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
 })
 
-/** The answer rides with the decorations, so an edit can rebuild them. */
+/** The types ride with the decorations, so an edit can rebuild them. */
 type Value = {
   decorations: DecorationSet
-  type: string | undefined
+  types: Record<string, string>
 }
 
 const caret = /^(\s*\/\/\s*)\^\?\s*$/
 
-function build(doc: Text, type: string | undefined): DecorationSet {
-  if (!type) return Decoration.none
+function build(doc: Text, types: Record<string, string>): DecorationSet {
   const ranges = []
   for (let line = 1; line <= doc.lines; line++) {
     const text = doc.line(line)
     const match = caret.exec(text.text)
     if (!match) continue
+    const column = match[1]?.length ?? 0
+    // A caret pointing at nothing stays the comment it is, rather than
+    // collapsing into an empty box.
+    const type = types[Identifier.queried(doc, line, column)?.name ?? '']
+    if (!type) continue
     ranges.push(
-      Decoration.replace({
-        block: true,
-        widget: new Block(type, match[1]?.length ?? 0),
-      }).range(text.from, text.to),
+      Decoration.replace({ block: true, widget: new Block(type, column) }).range(
+        text.from,
+        text.to,
+      ),
     )
   }
   return Decoration.set(ranges, true)

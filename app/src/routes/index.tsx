@@ -3,7 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Frame as Core, Theme } from 'monoshot'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { query } from '#/lib/annotations.js'
+import { types } from '#/lib/annotations.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
@@ -394,8 +394,8 @@ function Page() {
                   lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
                   palette={frame.palette}
-                  query={query}
                   tokens={frame.tokens}
+                  types={types}
                 />
               </Frame>
             </div>

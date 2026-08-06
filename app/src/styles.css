@@ -87,6 +87,43 @@
     width: 0;
   }
 
+  /* The hover type. Editor-only: it never reaches an export, so it reads as a
+     floating surface rather than part of the artwork. Clicking it pins the
+     type, which writes the `^?` line the block below is drawn from. */
+  .cm-tooltip:has(.twoslash-hover) {
+    background: none;
+    border: none;
+  }
+
+  .twoslash-hover {
+    background-color: color-mix(in oklab, currentColor 7%, transparent);
+    /* The editor sits on the artwork, so the popover needs its own opaque
+       backing rather than borrowing whatever is behind it. */
+    backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid var(--window-border);
+    box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.45);
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--code-font-family);
+    font-size: 12px;
+    gap: 4px;
+    line-height: 18px;
+    margin-bottom: 4px;
+    max-width: min(520px, 90vw);
+    padding: 8px 10px;
+    text-align: start;
+    white-space: pre-wrap;
+  }
+
+  .twoslash-hover-hint {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    opacity: 0.55;
+    text-transform: uppercase;
+  }
+
   /* A twoslash `^?` query, standing where its comment line was. It sits in
      flow rather than floating, so an export carries it too. Unscoped: the
      editor draws it as a widget, the rendered frame as markup. */
