@@ -30,6 +30,13 @@ const styles = stylex.create({
     '--handle-opacity': { default: 0, ':hover': 0.45 },
     position: 'relative',
   },
+  // Grips take the opposite polarity from the artwork, so they read on a light
+  // theme as well as a dark one, with a hairline in the other direction to
+  // hold them against a backdrop of similar lightness.
+  gripPalette: (light: boolean) => ({
+    '--grip': light ? color.chrome : color.onChrome,
+    '--grip-edge': light ? 'rgb(255 255 255 / 0.5)' : 'rgb(0 0 0 / 0.5)',
+  }),
   // Two pairs of grips, each centered on the edge it moves: the artwork's top
   // and bottom edges open the space around the window, and the window's left
   // and right edges size the artwork. The inner pair tracks the padding, which
@@ -82,26 +89,27 @@ const styles = stylex.create({
   // sides here keeps one rule working for either orientation.
   handleStart: { left: 0, top: 0 },
   handleEnd: { bottom: 0, right: 0 },
-  // Reads against any theme's backdrop, so it takes the fixed chrome color
-  // rather than a scheme-dependent one.
   grip: {
-    backgroundColor: color.onChrome,
+    backgroundColor: 'var(--grip)',
     borderRadius: 999,
-    boxShadow: shadow.floating,
+    filter: 'drop-shadow(0 0 1px var(--grip-edge))',
   },
   gripX: { height: 40, width: 3 },
   gripY: { height: 3, width: 40 },
   // A right angle tracing the corner it sets: the bracket's own curve follows
   // the radius, so the control shows the value it holds.
   gripCorner: (value: number) => ({
+    // Without this the 3px borders sit outside the box and the bracket lands
+    // off the corner it is supposed to trace.
+    boxSizing: 'border-box',
     borderBottomStyle: 'solid',
     // The same stroke the bar grips use, so the set reads as one family.
     borderBottomWidth: 3,
-    borderColor: color.onChrome,
+    borderColor: 'var(--grip)',
     borderEndEndRadius: value,
     borderRightStyle: 'solid',
     borderRightWidth: 3,
-    filter: 'drop-shadow(0 0 1px rgb(0 0 0 / 0.55))',
+    filter: 'drop-shadow(0 0 1px var(--grip-edge))',
     height: '100%',
     width: '100%',
   }),
@@ -185,7 +193,13 @@ export function Frame(props: Frame.Props) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div {...stylex.props(styles.root, styles.width(width))}>
+      <div
+        {...stylex.props(
+          styles.root,
+          styles.gripPalette(palette.type === 'light'),
+          styles.width(width),
+        )}
+      >
         <div
           {...stylex.props(
             styles.canvas,
