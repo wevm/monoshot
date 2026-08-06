@@ -77,6 +77,14 @@ export const color = stylex.defineVars({
   // Text that sits on a solid colored surface, where the scheme's own
   // foreground would disappear.
   onSolid: '#fff',
+
+  // Floating tools over the artwork read as their own dark surface in both
+  // schemes, the way Apple's markup bar does, so they never invert with the app.
+  chrome: '#1c1c1e',
+  onChrome: '#f5f5f7',
+  onChromeSecondary: '#98989d',
+  chromeHover: '#ffffff1f',
+  chromeActive: '#ffffff33',
 })
 
 export const font = stylex.defineVars({

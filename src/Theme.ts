@@ -48,6 +48,16 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const lightness = clamp(type === 'dark' ? bg.l + shift : bg.l - shift, 0.16, 0.94)
 
   return {
+    // Nearly black, tinted by the theme's own hue, so the app chrome recedes
+    // behind the artwork whatever the theme.
+    page: {
+      background: css({
+        c: hue === undefined ? 0 : 0.02,
+        h: hue,
+        l: clamp(bg.l * 0.55, 0.04, 0.14),
+      }),
+      foreground: css({ c: hue === undefined ? 0 : 0.01, h: hue, l: 0.93 }),
+    },
     backdrop: {
       angle: 140,
       from: css({ c: chroma, h: rotate(hue, -25), l: lightness }),
@@ -57,6 +67,7 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
     window: {
       background,
       border: css({ c: bg.c * 0.5, h: bg.h, l: mix(fg.l, bg.l, 0.12) }),
+      foreground,
       title: css({ c: bg.c * 0.5, h: bg.h, l: contrast(mix(fg.l, bg.l, 0.55), bg.l) }),
     },
   }
@@ -73,6 +84,16 @@ export declare namespace derive {
       /** Gradient end color. */
       to: string
     }
+    /**
+     * Canvas the frame sits on: near-black with a hint of the theme's hue.
+     * Surfaces with the backdrop turned off use `window` instead, so the
+     * artwork reads as one continuous color.
+     */
+    page: {
+      background: string
+      /** Readable against `page.background`. */
+      foreground: string
+    }
     /** Whether the frame reads as a light or dark surface. */
     type: 'light' | 'dark'
     /** The code surface itself, using the theme's own canvas. */
@@ -81,6 +102,8 @@ export declare namespace derive {
       background: string
       /** Hairline around the window. */
       border: string
+      /** The theme's own text color, readable against `background`. */
+      foreground: string
       /** Title-bar text, kept readable against the canvas. */
       title: string
     }

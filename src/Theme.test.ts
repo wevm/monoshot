@@ -87,10 +87,15 @@ describe('derive', () => {
           "from": "oklch(0.3330423087221773 0 0)",
           "to": "oklch(0.27304230872217733 0 0)",
         },
+        "page": {
+          "background": "oklch(0.09517326979719755 0 0)",
+          "foreground": "oklch(0.93 0 0)",
+        },
         "type": "dark",
         "window": {
           "background": "#101010",
           "border": "oklch(0.26580986589144595 0 0)",
+          "foreground": "#ededed",
           "title": "oklch(0.5982269457479918 0 0)",
         },
       }

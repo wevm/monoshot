@@ -5,11 +5,6 @@ import type { ReactNode } from 'react'
 import { text } from '#/theme/text.js'
 import { font, radius, shadow } from '../../theme/tokens.stylex.js'
 
-/** Padding presets, in pixels. The single source for both the styles and the control. */
-export const paddings = [16, 32, 64, 128] as const
-
-export type Padding = (typeof paddings)[number]
-
 const styles = stylex.create({
   // Backdrop and window colors are per-theme, so they arrive as CSS variables
   // set on the root rather than as static token references.
@@ -21,17 +16,14 @@ const styles = stylex.create({
     '--window-border': palette.border,
     '--window-title': palette.title,
   }),
-  root: {
+  // Square by design: the artwork's edge is the image's edge, so only the
+  // window inside it is rounded.
+  root: { display: 'flex', justifyContent: 'center' },
+  backdrop: {
     backgroundImage:
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
-    borderRadius: radius.fullscreen,
-    display: 'flex',
-    justifyContent: 'center',
   },
-  padding16: { padding: 16 },
-  padding32: { padding: 32 },
-  padding64: { padding: 64 },
-  padding128: { padding: 128 },
+  padding: (value: number) => ({ padding: value }),
   window: {
     backgroundColor: 'var(--window-background)',
     borderRadius: radius.floating,
@@ -70,16 +62,9 @@ const styles = stylex.create({
   body: { paddingBlock: 4, paddingInline: 16 },
 })
 
-const paddingStyles = {
-  16: styles.padding16,
-  32: styles.padding32,
-  64: styles.padding64,
-  128: styles.padding128,
-}
-
 /** The exported artwork: a gradient backdrop around a themed code window. */
 export function Frame(props: Frame.Props) {
-  const { children, onTitleChange, padding, palette, title } = props
+  const { background, children, onTitleChange, padding, palette, title } = props
   return (
     <div
       {...stylex.props(
@@ -92,7 +77,8 @@ export function Frame(props: Frame.Props) {
           title: palette.window.title,
           to: palette.backdrop.to,
         }),
-        paddingStyles[padding],
+        background && styles.backdrop,
+        styles.padding(padding),
       )}
     >
       <div {...stylex.props(styles.window, styles.windowShadow)}>
@@ -118,11 +104,16 @@ export function Frame(props: Frame.Props) {
 }
 
 export declare namespace Frame {
+  /** Props for {@link Frame}. */
   type Props = {
+    /** Paints the gradient backdrop. Off exports the window alone. */
+    background: boolean
     children: ReactNode
     onTitleChange: (title: string) => void
-    padding: Padding
+    /** Space around the window, in pixels. */
+    padding: number
     palette: Theme.derive.Result
+    /** Title-bar text. Empty shows the placeholder. */
     title: string
   }
 }
