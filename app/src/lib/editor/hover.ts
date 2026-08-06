@@ -19,7 +19,9 @@ export function hover(types: Types): Extension {
       const type = identifier && types[identifier.name]
       if (!identifier || !type) return null
       return {
-        above: true,
+        // Below the identifier, where pinning will leave it: hovering previews
+        // the pinned block in place rather than somewhere else.
+        above: false,
         create: () => ({ dom: Annotation.element(type) }),
         end: identifier.to,
         pos: identifier.from,

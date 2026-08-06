@@ -103,19 +103,17 @@
     white-space: pre-wrap;
   }
 
-  /* The hover floats, so it earns depth the pinned block does not need. */
+  /* CodeMirror dresses its own tooltip, which would show through. */
   .cm-tooltip:has(.twoslash) {
     background: none;
     border: none;
   }
 
+  /* The hover floats over code, so the same tint is composited onto the window
+     rather than left transparent. Same color, but nothing reads through it. */
   .cm-tooltip .twoslash {
-    backdrop-filter: blur(24px) saturate(180%);
-    box-shadow:
-      inset 0 0 0 1px var(--window-border),
-      0 8px 24px -8px rgb(0 0 0 / 0.45);
-    margin-bottom: 4px;
-    max-width: min(560px, 90vw);
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
+    margin-top: 4px;
   }
 
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
@@ -132,8 +130,8 @@
     margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
   }
 
-  /* A notch pointing back at the token the caret sat under. */
-  .twoslash-block > .twoslash::before {
+  /* A notch pointing back at the token the type belongs to. */
+  .twoslash::before {
     background-color: inherit;
     border-left: 1px solid var(--window-border);
     border-top: 1px solid var(--window-border);
