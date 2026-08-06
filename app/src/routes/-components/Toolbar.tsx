@@ -284,6 +284,12 @@ function Roll(props: {
   const { digits, style, up, value } = props
   const offset = up ? '-100%' : '100%'
   const from = up ? '100%' : '-100%'
+  // Every change gets a fresh key, so a value returning while its predecessor
+  // is still leaving enters as a new glyph from below instead of reversing the
+  // one in flight. Digits keep their character as the key: an unchanged digit
+  // has nothing to animate.
+  const [seen, setSeen] = useState({ count: 0, value })
+  if (seen.value !== value) setSeen({ count: seen.count + 1, value })
   return (
     <span {...stylex.props(styles.rollRow, style)}>
       {(digits ? [...value] : [value]).map((character, index) => (
@@ -295,7 +301,7 @@ function Roll(props: {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: offset }}
               initial={{ opacity: 0, y: from }}
-              key={character}
+              key={digits ? character : `${character}-${seen.count}`}
               transition={roll}
               {...stylex.props(styles.rollGlyph)}
             >
