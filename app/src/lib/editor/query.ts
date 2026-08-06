@@ -77,4 +77,16 @@ class Block extends WidgetType {
     root.appendChild(Annotation.element(this.type))
     return root
   }
+
+  /**
+   * Repaints rather than rebuilds, so pinning one type does not replay the
+   * entrance of every type already pinned.
+   */
+  updateDOM(dom: HTMLElement) {
+    if (this.column !== Number(dom.style.getPropertyValue('--twoslash-column'))) return false
+    const surface = dom.firstElementChild
+    if (!(surface instanceof HTMLElement)) return false
+    Annotation.paint(surface, this.type)
+    return true
+  }
 }

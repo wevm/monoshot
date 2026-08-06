@@ -10,6 +10,16 @@ export type Annotation = readonly (readonly Token[])[]
 export function element(annotation: Annotation): HTMLElement {
   const root = document.createElement('div')
   root.className = 'twoslash'
+  paint(root, annotation)
+  return root
+}
+
+/**
+ * Repaints a surface in place. Recreating it would replay its entrance, so a
+ * type that only changed color arrives without announcing itself again.
+ */
+export function paint(root: HTMLElement, annotation: Annotation): void {
+  root.replaceChildren()
   for (const [index, line] of annotation.entries()) {
     if (index) root.appendChild(document.createTextNode('\n'))
     for (const token of line) {
@@ -22,5 +32,4 @@ export function element(annotation: Annotation): HTMLElement {
       root.appendChild(span)
     }
   }
-  return root
 }
