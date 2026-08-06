@@ -61,6 +61,38 @@
     width: 0;
   }
 
+  /* A twoslash `^?` query, standing where its comment line was. It sits in
+     flow rather than floating, so an export carries it too. */
+  .shiki .twoslash-query {
+    display: flex;
+    padding-block: 8px 4px;
+  }
+
+  .shiki .twoslash-query > span {
+    background-color: color-mix(in oklab, currentColor 7%, transparent);
+    /* Offset by the notch inset, so the notch itself lands on the caret. The
+       indent sits on the box, leaving the line-number gutter where it is. */
+    margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
+    box-shadow: inset 0 0 0 1px var(--window-border);
+    padding: 6px 10px;
+    position: relative;
+    white-space: pre-wrap;
+  }
+
+  /* A notch pointing back at the token the caret sat under. */
+  .shiki .twoslash-query > span::before {
+    background-color: inherit;
+    border-left: 1px solid var(--window-border);
+    border-top: 1px solid var(--window-border);
+    content: '';
+    height: 7px;
+    left: 8px;
+    position: absolute;
+    top: -4px;
+    transform: rotate(45deg);
+    width: 7px;
+  }
+
   /* Scoped through `.shiki` so it outranks the collapsed base rule rather than
      relying on source order. */
   [data-line-numbers] .shiki .line::before {

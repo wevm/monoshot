@@ -6,7 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
@@ -392,10 +392,39 @@ export namespace Frame {
    * source when it serializes, so arbitrary user code is safe to inject here.
    */
   export function Code(props: Code.Props) {
+    const { html, lineNumbers, query } = props
+    const root = useRef<HTMLDivElement>(null)
+
+    // The `^?` line is not code: twoslash drops it and puts the type in its
+    // place. Rebuilding the line in the DOM keeps that block in flow, so it
+    // lands in an export exactly as it reads here.
+    useEffect(() => {
+      let consumed = 0
+      for (const line of root.current?.querySelectorAll<HTMLElement>('.line') ?? []) {
+        const caret = /^(\s*\/\/\s*)\^\?\s*$/.exec(line.textContent ?? '')
+        if (!caret) {
+          // Every consumed query line shifts the numbering of the rest up.
+          const number = Number(line.dataset['line'])
+          if (consumed && number) line.dataset['line'] = String(number - consumed)
+          continue
+        }
+        consumed += 1
+        line.classList.add('twoslash-query')
+        // The block takes no line number: the query was never code.
+        line.removeAttribute('data-line')
+        line.style.setProperty('--twoslash-column', String(caret[1]?.length ?? 0))
+        line.textContent = ''
+        const body = document.createElement('span')
+        body.textContent = query
+        line.appendChild(body)
+      }
+    }, [html, query])
+
     return (
       <div
-        data-line-numbers={props.lineNumbers || undefined}
-        dangerouslySetInnerHTML={{ __html: props.html }}
+        data-line-numbers={lineNumbers || undefined}
+        dangerouslySetInnerHTML={{ __html: html }}
+        ref={root}
         {...stylex.props(code.root)}
       />
     )
@@ -405,6 +434,8 @@ export namespace Frame {
     type Props = {
       html: string
       lineNumbers?: boolean | undefined
+      /** Type the snippet's `^?` query resolves to. */
+      query: string
     }
   }
 }

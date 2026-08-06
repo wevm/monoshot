@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Frame as Core, Theme } from 'monoshot'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import { query } from '#/lib/annotations.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
@@ -374,7 +375,7 @@ function Page() {
                 titleBar={settings.titleBar}
                 width={settings.width}
               >
-                <Frame.Code html={frame.html} lineNumbers={settings.lineNumbers} />
+                <Frame.Code html={frame.html} lineNumbers={settings.lineNumbers} query={query} />
               </Frame>
             </div>
           ) : (

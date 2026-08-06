@@ -10,5 +10,7 @@ const html = highlighter.codeToHtml('const a = 1', {
   lang: 'tsx',
   theme: 'vitesse-dark',
 })
-//    ^?
+
+html
+// ^?
 `
