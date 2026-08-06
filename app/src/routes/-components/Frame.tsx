@@ -37,6 +37,9 @@ const styles = stylex.create({
   handles: { pointerEvents: 'none', position: 'absolute' },
   handlesOuter: { insetBlock: -10, insetInline: 0 },
   handlesInner: (padding: number) => ({ insetBlock: padding, insetInline: padding - 10 }),
+  // The width pair overhangs the window by half a grip; the corner grip needs
+  // the window's own box to sit the same distance from both edges.
+  handlesWindow: (padding: number) => ({ insetBlock: padding, insetInline: padding }),
   // Square by design: the artwork's edge is the image's edge, so only the
   // window inside it is rounded.
   canvas: {
@@ -74,6 +77,15 @@ const styles = stylex.create({
   },
   handleX: { cursor: 'ew-resize', insetBlock: 0, width: 20 },
   handleY: { cursor: 'ns-resize', height: 20, insetInline: 0 },
+  // Rides the corner it rounds: the arc's midpoint sits about 0.3r in from the
+  // corner, so the grip drifts inward as the radius grows.
+  handleCorner: (offset: number) => ({
+    bottom: offset - 10,
+    cursor: 'nwse-resize',
+    height: 20,
+    right: offset - 10,
+    width: 20,
+  }),
   // The cross-axis inset above already pins the other pair, so naming both
   // sides here keeps one rule working for either orientation.
   handleStart: { left: 0, top: 0 },
@@ -87,6 +99,7 @@ const styles = stylex.create({
   },
   gripX: { height: 40, width: 4 },
   gripY: { height: 4, width: 40 },
+  gripCorner: { height: 8, width: 8 },
   backdrop: {
     backgroundImage:
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
@@ -95,13 +108,13 @@ const styles = stylex.create({
   padding: (value: number) => ({ padding: value }),
   window: {
     backgroundColor: 'var(--window-background)',
-    borderRadius: radius.code,
     boxShadow: '0 0 0 1px var(--window-border), var(--window-shadow)',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
     width: '100%',
   },
+  radius: (value: number) => ({ borderRadius: value }),
   windowShadow: { '--window-shadow': shadow.window },
   // Collapses to nothing, so the window height follows it continuously.
   titleBarShell: { overflow: 'hidden' },
@@ -142,10 +155,12 @@ export function Frame(props: Frame.Props) {
     background,
     children,
     onPaddingChange,
+    onRadiusChange,
     onTitleChange,
     onWidthChange,
     padding,
     palette,
+    radius,
     title,
     titleBar,
     width,
@@ -183,7 +198,7 @@ export function Frame(props: Frame.Props) {
             styles.padding(padding),
           )}
         >
-          <div {...stylex.props(styles.window, styles.windowShadow)}>
+          <div {...stylex.props(styles.window, styles.radius(radius), styles.windowShadow)}>
             <AnimatePresence initial={false}>
               {titleBar && (
                 <m.div
@@ -270,6 +285,20 @@ export function Frame(props: Frame.Props) {
             value={width}
           />
         </div>
+        <div {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
+          <Handle
+            axis="xy"
+            edge="end"
+            factor={-2}
+            label="Corner radius"
+            max={48}
+            min={0}
+            onChange={onRadiusChange}
+            onDragging={setDragging}
+            step={4}
+            value={radius}
+          />
+        </div>
       </div>
     </MotionConfig>
   )
@@ -280,8 +309,13 @@ function Handle(props: Handle.Props) {
   const { axis, edge, factor, label, max, min, onChange, onDragging, step, value } = props
 
   const clamp = (next: number) => Math.round(Math.min(max, Math.max(min, next)))
+  // The corner grip travels on the diagonal, so it averages both axes.
   const along = (event: { clientX: number; clientY: number }) =>
-    axis === 'x' ? event.clientX : event.clientY
+    axis === 'x'
+      ? event.clientX
+      : axis === 'y'
+        ? event.clientY
+        : (event.clientX + event.clientY) / 2
 
   // A drag outlives the events that started it, so its listeners have to come
   // off if the handle is unmounted mid-gesture.
@@ -339,19 +373,25 @@ function Handle(props: Handle.Props) {
       type="button"
       {...stylex.props(
         styles.handle,
-        axis === 'x' ? styles.handleX : styles.handleY,
-        edge === 'start' ? styles.handleStart : styles.handleEnd,
+        axis === 'xy' ? styles.handleCorner(12 + Math.round(value * 0.3)) : null,
+        axis === 'x' ? styles.handleX : axis === 'y' ? styles.handleY : null,
+        axis === 'xy' ? null : edge === 'start' ? styles.handleStart : styles.handleEnd,
       )}
     >
-      <span {...stylex.props(styles.grip, axis === 'x' ? styles.gripX : styles.gripY)} />
+      <span
+        {...stylex.props(
+          styles.grip,
+          axis === 'x' ? styles.gripX : axis === 'y' ? styles.gripY : styles.gripCorner,
+        )}
+      />
     </button>
   )
 }
 
 declare namespace Handle {
   type Props = {
-    /** Axis the handle travels along. */
-    axis: 'x' | 'y'
+    /** Axis the handle travels along; `xy` is the corner diagonal. */
+    axis: 'x' | 'y' | 'xy'
     edge: 'start' | 'end'
     /** Value change per pixel of pointer travel, signed by which edge moves. */
     factor: number
@@ -387,6 +427,10 @@ export declare namespace Frame {
     /** Space around the window, in pixels. */
     padding: number
     palette: Theme.derive.Result
+    /** Receives the dragged corner radius, in pixels. */
+    onRadiusChange: (radius: number) => void
+    /** Corner radius of the code window, in pixels. */
+    radius: number
     /** Title-bar text. Empty shows the placeholder. */
     title: string
     /** Shows the window chrome: traffic lights and the title field. */

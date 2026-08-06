@@ -155,10 +155,13 @@ const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
 
 function Page() {
-  const [settings, setSettings] = useState<Toolbar.State & { padding: number; width: number }>({
+  const [settings, setSettings] = useState<
+    Toolbar.State & { padding: number; radius: number; width: number }
+  >({
     background: 'default',
     lineNumbers: false,
     padding: 64,
+    radius: 12,
     theme: 'vitesse-dark',
     titleBar: true,
     width: 640,
@@ -372,7 +375,9 @@ function Page() {
                 onTitleChange={setTitle}
                 onWidthChange={(width) => setSettings((current) => ({ ...current, width }))}
                 padding={settings.padding}
+                onRadiusChange={(radius) => setSettings((current) => ({ ...current, radius }))}
                 palette={frame.palette}
+                radius={settings.radius}
                 title={title}
                 titleBar={settings.titleBar}
                 width={settings.width}

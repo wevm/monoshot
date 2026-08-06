@@ -416,20 +416,20 @@ export function Toolbar(props: Toolbar.Props) {
           />
           <div {...stylex.props(styles.divider)} />
           <Item
-            onClick={() => onChange({ lineNumbers: !lineNumbers })}
-            pressed={lineNumbers}
-            shortcut={shortcuts.lineNumbers}
-            up
-            title="Line numbers"
-            value={lineNumbers ? 'On' : 'Off'}
-          />
-          <Item
             onClick={() => toggle('background')}
             open={panel === 'background'}
             shortcut={shortcuts.background}
             title="Background"
             up
             value={backgroundLabel(background)}
+          />
+          <Item
+            onClick={() => onChange({ lineNumbers: !lineNumbers })}
+            pressed={lineNumbers}
+            shortcut={shortcuts.lineNumbers}
+            up
+            title="Line numbers"
+            value={lineNumbers ? 'On' : 'Off'}
           />
           <Item
             onClick={() => onChange({ titleBar: !titleBar })}
