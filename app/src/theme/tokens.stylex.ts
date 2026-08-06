@@ -91,10 +91,13 @@ export const font = stylex.defineVars({
   mono: "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
 })
 
+// Square by default: the artwork has hard edges, so the interface does too.
+// The code window is the one rounded surface.
 export const radius = stylex.defineVars({
-  control: '6px',
-  floating: '12px',
-  fullscreen: '16px',
+  code: '12px',
+  control: '0px',
+  floating: '0px',
+  fullscreen: '0px',
 })
 
 // Vercel's shadow-border pattern: a 1px alpha ring composed with soft shadows,

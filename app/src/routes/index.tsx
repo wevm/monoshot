@@ -51,14 +51,24 @@ const styles = stylex.create({
   // Crop guides: dashed lines continuing the artwork's edges across the
   // viewport. Fixed and measured, so they never add to the page's own size.
   guides: { inset: 0, pointerEvents: 'none', position: 'fixed' },
-  guide: {
-    borderColor: 'currentColor',
-    borderStyle: 'dashed',
-    opacity: 0.15,
-    position: 'absolute',
-  },
-  guideRow: (top: number) => ({ borderTopWidth: 1, insetInline: 0, top }),
-  guideColumn: (left: number) => ({ borderLeftWidth: 1, insetBlock: 0, left }),
+  // A hairline drawn as a background rather than a border, so it stays exactly
+  // one device-independent pixel and the dashes keep an even rhythm.
+  guide: { opacity: 0.2, position: 'absolute' },
+  guideRow: (edge: { from: number; to: number; top: number }) => ({
+    backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 8px)',
+    height: 1,
+    left: edge.from,
+    top: edge.top,
+    width: Math.max(0, edge.to - edge.from),
+  }),
+  guideColumn: (edge: { from: number; left: number; to: number }) => ({
+    backgroundImage:
+      'repeating-linear-gradient(to bottom, currentColor 0 4px, transparent 4px 8px)',
+    height: Math.max(0, edge.to - edge.from),
+    left: edge.left,
+    top: edge.from,
+    width: 1,
+  }),
   // Reserves the frame's footprint so the first highlight does not shift the
   // page, and gives failures somewhere to speak.
   fallback: {
@@ -121,13 +131,40 @@ function Page() {
   return (
     <main {...stylex.props(styles.page, canvas ? styles.canvasColor(canvas) : null)}>
       {rect && (
+        // With a backdrop the guides stop at the artwork; with a transparent
+        // frame there is no edge to respect, so they run the full screen.
         <div aria-hidden {...stylex.props(styles.guides)}>
-          <span {...stylex.props(styles.guide, styles.guideRow(rect.top))} />
-          <span {...stylex.props(styles.guide, styles.guideRow(rect.bottom))} />
-          <span {...stylex.props(styles.guide, styles.guideColumn(rect.left))} />
-          <span {...stylex.props(styles.guide, styles.guideColumn(rect.right))} />
+          {[rect.top, rect.bottom].map((top) =>
+            (settings.background
+              ? [
+                  { from: 0, to: rect.left },
+                  { from: rect.right, to: rect.width },
+                ]
+              : [{ from: 0, to: rect.width }]
+            ).map((span) => (
+              <span
+                key={`row-${top}-${span.from}`}
+                {...stylex.props(styles.guide, styles.guideRow({ ...span, top }))}
+              />
+            )),
+          )}
+          {[rect.left, rect.right].map((left) =>
+            (settings.background
+              ? [
+                  { from: 0, to: rect.top },
+                  { from: rect.bottom, to: rect.height },
+                ]
+              : [{ from: 0, to: rect.height }]
+            ).map((span) => (
+              <span
+                key={`column-${left}-${span.from}`}
+                {...stylex.props(styles.guide, styles.guideColumn({ ...span, left }))}
+              />
+            )),
+          )}
         </div>
       )}
+
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
         <ExportMenu />
@@ -177,13 +214,20 @@ function Page() {
  */
 function useEdges() {
   const [node, setNode] = useState<HTMLElement | null>(null)
-  const [rect, setRect] = useState<{ bottom: number; left: number; right: number; top: number }>()
+  const [rect, setRect] = useState<Edges>()
 
   useLayoutEffect(() => {
     if (!node) return
     const measure = () => {
       const box = node.getBoundingClientRect()
-      setRect({ bottom: box.bottom, left: box.left, right: box.right, top: box.top })
+      setRect({
+        bottom: box.bottom,
+        height: window.innerHeight,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        width: window.innerWidth,
+      })
     }
     measure()
     const observer = new ResizeObserver(measure)
@@ -198,4 +242,14 @@ function useEdges() {
   }, [node])
 
   return [setNode, rect] as const
+}
+
+type Edges = {
+  bottom: number
+  /** Viewport size, so a guide can span it without reading layout at render. */
+  height: number
+  left: number
+  right: number
+  top: number
+  width: number
 }

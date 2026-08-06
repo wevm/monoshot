@@ -2,8 +2,7 @@ import { Slider } from '@base-ui/react/slider'
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import { Theme } from 'monoshot'
-import { useState } from 'react'
-import { TextMorph } from 'torph/react'
+import { useEffect, useRef, useState } from 'react'
 
 import { text } from '#/theme/text.js'
 import { color, motion, shadow } from '../../theme/tokens.stylex.js'
@@ -52,6 +51,13 @@ const styles = stylex.create({
   itemOpen: { backgroundColor: color.chromeActive },
   itemTitle: { color: color.onChromeSecondary },
   itemValue: { color: color.onChrome },
+  // The row is exactly one line tall and clips, so a rolling character can
+  // never ride up over the label above it.
+  rollRow: { display: 'flex', lineHeight: 1.4, overflow: 'hidden' },
+  // One cell per character; both the outgoing and incoming glyph share it, so
+  // the row keeps its width while a character changes.
+  rollCell: { display: 'grid', justifyItems: 'center' },
+  rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
   sliderRow: { alignItems: 'center', display: 'flex', gap: 16, padding: 16 },
   slider: { display: 'flex', flex: 1 },
@@ -59,6 +65,7 @@ const styles = stylex.create({
   indicator: { backgroundColor: color.onChrome },
   thumb: {
     backgroundColor: color.onChrome,
+    // Round, like the physical control it stands in for.
     borderRadius: 999,
     boxShadow: { default: shadow.thumb, ':focus-visible': shadow.focusRing },
     height: 16,
@@ -97,7 +104,7 @@ const styles = stylex.create({
   themeSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
   swatch: (background: string) => ({
     backgroundColor: background,
-    borderRadius: 999,
+    borderRadius: 0,
     boxShadow: '0 0 0 1px #ffffff24',
     flexShrink: 0,
     height: 12,
@@ -112,6 +119,10 @@ const styles = stylex.create({
 export function Toolbar(props: Toolbar.Props) {
   const { background, lineNumbers, onChange, padding, theme, titleBar } = props
   const [panel, setPanel] = useState<Panel>()
+  // A dragged value changes many times a second. Morphing every step reads as
+  // flicker, so the label follows a slower sample of it.
+  const shownPadding = useThrottled(padding, 140)
+  const previousPadding = usePrevious(shownPadding)
   const selected = Theme.info(theme)
 
   // Clicking the open control closes it, so the bar is its own dismiss target.
@@ -167,7 +178,11 @@ export function Toolbar(props: Toolbar.Props) {
                       </Slider.Track>
                     </Slider.Control>
                   </Slider.Root>
-                  <span {...stylex.props(styles.value, text.copy13)}>{padding}</span>
+                  <Roll
+                    style={[styles.value, text.copy13]}
+                    up={shownPadding >= previousPadding}
+                    value={String(shownPadding)}
+                  />
                 </div>
               )}
             </m.div>
@@ -179,30 +194,35 @@ export function Toolbar(props: Toolbar.Props) {
             onClick={() => toggle('theme')}
             open={panel === 'theme'}
             title="Theme"
+            up
             value={selected?.displayName ?? theme}
           />
           <Item
             onClick={() => toggle('padding')}
             open={panel === 'padding'}
             title="Padding"
-            value={String(padding)}
+            up={shownPadding >= previousPadding}
+            value={String(shownPadding)}
           />
           <div {...stylex.props(styles.divider)} />
           <Item
             onClick={() => onChange({ lineNumbers: !lineNumbers })}
             pressed={lineNumbers}
+            up
             title="Line numbers"
             value={lineNumbers ? 'On' : 'Off'}
           />
           <Item
             onClick={() => onChange({ background: !background })}
             pressed={background}
+            up
             title="Background"
             value={background ? 'On' : 'Off'}
           />
           <Item
             onClick={() => onChange({ titleBar: !titleBar })}
             pressed={titleBar}
+            up
             title="Title bar"
             value={titleBar ? 'On' : 'Off'}
           />
@@ -237,6 +257,75 @@ type Panel = 'theme' | 'padding' | undefined
 /** Settles quickly without overshooting into wobble. */
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
 
+/** Keeps the last value so a change knows which way to roll. */
+function usePrevious<value>(value: value): value {
+  const previous = useRef(value)
+  useEffect(() => {
+    previous.current = value
+  }, [value])
+  return previous.current
+}
+
+/**
+ * A value that rolls character by character: each position animates only when
+ * its own character changes, the way an odometer leaves settled digits alone.
+ */
+function Roll(props: { style: stylex.StyleXStyles[]; up: boolean; value: string }) {
+  const { style, up, value } = props
+  const offset = up ? '-100%' : '100%'
+  const from = up ? '100%' : '-100%'
+  return (
+    <span {...stylex.props(styles.rollRow, style)}>
+      {[...value].map((character, index) => (
+        // Position is the identity here: the character is the animating key.
+        // eslint-disable-next-line react/no-array-index-key
+        <span key={index} {...stylex.props(styles.rollCell)}>
+          <AnimatePresence initial={false} mode="popLayout">
+            <m.span
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: offset }}
+              initial={{ opacity: 0, y: from }}
+              key={character}
+              transition={roll}
+              {...stylex.props(styles.rollGlyph)}
+            >
+              {character}
+            </m.span>
+          </AnimatePresence>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** Short and firm: the value should land, not float. */
+const roll = { damping: 30, stiffness: 420, type: 'spring' } as const
+
+/**
+ * Samples a fast-changing value on an interval so each morph can finish. The
+ * trailing update always runs, so the label settles on the real value.
+ */
+function useThrottled<value>(value: value, ms: number): value {
+  const [shown, setShown] = useState(value)
+  const last = useRef(0)
+
+  useEffect(() => {
+    const elapsed = Date.now() - last.current
+    if (elapsed >= ms) {
+      last.current = Date.now()
+      setShown(value)
+      return
+    }
+    const timer = setTimeout(() => {
+      last.current = Date.now()
+      setShown(value)
+    }, ms - elapsed)
+    return () => clearTimeout(timer)
+  }, [ms, value])
+
+  return shown
+}
+
 /**
  * Centers the selected theme in the list. Sets `scrollTop` directly because
  * `scrollIntoView` walks up and scrolls the page too.
@@ -254,9 +343,11 @@ function Item(props: {
   open?: boolean
   pressed?: boolean
   title: string
+  /** Direction the value rolls: up for a larger or enabled value. */
+  up: boolean
   value: string
 }) {
-  const { onClick, open, pressed, title, value } = props
+  const { onClick, open, pressed, title, up, value } = props
   return (
     <m.button
       // Two stacked spans would otherwise read as one run-together name.
@@ -270,13 +361,7 @@ function Item(props: {
       {...stylex.props(styles.item, open && styles.itemOpen)}
     >
       <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>
-      <TextMorph
-        duration={0.22}
-        ease={{ damping: 26, stiffness: 320 }}
-        {...stylex.props(styles.itemValue, text.button14)}
-      >
-        {value}
-      </TextMorph>
+      <Roll style={[styles.itemValue, text.button14]} up={up} value={value} />
     </m.button>
   )
 }

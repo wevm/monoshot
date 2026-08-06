@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { MotionConfig, motion as m } from 'motion/react'
+import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import type { Theme } from 'monoshot'
 import type { ReactNode } from 'react'
 
@@ -33,7 +33,7 @@ const styles = stylex.create({
   padding: (value: number) => ({ padding: value }),
   window: {
     backgroundColor: 'var(--window-background)',
-    borderRadius: radius.floating,
+    borderRadius: radius.code,
     boxShadow: '0 0 0 1px var(--window-border), var(--window-shadow)',
     display: 'flex',
     flexDirection: 'column',
@@ -41,6 +41,8 @@ const styles = stylex.create({
     width: '100%',
   },
   windowShadow: { '--window-shadow': shadow.window },
+  // Collapses to nothing, so the window height follows it continuously.
+  titleBarShell: { overflow: 'hidden' },
   titleBar: {
     alignItems: 'center',
     display: 'grid',
@@ -51,13 +53,14 @@ const styles = stylex.create({
   lights: { display: 'flex', gap: 8 },
   light: {
     backgroundColor: 'var(--window-border)',
+    // Round, as window controls are everywhere else.
     borderRadius: 999,
     height: 12,
     width: 12,
   },
   title: {
     backgroundColor: 'transparent',
-    borderRadius: 4,
+    borderRadius: 0,
     borderStyle: 'none',
     color: 'var(--window-title)',
     outline: 'none',
@@ -91,32 +94,36 @@ export function Frame(props: Frame.Props) {
           styles.padding(padding),
         )}
       >
-        <m.div layout transition={spring} {...stylex.props(styles.window, styles.windowShadow)}>
-          {titleBar && (
-            <div {...stylex.props(styles.titleBar)}>
-              <div aria-hidden {...stylex.props(styles.lights)}>
-                <span {...stylex.props(styles.light)} />
-                <span {...stylex.props(styles.light)} />
-                <span {...stylex.props(styles.light)} />
-              </div>
-              <input
-                aria-label="Title"
-                onChange={(event) => onTitleChange(event.target.value)}
-                placeholder="untitled"
-                spellCheck={false}
-                value={title}
-                {...stylex.props(styles.title, text.label13)}
-              />
-            </div>
-          )}
-          <m.div
-            layout
-            transition={spring}
-            {...stylex.props(styles.body, !titleBar && styles.bodyBare)}
-          >
-            {children}
-          </m.div>
-        </m.div>
+        <div {...stylex.props(styles.window, styles.windowShadow)}>
+          <AnimatePresence initial={false}>
+            {titleBar && (
+              <m.div
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0 }}
+                transition={spring}
+                {...stylex.props(styles.titleBarShell)}
+              >
+                <div {...stylex.props(styles.titleBar)}>
+                  <div aria-hidden {...stylex.props(styles.lights)}>
+                    <span {...stylex.props(styles.light)} />
+                    <span {...stylex.props(styles.light)} />
+                    <span {...stylex.props(styles.light)} />
+                  </div>
+                  <input
+                    aria-label="Title"
+                    onChange={(event) => onTitleChange(event.target.value)}
+                    placeholder="untitled"
+                    spellCheck={false}
+                    value={title}
+                    {...stylex.props(styles.title, text.label13)}
+                  />
+                </div>
+              </m.div>
+            )}
+          </AnimatePresence>
+          <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>{children}</div>
+        </div>
       </div>
     </MotionConfig>
   )

@@ -24,8 +24,7 @@
     "monoshot": "workspace:*",
     "motion": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "torph": "catalog:"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
