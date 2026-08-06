@@ -1,7 +1,8 @@
 import { cloudflare } from '@cloudflare/vite-plugin'
+import babel from '@rolldown/plugin-babel'
 import stylex from '@stylexjs/unplugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import react from '@vitejs/plugin-react'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
@@ -34,5 +35,9 @@ export default defineConfig({
       },
     }),
     react(),
+    // The React Compiler memoizes components automatically, so the app does
+    // not hand-write useMemo/useCallback. This plugin's oxc pipeline has no
+    // babel hook of its own, so the compiler runs through rolldown's.
+    babel({ presets: [reactCompilerPreset()] }),
   ],
 })

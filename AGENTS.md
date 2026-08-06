@@ -103,14 +103,33 @@
 - Treat `pnpm check` as mutating because it applies fixes. Inspect and keep only task-related changes.
 - Run `git diff --check` and inspect the final diff before reporting completion.
 
+## UI Conventions
+
+- Build interactive components on Base UI (`@base-ui/react`). Do not hand-roll focus management, dismissal, positioning, roving focus, or ARIA wiring, and do not reimplement behavior with React state that a Base UI primitive already owns.
+- Style Base UI parts with StyleX through their `data-*` state attributes (`:is([data-checked])`, `:is([data-highlighted])`, `:is([data-popup-open])`), never JavaScript-toggled classes.
+- Native elements are correct when the platform already provides the whole behavior (`input`, `select`, `button`); reach for Base UI as soon as a component needs a popup, a group, or coordinated state.
+- Color comes from `light-dark()` tokens in `theme/tokens.stylex.ts`. Never write a scheme-specific override at a use site.
+- `.stylex.ts` files hold only `defineVars`/`defineConsts` named exports, and must be imported relatively: the StyleX compiler resolves them itself and does not understand the `#/*` subpath imports used everywhere else.
+
 ## Repository Layout
 
 - The repo root is the published `monoshot` library: flat PascalCase namespace modules in `src/` with colocated tests, built with `zile`, checked with `vp`.
-- `app/` is the private web app (`@monoshot/app`): TanStack Start + Hono on Cloudflare Workers, StyleX design system. It consumes the library via `workspace:*`.
+- `app/` is the private web app (`app`): TanStack Start + Hono on Cloudflare Workers, StyleX design system. It consumes the library via `workspace:*`.
 - Library core stays pure and runtime-agnostic. Browser, CLI, and Worker behavior live in thin adapters (`./headless`, `./api` entrypoints, `app/`).
 
 ## Commands
 
 - `pnpm check` formats and lints (mutating). `pnpm check:types` type-checks the library; the app has its own `check:types`.
 - `pnpm test` runs library tests. `pnpm build` builds the library with zile.
-- `pnpm --filter @monoshot/app dev` runs the web app; `gen:types` regenerates `worker-configuration.d.ts` after wrangler config changes.
+- `pnpm --filter app dev` runs the web app; `gen:types` regenerates `worker-configuration.d.ts` after wrangler config changes.
+
+## Motion Conventions
+
+- Every interactive element acknowledges the pointer. A control with no press state reads as a picture of a control.
+- Press feedback is `transform: scale(0.97)` on `:active`, 140ms, on the element itself. It fires on press, not on release.
+- Hover growth is `scale(1.14)` for swatch-sized targets and stays behind `@media (hover: hover) and (pointer: fine)`; touch reports a hover on tap.
+- Animate `transform` and `opacity`. `height` is allowed where there is no transform equivalent (a collapsing panel), and `filter` only where the blur is the effect being asked for.
+- Curves and durations come from the `motion` consts in `app/src/theme/tokens.stylex.ts`, never hand-rolled per component: `out` for entrances and presses, `inOut` for a value moving between two known states.
+- Springs belong to surfaces the user can interrupt or that carry momentum (a panel opening, a value rolling). Fixed curves belong to hover and press.
+- A selection that moves between siblings uses one shared element with Motion's `layoutId` so it slides, rather than one indicator per sibling blinking on and off.
+- Reduced motion is part of the implementation, not a follow-up: wrap Motion trees in `MotionConfig reducedMotion="user"` and keep opacity while dropping movement.

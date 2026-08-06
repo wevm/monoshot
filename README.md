@@ -10,7 +10,7 @@ Renders shiki-highlighted code frames — every shiki theme, every shiki languag
 
 ```sh
 pnpm install
-pnpm --filter @monoshot/app dev   # web app
+pnpm --filter app dev   # web app
 pnpm test                         # library tests
 pnpm check                        # format + lint (mutating)
 ```
