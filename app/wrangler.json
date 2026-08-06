@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "monoshot",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "preview_urls": true,
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true
+  }
+}

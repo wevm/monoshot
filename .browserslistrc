@@ -1,0 +1,6 @@
+# Baseline 2024: native light-dark() support, so lightningcss keeps it un-polyfilled.
+chrome >= 123
+edge >= 123
+firefox >= 121
+safari >= 17.5
+ios_saf >= 17.5

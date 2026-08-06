@@ -1,0 +1,68 @@
+name: Verify
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      # Fails when `wrangler.json` changed without regenerating the committed
+      # Worker types.
+      - name: Check generated Worker types
+        run: |
+          pnpm --dir app gen:types
+          git diff --exit-code app/worker-configuration.d.ts
+
+      # Not `pnpm check`, which passes `--fix` and would rewrite the checkout instead of failing.
+      - name: Check code
+        run: pnpm exec vp check
+
+      - name: Check types
+        run: pnpm check:types
+
+      - name: Build
+        run: pnpm build
+
+      # The app has to bundle through the full Vite plugin stack, which the
+      # library checks cannot tell us. Also generates `routeTree.gen.ts`,
+      # which the app typecheck needs.
+      - name: Build the app
+        run: pnpm --dir app build
+
+      - name: Check app types
+        run: pnpm --dir app check:types
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Run tests
+        run: pnpm test --run
+        env:
+          CI: true

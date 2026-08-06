@@ -1,0 +1,28 @@
+@layer reset, vendor, tokens;
+
+@import '@fontsource-variable/geist' layer(vendor);
+@import '@fontsource-variable/geist-mono' layer(vendor);
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer tokens {
+  :root {
+    /* light-dark() is inert without color-scheme; the OS preference drives the
+       scheme until a manual override toggles it on <html>. */
+    color-scheme: light dark;
+  }
+}

@@ -1,0 +1,90 @@
+name: Main
+on:
+  push:
+    branches: [main]
+  # Manual dispatch bootstraps the first production deploy (PR previews need
+  # the Worker to exist before `versions upload` can target it).
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Queue rather than cancel: aborting a run mid `changeset publish` (after the
+  # registry publish, before tags/release recording) leaves a broken release.
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify
+    # Granted at the call site: a called workflow may not request more than the calling job holds.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/verify.yml
+
+  changesets:
+    name: Changesets
+    needs: verify
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: PR or publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          commit: 'chore: version packages'
+          publish: pnpm changeset:publish
+          title: 'chore: version packages'
+          version: pnpm changeset:version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    name: Deploy
+    needs: verify
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # The `secrets` context is unavailable in job-level `if`, so the job
+      # gates itself: it skips (green) until the Cloudflare secrets exist.
+      - name: Check deploy credentials
+        id: credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: echo "ok=$([ -n "$CLOUDFLARE_API_TOKEN" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.credentials.outputs.ok == 'true'
+        uses: ./.github/actions/install-dependencies
+
+      - name: Build the app
+        if: steps.credentials.outputs.ok == 'true'
+        run: pnpm --dir app build
+
+      - name: Deploy the app
+        if: steps.credentials.outputs.ok == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          packageManager: pnpm
+          workingDirectory: app
