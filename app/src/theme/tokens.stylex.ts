@@ -8,6 +8,10 @@ export const color = stylex.defineVars({
   background: 'light-dark(#fff, #0a0a0a)',
   backgroundSecondary: 'light-dark(#fafafa, #000)',
 
+  // Floating surfaces let the page through: a translucent fill plus a blur
+  // reads as a layer above the work rather than a hole punched in it.
+  backgroundTranslucent: 'light-dark(#ffffff8f, #0a0a0a99)',
+
   gray100: 'light-dark(#f2f2f2, #1a1a1a)',
   gray200: 'light-dark(#ebebeb, #1f1f1f)',
   gray300: 'light-dark(#e6e6e6, #292929)',
@@ -81,6 +85,7 @@ export const color = stylex.defineVars({
   // Floating tools over the artwork read as their own dark surface in both
   // schemes, the way Apple's markup bar does, so they never invert with the app.
   chrome: '#1c1c1e',
+  chromeTranslucent: '#1c1c1e99',
   onChrome: '#f5f5f7',
   onChromeSecondary: '#98989d',
   chromeHover: '#ffffff1f',

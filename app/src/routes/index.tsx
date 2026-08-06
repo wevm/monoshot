@@ -51,12 +51,13 @@ const styles = stylex.create({
   canvas: { maxWidth: '100%' },
   // Crop guides: dashed lines continuing the artwork's edges across the
   // viewport. Fixed and measured, so they never add to the page's own size.
-  // Above the artwork: a solid fill would otherwise paint over the guides,
-  // which is exactly the case where the crop edge is hardest to see.
+  // The page stacks in three layers: guides over the artwork (a solid fill
+  // would otherwise paint over them, which is exactly when the crop edge is
+  // hardest to see), then the theme arrows, then the toolbar and its panels.
   guides: { inset: 0, pointerEvents: 'none', position: 'fixed', zIndex: 1 },
   // A hairline drawn as a background rather than a border, so it stays exactly
   // one device-independent pixel and the dashes keep an even rhythm.
-  guide: { opacity: 0.3, position: 'absolute' },
+  guide: { opacity: 0.18, position: 'absolute' },
   guideRow: (edge: { from: number; to: number; top: number }) => ({
     backgroundImage: 'repeating-linear-gradient(to right, currentColor 0 4px, transparent 4px 8px)',
     height: 1,
@@ -138,6 +139,7 @@ const styles = stylex.create({
   // Floats over the artwork so opening a taller panel never reflows the page.
   controls: {
     bottom: 24,
+    zIndex: 3,
     display: 'flex',
     insetInline: 0,
     justifyContent: 'center',

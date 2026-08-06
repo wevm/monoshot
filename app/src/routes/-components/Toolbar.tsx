@@ -33,7 +33,11 @@ const styles = stylex.create({
     width: 'max-content',
   },
   surface: {
-    backgroundColor: color.chrome,
+    backdropFilter: 'blur(32px) saturate(180%)',
+    backgroundColor: {
+      default: color.chromeTranslucent,
+      '@media (prefers-reduced-transparency: reduce)': color.chrome,
+    },
     // Square, like the artwork it controls.
     borderRadius: 0,
     boxShadow: shadow.floating,

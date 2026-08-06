@@ -8,7 +8,11 @@ import { color, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   popup: {
-    backgroundColor: color.background,
+    backdropFilter: 'blur(32px) saturate(180%)',
+    backgroundColor: {
+      default: color.backgroundTranslucent,
+      '@media (prefers-reduced-transparency: reduce)': color.background,
+    },
     // Base UI stamps these while the popup enters and leaves.
     opacity: { default: 1, ':is([data-starting-style], [data-ending-style])': 0 },
     transform: {
@@ -27,6 +31,9 @@ const styles = stylex.create({
     minWidth: 200,
     outline: 'none',
     padding: 4,
+    // Clears the page's own layers: the menu portals out of `main`, so it needs
+    // to outrank the crop guides and the toolbar rather than trail them.
+    zIndex: 10,
   },
   item: {
     alignItems: 'center',
