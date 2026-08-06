@@ -42,7 +42,7 @@
     font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   }
 
-  /* The metrics contract: the editor and the rendered frame lay out the same
+  /* Shared text metrics. The editor and the rendered frame lay out the same
      source, and an export captures the frame rather than the editor, so any
      disagreement here shows up as text that moves when you export. Custom
      properties because both a `pre` and CodeMirror's JS theme read them.
