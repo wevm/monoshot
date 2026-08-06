@@ -6,6 +6,10 @@ catalog:
   '@babel/core': ^8.0.1
   '@base-ui/react': ^1.7.0
   '@changesets/cli': ^2.29.0
+  '@codemirror/commands': ^6.10.4
+  '@codemirror/lint': ^6.9.7
+  '@codemirror/state': ^6.7.1
+  '@codemirror/view': ^6.43.8
   '@cloudflare/vite-plugin': ^1.51.0
   '@fontsource-variable/geist-mono': ^5.3.0
   '@rolldown/plugin-babel': ^0.2.3
