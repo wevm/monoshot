@@ -52,6 +52,9 @@
     --code-font-size: 14px;
     --code-line-height: 22px;
     --code-tab-size: 2;
+    /* Annotations sit a step under the code, so a type never competes with the
+       source it describes. */
+    --code-annotation-size: 12px;
   }
 
   /* Shiki emits `pre > code`, and both carry UA font defaults that would
@@ -87,64 +90,50 @@
     width: 0;
   }
 
-  /* The hover type. Editor-only: it never reaches an export, so it reads as a
-     floating surface rather than part of the artwork. Clicking it pins the
-     type, which writes the `^?` line the block below is drawn from. */
-  .cm-tooltip:has(.twoslash-hover) {
-    background: none;
-    border: none;
-  }
-
-  .twoslash-hover {
+  /* One surface for a type, wherever it is shown: the hover and the pinned
+     block differ in where they sit, not in how they look. */
+  .twoslash {
     background-color: color-mix(in oklab, currentColor 7%, transparent);
-    /* The editor sits on the artwork, so the popover needs its own opaque
-       backing rather than borrowing whatever is behind it. */
-    backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid var(--window-border);
-    box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.45);
-    color: inherit;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    font-family: var(--code-font-family);
-    font-size: 12px;
-    gap: 4px;
-    line-height: 18px;
-    margin-bottom: 4px;
-    max-width: min(520px, 90vw);
-    padding: 8px 10px;
-    text-align: start;
-    white-space: pre-wrap;
-  }
-
-  .twoslash-hover-hint {
-    font-size: 10px;
-    letter-spacing: 0.02em;
-    opacity: 0.55;
-    text-transform: uppercase;
-  }
-
-  /* A twoslash `^?` query, standing where its comment line was. It sits in
-     flow rather than floating, so an export carries it too. Unscoped: the
-     editor draws it as a widget, the rendered frame as markup. */
-  .twoslash-query {
-    display: flex;
-    padding-block: 8px 4px;
-  }
-
-  .twoslash-query > span {
-    background-color: color-mix(in oklab, currentColor 7%, transparent);
-    /* Offset by the notch inset, so the notch itself lands on the caret. The
-       indent sits on the box, leaving the line-number gutter where it is. */
-    margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
     box-shadow: inset 0 0 0 1px var(--window-border);
+    font-family: var(--code-font-family);
+    font-size: var(--code-annotation-size);
+    line-height: 1.5;
     padding: 6px 10px;
     position: relative;
     white-space: pre-wrap;
   }
 
+  /* The hover floats, so it earns depth the pinned block does not need. */
+  .cm-tooltip:has(.twoslash) {
+    background: none;
+    border: none;
+  }
+
+  .cm-tooltip .twoslash {
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      inset 0 0 0 1px var(--window-border),
+      0 8px 24px -8px rgb(0 0 0 / 0.45);
+    margin-bottom: 4px;
+    max-width: min(560px, 90vw);
+  }
+
+  /* Pinned: the `^?` line stands aside and the type takes its place in flow,
+     so an export carries it. The editor draws it as a widget, the rendered
+     frame as markup. */
+  .twoslash-block {
+    display: flex;
+    padding-block: 8px 4px;
+  }
+
+  .twoslash-block > .twoslash {
+    /* Offset by the notch inset, so the notch itself lands on the caret. The
+       indent sits on the box, leaving the line-number gutter where it is. */
+    margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
+  }
+
   /* A notch pointing back at the token the caret sat under. */
-  .twoslash-query > span::before {
+  .twoslash-block > .twoslash::before {
     background-color: inherit;
     border-left: 1px solid var(--window-border);
     border-top: 1px solid var(--window-border);

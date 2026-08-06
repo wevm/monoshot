@@ -3,10 +3,12 @@ import type { Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
+import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
+import type { Types } from './hover.js'
 
 /** Sets the types a `^?` caret can resolve to, keyed by identifier. */
-export const setQuery = StateEffect.define<Record<string, string>>()
+export const setQuery = StateEffect.define<Types>()
 
 /**
  * Replaces a `^?` comment line with the type it asks about. The line is not
@@ -30,12 +32,12 @@ export const query = StateField.define<Value>({
 /** The types ride with the decorations, so an edit can rebuild them. */
 type Value = {
   decorations: DecorationSet
-  types: Record<string, string>
+  types: Types
 }
 
 const caret = /^(\s*\/\/\s*)\^\?\s*$/
 
-function build(doc: Text, types: Record<string, string>): DecorationSet {
+function build(doc: Text, types: Types): DecorationSet {
   const ranges = []
   for (let line = 1; line <= doc.lines; line++) {
     const text = doc.line(line)
@@ -58,7 +60,7 @@ function build(doc: Text, types: Record<string, string>): DecorationSet {
 
 class Block extends WidgetType {
   constructor(
-    readonly type: string,
+    readonly type: Annotation.Annotation,
     readonly column: number,
   ) {
     super()
@@ -70,11 +72,9 @@ class Block extends WidgetType {
 
   toDOM() {
     const root = document.createElement('div')
-    root.className = 'twoslash-query'
+    root.className = 'twoslash-block'
     root.style.setProperty('--twoslash-column', String(this.column))
-    const body = document.createElement('span')
-    body.textContent = this.type
-    root.appendChild(body)
+    root.appendChild(Annotation.element(this.type))
     return root
   }
 }

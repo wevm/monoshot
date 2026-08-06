@@ -1,47 +1,45 @@
 import type { Extension } from '@codemirror/state'
 import { EditorView, hoverTooltip } from '@codemirror/view'
 
+import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
+
+/** Types by identifier name, tokenized so they paint like the code. */
+export type Types = Record<string, Annotation.Annotation>
 
 /**
  * Shows an identifier's type on hover, and pins it on click. Pinning writes the
  * `^?` line twoslash reads, so a pin is part of the snippet rather than state
  * beside it: it survives a reload, and the export already knows how to draw it.
  */
-export function hover(types: Record<string, string>): Extension {
-  return hoverTooltip((view, pos) => {
-    const identifier = Identifier.at(view.state.doc, pos)
-    const type = identifier && types[identifier.name]
-    if (!identifier || !type) return null
-    return {
-      above: true,
-      create: () => ({ dom: popover(view, identifier, type) }),
-      end: identifier.to,
-      pos: identifier.from,
-    }
-  })
+export function hover(types: Types): Extension {
+  return [
+    hoverTooltip((view, pos) => {
+      const identifier = Identifier.at(view.state.doc, pos)
+      const type = identifier && types[identifier.name]
+      if (!identifier || !type) return null
+      return {
+        above: true,
+        create: () => ({ dom: Annotation.element(type) }),
+        end: identifier.to,
+        pos: identifier.from,
+      }
+    }),
+    EditorView.domEventHandlers({
+      click(event, view) {
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+        const identifier = pos === null ? undefined : Identifier.at(view.state.doc, pos)
+        // Only identifiers that carry a type respond, so an ordinary click
+        // somewhere else still just places the cursor.
+        if (!identifier || !types[identifier.name]) return false
+        toggle(view, identifier)
+        return false
+      },
+    }),
+  ]
 }
 
-function popover(view: EditorView, identifier: Identifier.Identifier, type: string) {
-  const root = document.createElement('button')
-  root.className = 'twoslash-hover'
-  root.type = 'button'
-  root.title = 'Pin this type'
-
-  const body = document.createElement('span')
-  body.textContent = type
-  root.appendChild(body)
-
-  const hint = document.createElement('span')
-  hint.className = 'twoslash-hover-hint'
-  hint.textContent = pinned(view, identifier) ? 'Click to unpin' : 'Click to pin'
-  root.appendChild(hint)
-
-  root.addEventListener('click', () => toggle(view, identifier))
-  return root
-}
-
-/** Whether the line below the identifier is already a caret pointing at it. */
+/** The caret line below the identifier, when one is already pointing at it. */
 function pinned(view: EditorView, identifier: Identifier.Identifier) {
   const { doc } = view.state
   const line = doc.lineAt(identifier.from)
@@ -51,8 +49,7 @@ function pinned(view: EditorView, identifier: Identifier.Identifier) {
 }
 
 function toggle(view: EditorView, identifier: Identifier.Identifier) {
-  const { doc } = view.state
-  const line = doc.lineAt(identifier.from)
+  const line = view.state.doc.lineAt(identifier.from)
   const existing = pinned(view, identifier)
   view.dispatch(
     existing

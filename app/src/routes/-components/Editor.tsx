@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react'
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
+import type { Types } from '#/lib/editor/hover.js'
 import { query as queries, setQuery } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 
@@ -104,7 +105,7 @@ export declare namespace Editor {
     /** Colors the editor to match the frame it sits in. */
     palette: Theme.derive.Result
     /** Types by identifier, shown on hover and under a pinned `^?` caret. */
-    types: Record<string, string>
+    types: Types
     /** Shiki tokens for the current document, one array per line. */
     tokens: readonly (readonly Token[])[]
   }
