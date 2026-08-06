@@ -1,5 +1,5 @@
 {
-  "name": "@monoshot/app",
+  "name": "app",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -15,6 +15,7 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
     "@stylexjs/stylex": "catalog:",
@@ -26,13 +27,17 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
     "@cloudflare/vite-plugin": "catalog:",
+    "@rolldown/plugin-babel": "catalog:",
     "@stylexjs/unplugin": "catalog:",
     "@tanstack/router-plugin": "catalog:",
+    "@types/babel__core": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
     "typescript": "catalog:",
     "unplugin": "catalog:",
     "vite-plus": "catalog:",

@@ -14,7 +14,7 @@ const styles = stylex.create({
   main: {
     alignItems: 'center',
     backgroundColor: color.background,
-    color: color.foreground,
+    color: color.gray1000,
     display: 'flex',
     flexDirection: 'column',
     fontFamily: font.sans,
@@ -28,7 +28,7 @@ const styles = stylex.create({
     letterSpacing: '-0.4px',
   },
   version: {
-    color: color.foregroundSecondary,
+    color: color.gray900,
     fontFamily: font.mono,
     fontSize: 13,
   },

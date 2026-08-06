@@ -2,6 +2,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 
+import * as Scheme from '#/lib/scheme.js'
 import appCss from '#/styles.css?url'
 
 export const Route = createRootRoute({
@@ -12,6 +13,7 @@ export const Route = createRootRoute({
       { title: 'monoshot' },
       { name: 'description', content: 'Beautiful code images with type-aware annotations.' },
     ],
+    scripts: [{ children: schemeScript }],
     links: [
       { rel: 'stylesheet', href: appCss },
       // StyleX dev CSS is served by the unplugin's dev middleware; the built
@@ -31,6 +33,10 @@ function Layout() {
     </>
   )
 }
+
+// Runs before first paint so a stored override never flashes the OS scheme.
+// Inlined rather than imported because module scripts are deferred.
+const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{}`
 
 function Document({ children }: { children: ReactNode }) {
   return (
