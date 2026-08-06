@@ -95,7 +95,7 @@ const renderer = Core.create({ langs: ['tsx'] })
 
 function Page() {
   const [settings, setSettings] = useState<Toolbar.State>({
-    background: true,
+    background: 'default',
     lineNumbers: false,
     padding: 64,
     theme: 'vitesse-dark',
@@ -124,9 +124,20 @@ function Page() {
 
   const [measure, rect] = useEdges()
 
-  // With the backdrop off the window is the whole artwork, so the shell takes
-  // the window's own colors and the two read as one surface.
-  const canvas = settings.background ? frame?.palette.page : frame?.palette.window
+  // With no backdrop the window is the whole artwork, so the shell takes the
+  // window's own colors and the two read as one surface.
+  const canvas = (() => {
+    if (!frame) return undefined
+    if (settings.background === 'none') return frame.palette.window
+    // A chosen color owns the whole surface, so the shell takes a darkened
+    // cast of it rather than sitting against an unrelated hue.
+    if (settings.background.startsWith('#'))
+      return {
+        background: `color-mix(in oklab, ${settings.background} 22%, #08080a)`,
+        foreground: frame.palette.page.foreground,
+      }
+    return frame.palette.page
+  })()
 
   return (
     <main {...stylex.props(styles.page, canvas ? styles.canvasColor(canvas) : null)}>
@@ -135,12 +146,12 @@ function Page() {
         // frame there is no edge to respect, so they run the full screen.
         <div aria-hidden {...stylex.props(styles.guides)}>
           {[rect.top, rect.bottom].map((top) =>
-            (settings.background
-              ? [
+            (settings.background === 'none'
+              ? [{ from: 0, to: rect.width }]
+              : [
                   { from: 0, to: rect.left },
                   { from: rect.right, to: rect.width },
                 ]
-              : [{ from: 0, to: rect.width }]
             ).map((span) => (
               <span
                 key={`row-${top}-${span.from}`}
@@ -149,12 +160,12 @@ function Page() {
             )),
           )}
           {[rect.left, rect.right].map((left) =>
-            (settings.background
-              ? [
+            (settings.background === 'none'
+              ? [{ from: 0, to: rect.height }]
+              : [
                   { from: 0, to: rect.top },
                   { from: rect.bottom, to: rect.height },
                 ]
-              : [{ from: 0, to: rect.height }]
             ).map((span) => (
               <span
                 key={`column-${left}-${span.from}`}

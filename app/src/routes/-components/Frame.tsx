@@ -30,6 +30,7 @@ const styles = stylex.create({
     backgroundImage:
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
   },
+  fill: (value: string) => ({ backgroundColor: value }),
   padding: (value: number) => ({ padding: value }),
   window: {
     backgroundColor: 'var(--window-background)',
@@ -90,7 +91,8 @@ export function Frame(props: Frame.Props) {
             title: palette.window.title,
             to: palette.backdrop.to,
           }),
-          background && styles.backdrop,
+          background === 'default' ? styles.backdrop : null,
+          background.startsWith('#') ? styles.fill(background) : null,
           styles.padding(padding),
         )}
       >
@@ -135,8 +137,11 @@ const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
 export declare namespace Frame {
   /** Props for {@link Frame}. */
   type Props = {
-    /** Paints the gradient backdrop. Off exports the window alone. */
-    background: boolean
+    /**
+     * `default` paints the theme's gradient, `none` leaves the frame
+     * transparent, and a hex color fills it flat.
+     */
+    background: string
     children: ReactNode
     onTitleChange: (title: string) => void
     /** Space around the window, in pixels. */

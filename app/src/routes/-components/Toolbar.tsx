@@ -11,14 +11,14 @@ const themes = Theme.list()
 
 const styles = stylex.create({
   root: {
-    alignItems: 'stretch',
     display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
     maxWidth: 'min(720px, 100%)',
-    // The bar sizes the stack, so a panel above it matches its width.
+    // The bar alone sizes the stack; the panel is anchored to it, so a long
+    // row of colors scrolls inside that width instead of stretching it.
+    position: 'relative',
     width: 'max-content',
   },
+  panel: { bottom: 'calc(100% + 8px)', insetInline: 0, position: 'absolute' },
   surface: {
     backgroundColor: color.chrome,
     // Square, like the artwork it controls.
@@ -60,6 +60,49 @@ const styles = stylex.create({
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
   sliderRow: { alignItems: 'center', display: 'flex', gap: 16, padding: 16 },
+  colorRow: { alignItems: 'center', display: 'flex', gap: 6, overflowX: 'auto', padding: 12 },
+  swatchButton: {
+    borderStyle: 'none',
+    borderRadius: 6,
+    boxShadow: { default: null, ':focus-visible': shadow.focusRing },
+    cursor: 'pointer',
+    flexShrink: 0,
+    height: 28,
+    outline: 'none',
+    padding: 0,
+    position: 'relative',
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
+    width: 28,
+  },
+  swatchColor: (value: string) => ({ backgroundColor: value }),
+  // Stands for the theme's own gradient rather than a flat color.
+  swatchDefault: { backgroundImage: 'linear-gradient(140deg, #6f5233, #2a1c0f)' },
+  // The transparency checker, drawn rather than imported.
+  swatchNone: {
+    backgroundColor: '#ffffff',
+    backgroundImage:
+      'linear-gradient(45deg, #b0b0b0 25%, transparent 25% 75%, #b0b0b0 75%), linear-gradient(45deg, #b0b0b0 25%, transparent 25% 75%, #b0b0b0 75%)',
+    backgroundPosition: '0 0, 7px 7px',
+    backgroundSize: '14px 14px',
+  },
+  swatchCustom: {
+    backgroundImage:
+      'conic-gradient(#d64541, #e8a33a, #f2d04b, #4caf6a, #2f9ec4, #4258d6, #a855c7, #d64541)',
+    display: 'grid',
+    placeItems: 'center',
+  },
+  swatchSelected: { boxShadow: `0 0 0 2px ${'#1c1c1e'}, 0 0 0 4px #f5f5f7` },
+  colorInput: { height: '100%', inset: 0, opacity: 0, position: 'absolute', width: '100%' },
+  srOnly: {
+    clipPath: 'inset(50%)',
+    height: 1,
+    overflow: 'hidden',
+    position: 'absolute',
+    whiteSpace: 'nowrap',
+    width: 1,
+  },
   slider: { display: 'flex', flex: 1 },
   track: { backgroundColor: color.chromeHover, height: 4, width: '100%' },
   indicator: { backgroundColor: color.onChrome },
@@ -143,7 +186,7 @@ export function Toolbar(props: Toolbar.Props) {
               // Height keeps the spring so the bar is pushed rather than
               // revealed; the blur and fade resolve faster than the movement.
               transition={{ ...spring, filter: fade, opacity: fade }}
-              {...stylex.props(styles.surface)}
+              {...stylex.props(styles.panel, styles.surface)}
             >
               {panel === 'theme' ? (
                 <div {...stylex.props(styles.themeList)}>
@@ -163,6 +206,56 @@ export function Toolbar(props: Toolbar.Props) {
                       {entry.displayName}
                     </button>
                   ))}
+                </div>
+              ) : panel === 'background' ? (
+                <div {...stylex.props(styles.colorRow)}>
+                  <button
+                    onClick={() => onChange({ background: 'default' })}
+                    type="button"
+                    {...stylex.props(
+                      styles.swatchButton,
+                      styles.swatchDefault,
+                      background === 'default' && styles.swatchSelected,
+                    )}
+                  >
+                    <span {...stylex.props(styles.srOnly)}>Default</span>
+                  </button>
+                  <button
+                    onClick={() => onChange({ background: 'none' })}
+                    type="button"
+                    {...stylex.props(
+                      styles.swatchButton,
+                      styles.swatchNone,
+                      background === 'none' && styles.swatchSelected,
+                    )}
+                  >
+                    <span {...stylex.props(styles.srOnly)}>None</span>
+                  </button>
+                  <div {...stylex.props(styles.divider)} />
+                  {backgrounds.map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => onChange({ background: value })}
+                      type="button"
+                      {...stylex.props(
+                        styles.swatchButton,
+                        styles.swatchColor(value),
+                        background === value && styles.swatchSelected,
+                      )}
+                    >
+                      <span {...stylex.props(styles.srOnly)}>{value}</span>
+                    </button>
+                  ))}
+                  <div {...stylex.props(styles.divider)} />
+                  <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
+                    <span {...stylex.props(styles.srOnly)}>Custom color</span>
+                    <input
+                      onChange={(event) => onChange({ background: event.target.value })}
+                      type="color"
+                      value={background.startsWith('#') ? background : '#3b82d6'}
+                      {...stylex.props(styles.colorInput)}
+                    />
+                  </label>
                 </div>
               ) : (
                 <div {...stylex.props(styles.sliderRow)}>
@@ -219,11 +312,11 @@ export function Toolbar(props: Toolbar.Props) {
             value={lineNumbers ? 'On' : 'Off'}
           />
           <Item
-            onClick={() => onChange({ background: !background })}
-            pressed={background}
-            up
+            onClick={() => toggle('background')}
+            open={panel === 'background'}
             title="Background"
-            value={background ? 'On' : 'Off'}
+            up
+            value={backgroundLabel(background)}
           />
           <Item
             onClick={() => onChange({ titleBar: !titleBar })}
@@ -247,8 +340,8 @@ export declare namespace Toolbar {
 
   /** Everything the toolbar can change. */
   type State = {
-    /** Whether the frame paints its gradient backdrop. */
-    background: boolean
+    /** `default`, `none`, or a hex color for the frame's backdrop. */
+    background: string
     lineNumbers: boolean
     /** Frame padding, in pixels. */
     padding: number
@@ -258,7 +351,36 @@ export declare namespace Toolbar {
   }
 }
 
-type Panel = 'theme' | 'padding' | undefined
+type Panel = 'theme' | 'padding' | 'background' | undefined
+
+/** `default` paints the theme's gradient; `none` exports a transparent frame. */
+export const backgrounds = [
+  '#1c1c1e',
+  '#636366',
+  '#aeaeb2',
+  '#ffffff',
+  '#8e3a34',
+  '#d64541',
+  '#e8833a',
+  '#e8a33a',
+  '#f2d04b',
+  '#9ec44b',
+  '#4caf6a',
+  '#3aab8f',
+  '#2f9ec4',
+  '#3b82d6',
+  '#4258d6',
+  '#7b4ad6',
+  '#a855c7',
+  '#d6478f',
+] as const
+
+/** Reads a background value as the label shown on the bar. */
+function backgroundLabel(background: string) {
+  if (background === 'default') return 'Default'
+  if (background === 'none') return 'None'
+  return background.toUpperCase()
+}
 
 /** Settles quickly without overshooting into wobble. */
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
