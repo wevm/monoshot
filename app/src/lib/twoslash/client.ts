@@ -20,10 +20,21 @@ export function create(options: create.Options): create.ReturnType {
       worker = undefined
     },
     resolve(code, lang) {
-      worker ??= spawn()
       version += 1
+      const instance = (() => {
+        try {
+          return (worker ??= spawn())
+        } catch (cause) {
+          // A document policy can forbid workers outright, and the constructor
+          // throws before any listener of ours exists to hear it. `worker`
+          // stays unset, so a later edit tries again.
+          onError?.(cause instanceof Error ? cause.message : String(cause))
+          return undefined
+        }
+      })()
+      if (!instance) return
       const request: Request = { code, lang, version }
-      worker.postMessage(request)
+      instance.postMessage(request)
     },
   }
 
