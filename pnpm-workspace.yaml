@@ -27,6 +27,7 @@ catalog:
   babel-plugin-react-compiler: ^1.0.0
   culori: ^4.0.2
   hono: ^4.13.0
+  highlight.js: ^11.11.1
   motion: ^13.0.0
   react: ^19.2.5
   react-dom: ^19.2.5

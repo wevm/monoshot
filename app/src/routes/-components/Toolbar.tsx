@@ -1,16 +1,24 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import { Theme } from 'monoshot'
+import type { BundledLanguage } from 'shiki'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
+import * as detect from '#/lib/detect.js'
 import { text } from '#/theme/text.js'
 import { color, motion, shadow } from '../../theme/tokens.stylex.js'
 
 const themes = Theme.list()
 
 /** The key that reaches each control from anywhere on the page. */
-const shortcuts = { background: 'b', lineNumbers: 'l', theme: 't', titleBar: 'w' } as const
+const shortcuts = {
+  background: 'b',
+  language: 'a',
+  lineNumbers: 'l',
+  theme: 't',
+  titleBar: 'w',
+} as const
 
 const styles = stylex.create({
   root: {
@@ -165,7 +173,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
     width: 1,
   },
-  themeList: {
+  list: {
     display: 'flex',
     flexDirection: 'column',
     maxHeight: 260,
@@ -173,7 +181,7 @@ const styles = stylex.create({
     overscrollBehavior: 'contain',
     paddingBlock: 6,
   },
-  theme: {
+  option: {
     alignItems: 'center',
     backgroundColor: { default: 'transparent', ':hover': color.chromeHover },
     borderStyle: 'none',
@@ -193,7 +201,7 @@ const styles = stylex.create({
     transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
   },
-  themeSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
+  optionSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 0,
@@ -209,7 +217,7 @@ const styles = stylex.create({
  * and a panel opens above it, spanning its width.
  */
 export function Toolbar(props: Toolbar.Props) {
-  const { background, lineNumbers, onChange, theme, titleBar } = props
+  const { background, language, lineNumbers, onChange, resolved, theme, titleBar } = props
   const [panel, setPanel] = useState<Panel>()
   // A hex the palette does not carry belongs to the custom picker.
   const custom = background.startsWith('#') && !backgrounds.includes(background as never)
@@ -294,6 +302,7 @@ export function Toolbar(props: Toolbar.Props) {
       const shortcut = event.key.toLowerCase()
       if (shortcut === shortcuts.theme) toggle('theme')
       else if (shortcut === shortcuts.background) toggle('background')
+      else if (shortcut === shortcuts.language) toggle('language')
       else if (shortcut === shortcuts.lineNumbers) onChange({ lineNumbers: !lineNumbers })
       else if (shortcut === shortcuts.titleBar) onChange({ titleBar: !titleBar })
       else return
@@ -325,7 +334,7 @@ export function Toolbar(props: Toolbar.Props) {
               )}
             >
               {panel === 'theme' ? (
-                <div {...stylex.props(styles.themeList)}>
+                <div {...stylex.props(styles.list)}>
                   {themes.map((entry) => (
                     <button
                       aria-pressed={entry.name === theme}
@@ -336,13 +345,48 @@ export function Toolbar(props: Toolbar.Props) {
                       ref={entry.name === theme ? reveal : null}
                       type="button"
                       {...stylex.props(
-                        styles.theme,
+                        styles.option,
                         text.copy13,
-                        entry.name === theme && styles.themeSelected,
+                        entry.name === theme && styles.optionSelected,
                       )}
                     >
                       <span {...stylex.props(styles.swatch(swatches[entry.type]))} />
                       {entry.displayName}
+                    </button>
+                  ))}
+                </div>
+              ) : panel === 'language' ? (
+                <div {...stylex.props(styles.list)}>
+                  <button
+                    aria-pressed={language === 'auto'}
+                    data-option={language === 'auto' ? 'selected' : ''}
+                    onClick={() => onChange({ language: 'auto' })}
+                    onFocus={() => onChange({ language: 'auto' })}
+                    type="button"
+                    {...stylex.props(
+                      styles.option,
+                      text.copy13,
+                      language === 'auto' && styles.optionSelected,
+                    )}
+                  >
+                    Auto
+                  </button>
+                  {detect.languages.map((entry) => (
+                    <button
+                      aria-pressed={entry.id === language}
+                      data-option={entry.id === language ? 'selected' : ''}
+                      key={entry.id}
+                      onClick={() => onChange({ language: entry.id })}
+                      onFocus={() => onChange({ language: entry.id })}
+                      ref={entry.id === language ? reveal : null}
+                      type="button"
+                      {...stylex.props(
+                        styles.option,
+                        text.copy13,
+                        entry.id === language && styles.optionSelected,
+                      )}
+                    >
+                      {entry.title}
                     </button>
                   ))}
                 </div>
@@ -414,6 +458,14 @@ export function Toolbar(props: Toolbar.Props) {
             up={themeIndex <= previousThemeIndex}
             value={selected?.displayName ?? theme}
           />
+          <Item
+            onClick={() => toggle('language')}
+            open={panel === 'language'}
+            shortcut={shortcuts.language}
+            title="Language"
+            up
+            value={detect.title(resolved)}
+          />
           <div {...stylex.props(styles.divider)} />
           <Item
             onClick={() => toggle('background')}
@@ -450,12 +502,16 @@ export declare namespace Toolbar {
   type Props = State & {
     /** Receives only the settings that changed. */
     onChange: (next: Partial<State>) => void
+    /** The language actually in use, which under `auto` is the detected one. */
+    resolved: BundledLanguage
   }
 
   /** Everything the toolbar can change. */
   type State = {
     /** `default`, `none`, or a hex color for the frame's backdrop. */
     background: string
+    /** A pinned language, or `auto` to read it from the code. */
+    language: BundledLanguage | 'auto'
     lineNumbers: boolean
     theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
@@ -463,7 +519,7 @@ export declare namespace Toolbar {
   }
 }
 
-type Panel = 'theme' | 'background' | undefined
+type Panel = 'theme' | 'background' | 'language' | undefined
 
 /** `default` paints the theme's gradient; `none` exports a transparent frame. */
 export const backgrounds = [
