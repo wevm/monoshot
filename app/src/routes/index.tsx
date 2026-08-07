@@ -3,12 +3,13 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Frame as Core, Theme } from 'monoshot'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { query } from '#/lib/annotations.js'
+import { types } from '#/lib/annotations.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
+import { Editor } from './-components/Editor.js'
 import { Frame } from './-components/Frame.js'
 import { Toolbar } from './-components/Toolbar.js'
 
@@ -169,21 +170,46 @@ function Page() {
     width: 640,
   })
   const [title, setTitle] = useState('')
-  const [frame, setFrame] = useState<{ html: string; palette: Theme.derive.Result }>()
+  const [code, setCode] = useState(sample)
+  const [frame, setFrame] = useState<{
+    palette: Theme.derive.Result
+    tokens: Editor.Props['tokens']
+  }>()
+  const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
   const [error, setError] = useState<Error>()
 
+  // Tokens are the editor's colors, so this reruns on every edit as well as
+  // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
     let active = true
-    renderer.render({ code: sample, lang: 'tsx', theme: settings.theme }).then(
+    renderer.tokens({ code, lang: 'tsx', theme: settings.theme }).then(
       (result) => {
         if (!active) return
         setError(undefined)
-        setFrame({ html: result.html, palette: Theme.derive(result.theme) })
+        setFrame({ palette: Theme.derive(result.theme), tokens: result.tokens })
       },
       (cause: Error) => {
         if (active) setError(cause)
       },
     )
+    return () => {
+      active = false
+    }
+  }, [code, settings.theme])
+
+  // Types are painted in the theme's own colors rather than a flat foreground,
+  // and their text does not change with the document, so they are tokenized
+  // once per theme rather than on every keystroke.
+  useEffect(() => {
+    let active = true
+    Promise.all(
+      Object.entries(types).map(async ([name, type]) => {
+        const result = await renderer.tokens({ code: type, lang: 'ts', theme: settings.theme })
+        return [name, result.tokens] as const
+      }),
+    ).then((entries) => {
+      if (active) setAnnotations(Object.fromEntries(entries))
+    })
     return () => {
       active = false
     }
@@ -402,7 +428,14 @@ function Page() {
                 titleBar={settings.titleBar}
                 width={settings.width}
               >
-                <Frame.Code html={frame.html} lineNumbers={settings.lineNumbers} query={query} />
+                <Editor
+                  code={code}
+                  lineNumbers={settings.lineNumbers}
+                  onCodeChange={setCode}
+                  palette={frame.palette}
+                  tokens={frame.tokens}
+                  types={annotations}
+                />
               </Frame>
             </div>
           ) : (

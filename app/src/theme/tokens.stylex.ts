@@ -127,7 +127,9 @@ export const shadow = stylex.defineVars({
   window: '0 24px 48px -12px light-dark(#00000026, #00000059)',
 })
 
-// Inlined at build time: no CSS variables generated.
+// Inlined at build time: no CSS variables generated. The app shell republishes
+// them as `--motion-*` so plain CSS can reach them, and they stay literals here
+// because Motion parses the curves and durations rather than resolving them.
 export const motion = stylex.defineConsts({
   /** Decelerating curve for surfaces settling into place (out-expo). */
   out: 'cubic-bezier(0.19, 1, 0.22, 1)',

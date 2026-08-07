@@ -1,5 +1,11 @@
 import { createHighlighter } from 'shiki'
-import type { BundledLanguage, BundledTheme, Highlighter, ThemeRegistrationResolved } from 'shiki'
+import type {
+  BundledLanguage,
+  BundledTheme,
+  Highlighter,
+  ThemeRegistrationResolved,
+  ThemedToken,
+} from 'shiki'
 
 /**
  * Creates a renderer that owns a highlighter for its lifetime.
@@ -71,6 +77,14 @@ export function create(options: create.Options = {}): create.ReturnType {
         theme: structuredClone(instance.getTheme(theme)),
       }
     },
+    async tokens(parameters) {
+      const { code, lang, theme } = parameters
+      const instance = await resolve({ lang, theme })
+      return {
+        theme: structuredClone(instance.getTheme(theme)),
+        tokens: instance.codeToTokensBase(code, { lang, theme }),
+      }
+    },
   }
 }
 
@@ -99,6 +113,11 @@ export declare namespace create {
      * Rejects when shiki cannot load the requested theme or language.
      */
     render: (options: render.Options) => Promise<render.ReturnType>
+    /**
+     * Tokenizes code without rendering it, for a surface that draws its own
+     * text. An editor colors its own document from these.
+     */
+    tokens: (options: tokens.Options) => Promise<tokens.ReturnType>
   }
 }
 
@@ -108,6 +127,17 @@ export declare namespace load {
     lang: BundledLanguage
     /** Theme to load. */
     theme: BundledTheme
+  }
+}
+
+export declare namespace tokens {
+  type Options = render.Options
+
+  type ReturnType = {
+    /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
+    theme: ThemeRegistrationResolved
+    /** One array of tokens per line, in source order. */
+    tokens: readonly (readonly ThemedToken[])[]
   }
 }
 

@@ -52,6 +52,9 @@
     --code-font-size: 14px;
     --code-line-height: 22px;
     --code-tab-size: 2;
+    /* Annotations sit a step under the code, so a type never competes with the
+       source it describes. */
+    --code-annotation-size: 12px;
   }
 
   /* Shiki emits `pre > code`, and both carry UA font defaults that would
@@ -87,26 +90,160 @@
     width: 0;
   }
 
-  /* A twoslash `^?` query, standing where its comment line was. It sits in
-     flow rather than floating, so an export carries it too. */
-  .shiki .twoslash-query {
-    display: flex;
-    padding-block: 8px 4px;
+  /* Every identifier that has a type says so while the pointer is in the
+     editor, the way a type-aware editor marks what it knows about. */
+  .twoslash-mark {
+    /* Always decorated, revealed on approach: fading the color rather than
+       adding the marks means they can transition at all, and it keeps the
+       reveal out of the editor's state. Dimmed, so they answer "what can I
+       hover" without competing with the code they sit under. */
+    text-decoration: underline dotted transparent;
+    text-underline-offset: 4px;
+    transition: text-decoration-color var(--motion-fast) var(--motion-out);
   }
 
-  .shiki .twoslash-query > span {
-    background-color: color-mix(in oklab, currentColor 7%, transparent);
-    /* Offset by the notch inset, so the notch itself lands on the caret. The
-       indent sits on the box, leaving the line-number gutter where it is. */
-    margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
+  .cm-content:hover .twoslash-mark {
+    text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
+  }
+
+  /* A type arriving: it settles from just above, so the eye follows it down to
+     where it lands rather than finding it already there. */
+  @keyframes twoslash-in {
+    from {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+  }
+
+  /* One surface for a type, wherever it is shown: the hover and the pinned
+     block differ in where they sit, not in how they look. */
+  .twoslash {
+    /* Composited onto the window rather than left translucent: the notch
+       inherits this fill and hangs off the surface, so a transparent one
+       shows the code through the part that sticks out. */
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
     box-shadow: inset 0 0 0 1px var(--window-border);
+    font-family: var(--code-font-family);
+    font-size: var(--code-annotation-size);
+    line-height: 1.5;
     padding: 6px 10px;
     position: relative;
     white-space: pre-wrap;
   }
 
-  /* A notch pointing back at the token the caret sat under. */
-  .shiki .twoslash-query > span::before {
+  /* Beside the type's first line, just off the surface: near the word it
+     describes, clear of the notch, and out of flow entirely, so nothing
+     reflows when it appears. */
+  .twoslash-pin {
+    align-items: center;
+    /* The surface's own composited fill, so the part hanging off the edge is
+       opaque rather than showing code through it. */
+    background-color: inherit;
+    border: none;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--window-border);
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    height: 18px;
+    justify-content: center;
+    margin-right: 3px;
+    /* Out of the picture until reached for. It still takes hits while it is
+       invisible, so the pointer passing over it brings it out. */
+    opacity: 0;
+    padding: 0;
+    position: absolute;
+    right: 100%;
+    /* Centered on the first line: 6px of surface padding plus half a line. */
+    top: 6px;
+    /* Comes out of the surface's edge rather than appearing beside it: the
+       travel closes the gap exactly, so it never laps the type. */
+    transform: translateX(3px) scale(0.9);
+    transform-origin: right center;
+    transition:
+      opacity var(--motion-fast) var(--motion-out),
+      transform var(--motion-fast) var(--motion-out);
+    width: 18px;
+  }
+
+  /* Reaches across the gap to the surface, so crossing it does not read as
+     leaving both. */
+  .twoslash-pin::after {
+    content: '';
+    inset: 0 -3px 0 0;
+    position: absolute;
+  }
+
+  /* The hover only exists while you are pointing at the word, so its control
+     is there from the start; a pinned type is part of the picture, and gives
+     one up only once the pointer is on it. */
+  .cm-tooltip .twoslash-pin,
+  .twoslash:hover .twoslash-pin,
+  .twoslash-pin:focus-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Presses read as pressed, not as a hover that happens to be clicked. */
+  .twoslash-pin:active {
+    transform: scale(0.92);
+  }
+
+  .twoslash-pin svg {
+    fill: none;
+    height: 10px;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+    width: 10px;
+  }
+
+  /* The run between the word and its type. Transparent, and part of the
+     tooltip rather than empty space beside it, so the pointer stays inside the
+     hover the whole way down and out to the pin. It has to be real width, not
+     overflow: CodeMirror measures the tooltip's box, so anything hanging
+     outside it is not part of the hover. */
+  .twoslash-bridge {
+    padding-left: var(--twoslash-reach, 0);
+    padding-top: 4px;
+  }
+
+  /* The hover floats over code, so the same tint is composited onto the window
+     rather than left transparent. Same color, but nothing reads through it.
+     It appears often, so it barely moves: enough to register, not to notice. */
+  .cm-tooltip .twoslash {
+    animation: twoslash-in var(--motion-fast) var(--motion-out) both;
+    /* The only place depth is spent: what a hover covers is often a pinned
+       type wearing the same surface, and without a shadow the two merge into
+       one shape with a bar hanging off it. */
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, currentColor 18%, var(--window-border)),
+      0 2px 4px rgb(0 0 0 / 0.28),
+      0 12px 28px -8px rgb(0 0 0 / 0.45);
+  }
+
+  /* Pinned: the `^?` line stands aside and the type takes its place in flow,
+     so an export carries it. The editor draws it as a widget, the rendered
+     frame as markup. */
+  .twoslash-block {
+    display: flex;
+    padding-block: 8px 4px;
+    /* Indented here rather than on the surface inside: `ch` resolves against
+       the element's own font, and the annotation is a step smaller than the
+       code whose columns this counts. Offset by the notch's inset, so the
+       notch itself lands on the caret. */
+    padding-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
+  }
+
+  .twoslash-block > .twoslash {
+    /* Pinning is deliberate and pushes the code below it down, so this one
+       earns more travel than the hover it replaces. */
+    animation: twoslash-in var(--motion-medium) var(--motion-out) both;
+  }
+
+  /* A notch pointing back at the token the type belongs to. */
+  .twoslash::before {
     background-color: inherit;
     border-left: 1px solid var(--window-border);
     border-top: 1px solid var(--window-border);
@@ -131,5 +268,19 @@
     .shiki .line::before {
       transition-property: opacity;
     }
+  }
+}
+
+/* Motion is the reveal, not the message: without it the surfaces still arrive,
+   they just stop travelling to get there. */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes twoslash-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .twoslash-pin {
+    transform: none;
   }
 }
