@@ -185,7 +185,7 @@ function Page() {
     tokens: Editor.Props['tokens']
   }>()
   const [annotations, setAnnotations] = useState<Editor.Props['types']>(empty)
-  const [resolved, setResolved] = useState<Twoslash.Result>()
+  const [resolved, setResolved] = useState<Twoslash.Resolved>()
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
   const [detected, setDetected] = useState<BundledLanguage>('tsx')
@@ -253,8 +253,13 @@ function Page() {
       setAnnotations(empty)
       return
     }
+    // Painting is a second asynchronous stage: a theme's TypeScript grammar
+    // can still be loading. The spans are offsets into the document that was
+    // resolved, so an edit reruns this and drops them rather than marking the
+    // wrong words. The editor keeps mapping the spans it already holds.
+    if (resolved.document !== code) return
     let active = true
-    const texts = [...new Set(resolved.hovers.map((hover) => hover.text))]
+    const texts = [...new Set(resolved.result.hovers.map((hover) => hover.text))]
     Promise.all(
       texts.map(async (text) => {
         const result = await renderer.tokens({ code: text, lang: 'ts', theme: settings.theme })
@@ -264,7 +269,7 @@ function Page() {
       if (!active) return
       const painted = new Map(entries)
       setAnnotations(
-        resolved.hovers.map((hover) => ({
+        resolved.result.hovers.map((hover) => ({
           annotation: painted.get(hover.text) ?? [],
           from: hover.from,
           to: hover.to,
@@ -274,7 +279,7 @@ function Page() {
     return () => {
       active = false
     }
-  }, [resolved, settings.theme])
+  }, [code, resolved, settings.theme])
 
   const [measure, rect] = useEdges()
 

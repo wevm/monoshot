@@ -3,6 +3,17 @@ import type * as Twoslash from 'monoshot/twoslash'
 /** What the worker resolves for a document. */
 export type Result = Twoslash.Result
 
+/**
+ * A result, carrying the document it describes. Its spans are offsets into
+ * that text, so a caller can tell whether they still belong on screen.
+ */
+export type Resolved = {
+  /** The document the types were resolved against. */
+  document: string
+  /** The types the language service found in it. */
+  result: Result
+}
+
 import type { Lang, Request, Response } from './protocol.js'
 
 /**
@@ -16,6 +27,9 @@ export function create(options: create.Options): create.ReturnType {
   const { onError, onResult } = options
   let worker: Worker | undefined
   let version = 0
+  // The document the accepted reply will be about: a reply only passes the
+  // version check when nothing has been asked since.
+  let latest = ''
 
   return {
     dispose() {
@@ -28,6 +42,7 @@ export function create(options: create.Options): create.ReturnType {
     resolve(code, lang) {
       worker ??= spawn()
       version += 1
+      latest = code
       const request: Request = { code, lang, version }
       worker.postMessage(request)
     },
@@ -45,7 +60,15 @@ export function create(options: create.Options): create.ReturnType {
       // resolving is slow enough that answers can arrive out of order.
       if (event.data.version !== version) return
       if ('error' in event.data) onError?.(event.data.error)
-      else onResult(event.data.result)
+      else onResult({ document: latest, result: event.data.result })
+    })
+    // A worker that fails to start never sends a protocol message, so it is
+    // dropped here instead. Holding on to it would post every later document
+    // into a dead instance; cleared, the next edit spawns a replacement.
+    instance.addEventListener('error', (event) => {
+      instance.terminate()
+      if (worker === instance) worker = undefined
+      onError?.(event.message)
     })
     return instance
   }
@@ -56,7 +79,7 @@ export declare namespace create {
     /** Called when a document could not be resolved at all. */
     onError?: ((message: string) => void) | undefined
     /** Called with the types for the most recent document. */
-    onResult: (result: Twoslash.Result) => void
+    onResult: (resolved: Resolved) => void
   }
 
   type ReturnType = {
