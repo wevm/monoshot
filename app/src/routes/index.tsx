@@ -2,10 +2,12 @@ import * as stylex from '@stylexjs/stylex'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
+import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { types } from '#/lib/annotations.js'
 import { detect, languages, typed } from '#/lib/detect.js'
+import * as Export from '#/lib/export.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -20,6 +22,14 @@ export const Route = createFileRoute('/')({
 })
 
 const styles = stylex.create({
+  offscreen: {
+    // In the document so it lays out at its real size, off the page so it is
+    // never seen. Not `display: none`, which would give it no box at all.
+    insetBlockStart: 0,
+    insetInlineStart: -20000,
+    pointerEvents: 'none',
+    position: 'fixed',
+  },
   page: {
     display: 'flex',
     flexDirection: 'column',
@@ -245,6 +255,8 @@ function Page() {
   }>()
   const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
   const [error, setError] = useState<Error>()
+  const [artwork, setArtwork] = useState<string>()
+  const stage = useRef<HTMLDivElement>(null)
   const [detected, setDetected] = useState<BundledLanguage>('tsx')
 
   // Under `auto` the language is read from the code, debounced: reading the
@@ -304,6 +316,27 @@ function Page() {
       active = false
     }
   }, [settings.theme])
+
+  /**
+   * Renders the frame away from the page and captures that, so an export
+   * carries the artwork rather than the editor's caret, selection, and handles.
+   */
+  async function take(options: Export.capture.Options) {
+    const { html } = await renderer.render({ code, lang: language, theme: settings.theme })
+    // Synchronous, so the copy is in the document before it is measured.
+    flushSync(() => setArtwork(html))
+    try {
+      const node = stage.current?.firstElementChild
+      if (!node) throw new Error('The artwork is not ready.')
+      // Fonts first: capturing before they load bakes in fallback metrics.
+      await document.fonts.ready
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const size = node.getBoundingClientRect()
+      return await Export.capture(node, { ...options, scale: Export.fit(size, options.scale) })
+    } finally {
+      setArtwork(undefined)
+    }
+  }
 
   const [measure, rect] = useEdges()
 
@@ -494,7 +527,36 @@ function Page() {
 
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
+        <div aria-hidden ref={stage} {...stylex.props(styles.offscreen)}>
+          {artwork && frame ? (
+            <Frame
+              background={settings.background}
+              onPaddingChange={() => {}}
+              onTitleChange={() => {}}
+              onWidthChange={() => {}}
+              padding={settings.padding}
+              onRadiusChange={() => {}}
+              palette={frame.palette}
+              radius={settings.radius}
+              title={title}
+              titleBar={settings.titleBar}
+              width={settings.width}
+            >
+              <Frame.Code html={artwork} lineNumbers={settings.lineNumbers} />
+            </Frame>
+          ) : null}
+        </div>
         <ExportMenu
+          onCopyImage={() => {
+            // Handed over as a promise: Safari only honors a clipboard write
+            // that starts in the gesture that asked for it.
+            void Export.copy(take({ scale: 2, type: 'png' })).catch(setError)
+          }}
+          onSave={(options) => {
+            void take(options)
+              .then((blob) => Export.download(blob, `${title || 'untitled'}.${options.type}`))
+              .catch(setError)
+          }}
           onCopyUrl={() => {
             // Built from state rather than read from the address bar, so a
             // copy never waits on the debounced write.

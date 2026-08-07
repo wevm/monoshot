@@ -8,6 +8,7 @@ import type {
 } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
+import { ignore } from '#/lib/export.js'
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -250,7 +251,7 @@ export function Frame(props: Frame.Props) {
         </div>
         {/* Padding grows on every side at once, so the artwork's own edge
             keeps pace with the pointer. */}
-        <div {...stylex.props(styles.handles, styles.handlesOuter)}>
+        <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesOuter)}>
           <Handle
             axis="y"
             edge="start"
@@ -278,7 +279,7 @@ export function Frame(props: Frame.Props) {
         </div>
         {/* Both window edges move together, so the artwork stays centered
             under the pointer and grows at twice its pace. */}
-        <div {...stylex.props(styles.handles, styles.handlesInner(padding))}>
+        <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesInner(padding))}>
           <Handle
             axis="x"
             edge="start"
@@ -304,7 +305,7 @@ export function Frame(props: Frame.Props) {
             value={width}
           />
         </div>
-        <div {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
+        <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
           <Handle
             axis="xy"
             edge="end"
@@ -483,6 +484,8 @@ export namespace Frame {
     useEffect(() => {
       let consumed = 0
       let last = 0
+      // Without a type to put there, a `^?` line stays the comment it is.
+      if (!query) return
       for (const line of root.current?.querySelectorAll<HTMLElement>('.line') ?? []) {
         const caret = /^(\s*\/\/\s*)\^\?\s*$/.exec(line.textContent ?? '')
         if (!caret) {
@@ -523,8 +526,8 @@ export namespace Frame {
     type Props = {
       html: string
       lineNumbers?: boolean | undefined
-      /** Type the snippet's `^?` query resolves to. */
-      query: string
+      /** Type the snippet's `^?` query resolves to, when one is known. */
+      query?: string | undefined
     }
   }
 }

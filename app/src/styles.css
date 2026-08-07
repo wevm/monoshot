@@ -71,25 +71,6 @@
     white-space: pre-wrap;
   }
 
-  /* Shiki emits the highlighted markup, so the gutter is styled here rather
-     than through StyleX, which cannot target injected descendants. It is always
-     present and collapses to zero width, so toggling it slides the code across
-     instead of snapping. */
-  .shiki .line::before {
-    content: attr(data-line);
-    display: inline-block;
-    margin-right: 0;
-    opacity: 0;
-    overflow: hidden;
-    text-align: right;
-    transition:
-      width 240ms cubic-bezier(0.23, 1, 0.32, 1),
-      margin-right 240ms cubic-bezier(0.23, 1, 0.32, 1),
-      opacity 160ms cubic-bezier(0.23, 1, 0.32, 1);
-    vertical-align: top;
-    width: 0;
-  }
-
   /* Every identifier that has a type says so while the pointer is in the
      editor, the way a type-aware editor marks what it knows about. */
   .twoslash-mark {
@@ -278,18 +259,19 @@
     width: 7px;
   }
 
-  /* Scoped through `.shiki` so it outranks the collapsed base rule rather than
-     relying on source order. */
+  /* Shiki emits the highlighted markup, so the gutter is styled here rather
+     than through StyleX, which cannot target injected descendants. Present only
+     when it is asked for: a collapsed placeholder survives a DOM capture as its
+     natural width, which indents every line by its own line number. */
   [data-line-numbers] .shiki .line::before {
+    content: attr(data-line);
+    display: inline-block;
     margin-right: 20px;
     opacity: 0.4;
+    overflow: hidden;
+    text-align: right;
+    vertical-align: top;
     width: var(--gutter, 2ch);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .shiki .line::before {
-      transition-property: opacity;
-    }
   }
 }
 
