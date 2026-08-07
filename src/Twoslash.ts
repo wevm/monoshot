@@ -1,5 +1,4 @@
 import { createTwoslasher } from 'twoslash'
-import type { TwoslashReturn } from 'twoslash'
 
 /** A type the language service resolved for a span of the source. */
 export type Annotation = {
@@ -9,6 +8,7 @@ export type Annotation = {
   name: string
   /** The type, formatted the way the language service returned it. */
   text: string
+  /** Offset just past the identifier, so `source.slice(from, to)` is `name`. */
   to: number
 }
 
@@ -21,15 +21,60 @@ export type Result = {
 }
 
 /**
+ * Creates a resolver that owns a TypeScript compiler for its lifetime.
+ *
+ * Construct one per lifecycle that should share the compiler: an editor
+ * session, a CLI run, a worker. The first snippet builds the compiler and
+ * every later one reuses it, which is what makes resolving on each keystroke
+ * affordable.
+ *
+ * @example
+ * ```ts twoslash
+ * import * as Twoslash from 'monoshot/twoslash'
+ *
+ * const twoslash = Twoslash.create()
+ * const result = twoslash.run("const a = 'x'\n//    ^?")
+ * result.queries[0]?.text
+ * // ^?
+ * ```
+ */
+export function create(): create.ReturnType {
+  const twoslasher = createTwoslasher()
+  return {
+    run(code, options = {}) {
+      return annotate(
+        twoslasher(code, options.lang ?? 'ts', {
+          // Half-typed code is the normal case in an editor, and twoslash
+          // otherwise insists every compiler error be declared in the source
+          // with an `@errors` tag, throwing when it is not. A snippet that
+          // does not compile still has types worth showing.
+          handbookOptions: { noErrorValidation: true },
+        }),
+      )
+    },
+  }
+}
+
+export declare namespace create {
+  type ReturnType = {
+    /** Resolves a snippet's types against the compiler this resolver holds. */
+    run: (code: string, options?: run.Options) => Result
+  }
+}
+
+/**
  * Resolves a snippet's types.
  *
  * Positions come back against the source as written rather than the source
  * twoslash compiled, so a caller holding the original text can use them
  * directly.
  *
+ * Builds a compiler for the call and keeps nothing afterwards. Reach for
+ * {@link create} to resolve more than one snippet.
+ *
  * @example
  * ```ts twoslash
- * import { Twoslash } from 'monoshot'
+ * import * as Twoslash from 'monoshot/twoslash'
  *
  * const result = Twoslash.run("const a = 'x'\n//    ^?")
  * result.queries[0]?.text
@@ -37,13 +82,7 @@ export type Result = {
  * ```
  */
 export function run(code: string, options: run.Options = {}): Result {
-  const { lang = 'ts' } = options
-  // Half-typed code is the normal case in an editor, and twoslash otherwise
-  // insists every compiler error be declared in the source with an `@errors`
-  // tag, throwing when it is not. A snippet that does not compile still has
-  // types worth showing.
-  const result = twoslasher()(code, lang, { handbookOptions: { noErrorValidation: true } })
-  return annotate(result)
+  return create().run(code, options)
 }
 
 export declare namespace run {
@@ -59,12 +98,16 @@ export declare namespace run {
  * Separate from {@link run} because the browser runs twoslash in a worker with
  * its own type acquisition, and hands the result here.
  */
-export function annotate(result: TwoslashReturn): Result {
+export function annotate(result: annotate.Input): Result {
+  // Ascending, because each removal shifts the ones after it. Twoslash reports
+  // them in the order it found them, which is not that order.
   const removals = [...result.meta.removals].sort((a, b) => a[0] - b[0])
   const hovers: Annotation[] = []
   const queries: Annotation[] = []
   for (const node of result.nodes) {
     if (node.type !== 'hover' && node.type !== 'query') continue
+    // A node the language service found no type for has nothing to annotate.
+    if (node.text === undefined) continue
     const from = raw(node.start, removals)
     const annotation = {
       from,
@@ -78,24 +121,44 @@ export function annotate(result: TwoslashReturn): Result {
   return { hovers, queries }
 }
 
+export declare namespace annotate {
+  /**
+   * The parts of a twoslash run this reads.
+   *
+   * Structural rather than twoslash's own `TwoslashReturn`: the browser
+   * acquires types through a separate twoslash build, and only these fields
+   * have to agree.
+   */
+  type Input = {
+    /** The source twoslash compiled, with the notation lines taken out. */
+    code: string
+    /** What twoslash changed on the way in. */
+    meta: {
+      /** Ranges cut from the source as written, in the order twoslash found them. */
+      removals: readonly (readonly [number, number])[]
+    }
+    /** Everything the run produced. Anything that is not a hover or a query is ignored. */
+    nodes: readonly {
+      /** How much of `code` the node covers. */
+      length: number
+      /** Offset into `code`. */
+      start: number
+      /** The formatted type, absent on the node kinds this ignores. */
+      text?: string | undefined
+      /** Only `hover` and `query` are read. */
+      type: string
+    }[]
+  }
+}
+
 /**
  * The offset a compiled position had in the source as written. Twoslash cuts
  * its notation lines out before compiling, so every offset after one is short
- * by what was taken.
+ * by what was taken. `removals` must be ascending, since each cut shifts the
+ * ones after it.
  */
-export function raw(offset: number, removals: readonly (readonly [number, number])[]): number {
+function raw(offset: number, removals: readonly (readonly [number, number])[]): number {
   let mapped = offset
-  // Ascending, because each removal shifts the ones after it. Twoslash reports
-  // them in the order it found them, which is not that order.
-  for (const [start, end] of [...removals].sort((a, b) => a[0] - b[0]))
-    if (start <= mapped) mapped += end - start
+  for (const [start, end] of removals) if (start <= mapped) mapped += end - start
   return mapped
-}
-
-let instance: ReturnType<typeof createTwoslasher> | undefined
-
-/** One twoslasher per process: it caches the compiler host between runs. */
-function twoslasher() {
-  instance ??= createTwoslasher()
-  return instance
 }
