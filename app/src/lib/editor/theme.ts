@@ -10,8 +10,6 @@ import type { Theme } from 'monoshot'
  * own, so the editor and the rendered frame lay out identically.
  */
 export function theme(palette: Theme.derive.Result): Extension {
-  // The annotation's fill, resolved here so the arrow can match it.
-  const surface = `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`
   return EditorView.theme(
     {
       '&': {
@@ -35,12 +33,6 @@ export function theme(palette: Theme.derive.Result): Extension {
       // has to step aside. It belongs here rather than in the stylesheet:
       // CodeMirror injects its styles unlayered, and unlayered always wins.
       '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
-      // The arrow is drawn from two triangles, the outer one standing in for
-      // the border and the inner for the fill.
-      '.cm-tooltip-below .cm-tooltip-arrow::before': { borderBottomColor: palette.window.border },
-      '.cm-tooltip-below .cm-tooltip-arrow::after': { borderBottomColor: surface },
-      '.cm-tooltip-above .cm-tooltip-arrow::before': { borderTopColor: palette.window.border },
-      '.cm-tooltip-above .cm-tooltip-arrow::after': { borderTopColor: surface },
       // The gutter is part of the artwork, so it recedes rather than sitting
       // on a panel of its own.
       '.cm-gutters': {

@@ -147,11 +147,6 @@
     background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
   }
 
-  /* CodeMirror draws the hover's arrow, so the block's own notch stands down. */
-  .cm-tooltip .twoslash::before {
-    content: none;
-  }
-
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
      so an export carries it. The editor draws it as a widget, the rendered
      frame as markup. */
