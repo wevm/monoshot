@@ -12,14 +12,22 @@ import type { Request, Response } from '#/lib/twoslash/protocol.js'
  */
 const storage = createStorage({ driver: indexedDb({ base: 'monoshot:twoslash' }) })
 
+/**
+ * ESNext, numerically: the enums live in `typescript`, which belongs in the
+ * worker's payload once rather than imported for a few constants.
+ */
+const compilerOptions = { lib: ['esnext', 'dom'], module: 99, target: 99 }
+
 const twoslash = createTwoslashFromCDN({
+  // This copy only decides which lib files are fetched, and defaults to ES5
+  // when it has no target. `lib` has to be spelled out so the set fetched is
+  // the set the compiler then asks for: a mismatch leaves it with no `Promise`
+  // at all, and every type behind an `await` collapses to `any`.
+  compilerOptions,
   storage,
   twoSlashOptionsOverrides: {
-    // ESNext, numerically: the enums live in `typescript`, which belongs in
-    // the worker's payload once rather than imported for two constants. Note
-    // a snippet's top-level `await` is still not applied, so a type behind one
-    // resolves as the promise.
-    compilerOptions: { module: 99, moduleResolution: 100, target: 99 },
+    // And this copy is what the snippet is actually compiled with.
+    compilerOptions,
     // Half-typed code is the normal case in an editor, and twoslash otherwise
     // insists every compiler error be declared in the source.
     handbookOptions: { noErrorValidation: true },
