@@ -26,6 +26,9 @@ export function hover(types: Types): Extension {
         const identifier = Identifier.at(view.state.doc, pos)
         const type = identifier && types[identifier.name]
         if (!identifier || !type) return null
+        // A pinned type is already on screen, so hovering it would only cover
+        // the block it is asking about.
+        if (pinned(view, identifier)) return null
         return {
           // Below the identifier, where pinning will leave it: hovering previews
           // the pinned block in place rather than somewhere else.
