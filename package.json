@@ -45,6 +45,11 @@
       "src": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./twoslash": {
+      "src": "./src/Twoslash.ts",
+      "types": "./dist/Twoslash.d.ts",
+      "default": "./dist/Twoslash.js"
     }
   },
   "sideEffects": false,
