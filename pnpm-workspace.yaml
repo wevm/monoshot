@@ -28,6 +28,7 @@ catalog:
   culori: ^4.0.2
   idb-keyval: ^6.3.0
   hono: ^4.13.0
+  lz-string: ^1.5.0
   highlight.js: ^11.11.1
   motion: ^13.0.0
   react: ^19.2.5
@@ -41,6 +42,7 @@ catalog:
   vite-plus: ^0.2.8
   wrangler: ^4.119.0
   zile: ^0.0.30
+  zod: ^4.4.3
 
 allowBuilds:
   esbuild: true

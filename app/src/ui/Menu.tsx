@@ -54,6 +54,11 @@ const styles = stylex.create({
     justifyContent: 'space-between',
     outline: 'none',
     paddingInline: 8,
+    // An item runs an action, so it acknowledges the press that starts it.
+    transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
     userSelect: 'none',
   },
 })
