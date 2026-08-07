@@ -23,6 +23,9 @@ export type Result = {
 /**
  * Creates a resolver that owns a TypeScript compiler for its lifetime.
  *
+ * Needs `typescript` in the consuming install. It is an optional peer because
+ * only this entrypoint reaches the compiler; the root entrypoint never does.
+ *
  * Construct one per lifecycle that should share the compiler: an editor
  * session, a CLI run, a worker. The first snippet builds the compiler and
  * every later one reuses it, which is what makes resolving on each keystroke
