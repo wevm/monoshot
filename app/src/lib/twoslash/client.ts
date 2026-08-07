@@ -45,6 +45,13 @@ export function create(options: create.Options): create.ReturnType {
     // not load or its module scope throws, reports here rather than in a reply.
     // Without this a caller waiting on the current document waits forever.
     instance.addEventListener('error', (event) => {
+      // It never installed its own handler, so posting to it again would go
+      // nowhere. Dropped, and the next document spawns a fresh one. Guarded on
+      // identity, so a worker spawned since is not taken down with it.
+      if (worker === instance) {
+        worker = undefined
+        instance.terminate()
+      }
       onError?.(event.message || 'The type resolver could not start.')
     })
     instance.addEventListener('messageerror', () => {
