@@ -252,13 +252,24 @@
      so an export carries it. The editor draws it as a widget, the rendered
      frame as markup. */
   .twoslash-block {
+    /* Where the word sits. Counted here rather than on the surface inside:
+       `ch` resolves against the element's own font, and the annotation is a
+       step smaller than the code whose columns this counts. */
+    --twoslash-anchor: calc(var(--twoslash-column) * 1ch);
+    /* A pinned type keeps its place in the code, so unlike a hover it cannot
+       be moved. It opens into the room to its left instead, rather than
+       wrapping into a column against the right edge. */
+    --twoslash-start: max(0px, calc(var(--twoslash-anchor) - 200px));
+
     display: flex;
     padding-block: 8px 4px;
-    /* Indented here rather than on the surface inside: `ch` resolves against
-       the element's own font, and the annotation is a step smaller than the
-       code whose columns this counts. Offset by the notch's inset, so the
-       notch itself lands on the caret. */
-    padding-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
+    padding-inline-start: var(--twoslash-start);
+  }
+
+  /* Whatever the block gave up on the left, the notch takes back, so it still
+     lands on the word. */
+  .twoslash-block > .twoslash::before {
+    left: calc(var(--twoslash-anchor) - var(--twoslash-start));
   }
 
   .twoslash-block > .twoslash {
@@ -274,7 +285,7 @@
     border-top: 1px solid var(--window-border);
     content: '';
     height: 7px;
-    left: var(--twoslash-notch, 8px);
+    left: 8px;
     position: absolute;
     top: -4px;
     transform: rotate(45deg);

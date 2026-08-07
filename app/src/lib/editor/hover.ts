@@ -1,5 +1,5 @@
 import { StateField } from '@codemirror/state'
-import type { EditorState, Extension } from '@codemirror/state'
+import type { Extension } from '@codemirror/state'
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
@@ -13,13 +13,6 @@ import * as Identifier from './identifier.js'
  * wider than what it draws.
  */
 const reach = 30
-
-/**
- * How far a popover may start left of the word it describes. A type is usually
- * wider than the identifier it belongs to, so opening flush with the word
- * wastes the room to its left and wraps into a tall column instead.
- */
-const lead = 200
 
 /** A type the language service resolved, over the span it belongs to. */
 export type Span = {
@@ -71,7 +64,6 @@ export function hover(types: Types): Extension {
           // tooltip, so an offset gap is a moat you cannot cross.
           create: () => ({
             dom: bridge(
-              shift(view.state, found.from),
               Annotation.element(found.annotation, {
                 label: 'Pin this type',
                 select: () => toggle(view, identifier),
@@ -79,7 +71,7 @@ export function hover(types: Types): Extension {
             ),
             // Back by the reach as well, so widening the tooltip leftwards
             // leaves the surface itself where it was.
-            offset: { x: -8 - reach - shift(view.state, found.from), y: 0 },
+            offset: { x: -8 - reach, y: 0 },
           }),
           end: identifier.to,
           pos: identifier.from,
@@ -126,30 +118,11 @@ function covered(view: EditorView, identifier: { from: number }, lines: number) 
   return false
 }
 
-/**
- * How far left this popover may open: the room the word has before the start
- * of its line, up to {@link lead}.
- *
- * Counted in columns rather than measured. CodeMirror forbids reading its
- * layout during an update, which is when a hover is built, and a character's
- * width is fixed anyway in a monospaced document.
- */
-function shift(state: EditorState, from: number) {
-  const column = from - state.doc.lineAt(from).from
-  return Math.max(0, Math.min(lead, column * advance))
-}
-
-/** One character of `--code-font-size`, which the frame sets at 14px. */
-const advance = 8.4
-
 /** Wraps a surface in the transparent run that carries the pointer out to it. */
-function bridge(left: number, surface: HTMLElement): HTMLElement {
+function bridge(surface: HTMLElement): HTMLElement {
   const root = document.createElement('div')
   root.className = 'twoslash-bridge'
   root.style.setProperty('--twoslash-reach', `${reach}px`)
-  // The surface moved left by this much, so the notch moves right by it to
-  // stay under the word.
-  root.style.setProperty('--twoslash-notch', `${8 + left}px`)
   root.appendChild(surface)
   return root
 }
