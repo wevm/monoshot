@@ -33,7 +33,11 @@ export function hover(types: Types): Extension {
           // Below the identifier, where pinning will leave it: hovering previews
           // the pinned block in place rather than somewhere else.
           above: false,
+          // CodeMirror's own arrow, placed from the anchor after any shift to
+          // fit: a notch at a fixed inset drifts off the token it points at.
+          arrow: true,
           create: () => ({ dom: Annotation.element(type) }),
+          offset: { x: 0, y: 4 },
           end: identifier.to,
           pos: identifier.from,
         }

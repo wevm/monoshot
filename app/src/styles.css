@@ -145,9 +145,11 @@
   .cm-tooltip .twoslash {
     animation: twoslash-in var(--motion-fast) var(--motion-out) both;
     background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
-    /* Clear of the line it describes, so the type reads as a separate surface
-       rather than the next line of code. */
-    margin-top: 10px;
+  }
+
+  /* CodeMirror draws the hover's arrow, so the block's own notch stands down. */
+  .cm-tooltip .twoslash::before {
+    content: none;
   }
 
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
