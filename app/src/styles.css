@@ -267,8 +267,11 @@
   }
 
   /* Whatever the block gave up on the left, the notch takes back, so it still
-     lands on the word. */
+     lands on the word. Sized in the code's font, not the annotation's: `ch`
+     resolves against whatever element uses it, and the block counted its
+     columns at 14px. The notch carries no text, so this only fixes the unit. */
   .twoslash-block > .twoslash::before {
+    font-size: var(--code-font-size);
     left: calc(var(--twoslash-anchor) - var(--twoslash-start));
   }
 
