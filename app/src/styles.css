@@ -214,6 +214,13 @@
      It appears often, so it barely moves: enough to register, not to notice. */
   .cm-tooltip .twoslash {
     animation: twoslash-in var(--motion-fast) var(--motion-out) both;
+    /* The only place depth is spent: what a hover covers is often a pinned
+       type wearing the same surface, and without a shadow the two merge into
+       one shape with a bar hanging off it. */
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, currentColor 18%, var(--window-border)),
+      0 2px 4px rgb(0 0 0 / 0.28),
+      0 12px 28px -8px rgb(0 0 0 / 0.45);
   }
 
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
