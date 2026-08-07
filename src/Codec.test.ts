@@ -134,6 +134,22 @@ describe('deserialize', () => {
     `)
   })
 
+  test('refuses an overlong fragment before decompressing it', () => {
+    // Varied enough not to compress away, so the fragment itself is the thing
+    // over the limit rather than what it decodes to.
+    const noise = Array.from({ length: 30_000 }, (_, index) => index.toString(36)).join(' ')
+    const overlong = lzString.compressToEncodedURIComponent(JSON.stringify({ c: noise }))
+    expect({
+      fragment: overlong.length,
+      opensOn: Codec.deserialize(overlong).code.length,
+    }).toMatchInlineSnapshot(`
+      {
+        "fragment": 111869,
+        "opensOn": 0,
+      }
+    `)
+  })
+
   test('rejects sizes outside what the frame can render', () => {
     const wide = Codec.deserialize(Codec.serialize({ ...state, width: 9000 }))
     const negative = Codec.deserialize(Codec.serialize({ ...state, padding: -20 }))

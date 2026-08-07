@@ -76,11 +76,13 @@ export declare namespace serialize {
 
 /**
  * How much untrusted text is worth expanding. lz-string offers no bounded
- * decompression, and a crafted fragment expands by a factor of thousands: 16 kB
- * of it reaches 32 MB. A 200 kB snippet packs into 85 kB, so an honest link is
- * far under both.
+ * decompression, so `fragment` is what caps the expansion: measured against
+ * this version, a fragment that long reaches about 50 MB at worst, which
+ * decodes in well under a second and is then refused. Honest content packs far
+ * tighter, around 33,000 characters of source into that fragment, and never
+ * approaches `decoded`.
  */
-const limit = { decoded: 512_000, fragment: 128_000 } as const
+const limit = { decoded: 512_000, fragment: 20_000 } as const
 
 /**
  * Reads state back out of a URL fragment. A fragment that is oversized, does
