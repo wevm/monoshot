@@ -153,15 +153,17 @@
   .twoslash-block {
     display: flex;
     padding-block: 8px 4px;
+    /* Indented here rather than on the surface inside: `ch` resolves against
+       the element's own font, and the annotation is a step smaller than the
+       code whose columns this counts. Offset by the notch's inset, so the
+       notch itself lands on the caret. */
+    padding-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
   }
 
   .twoslash-block > .twoslash {
     /* Pinning is deliberate and pushes the code below it down, so this one
        earns more travel than the hover it replaces. */
     animation: twoslash-in var(--motion-medium) var(--motion-out) both;
-    /* Offset by the notch inset, so the notch itself lands on the caret. The
-       indent sits on the box, leaving the line-number gutter where it is. */
-    margin-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
   }
 
   /* A notch pointing back at the token the type belongs to. */
