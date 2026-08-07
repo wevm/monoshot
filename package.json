@@ -56,6 +56,7 @@
   },
   "dependencies": {
     "culori": "catalog:",
-    "shiki": "catalog:"
+    "shiki": "catalog:",
+    "twoslash": "catalog:"
   }
 }
