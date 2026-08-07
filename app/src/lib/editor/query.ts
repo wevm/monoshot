@@ -17,7 +17,7 @@ export const setQuery = StateEffect.define<Types>()
  * an export carries it the same way the editor shows it.
  */
 export const query = StateField.define<Value>({
-  create: () => ({ decorations: Decoration.none, lines: [], types: {} }),
+  create: () => ({ decorations: Decoration.none, lines: [], types: [] }),
   update(value, transaction) {
     for (const effect of transaction.effects)
       if (effect.is(setQuery)) return build(transaction.state.doc, effect.value)
@@ -61,8 +61,12 @@ function build(doc: Text, types: Types): Value {
     if (column === undefined) continue
     // A caret pointing at nothing stays the comment it is, rather than
     // collapsing into an empty box.
-    const type = lookup(types, Identifier.queried(doc, line, column)?.name ?? '')
-    if (!type) continue
+    // The caret addresses the line above, which is where the type belongs.
+    const above = line > 1 ? doc.line(line - 1) : undefined
+    const target = above && above.from + Math.min(column, above.length)
+    const found = target === undefined ? undefined : lookup(types, target)
+    if (!found) continue
+    const type = found.annotation
     lines.push(line)
     ranges.push(
       Decoration.replace({ block: true, widget: new Block(type, column) }).range(

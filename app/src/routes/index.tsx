@@ -4,8 +4,8 @@ import { Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { types } from '#/lib/annotations.js'
-import { detect, typed } from '#/lib/detect.js'
+import { detect } from '#/lib/detect.js'
+import * as Twoslash from '#/lib/twoslash/client.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -154,9 +154,11 @@ const styles = stylex.create({
   controlsInner: { pointerEvents: 'auto' },
 })
 
-/** No types outside the TypeScript family, held still so the editor is not
- * reconfigured with a fresh object on every render. */
-const empty = {}
+/** Held still so the editor is not reconfigured with a fresh array each render. */
+const empty: Editor.Props['types'] = []
+
+/** The dialect the language service should read a document as. */
+const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } as const
 
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
@@ -182,7 +184,9 @@ function Page() {
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
   }>()
-  const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
+  const [annotations, setAnnotations] = useState<Editor.Props['types']>(empty)
+  const [resolved, setResolved] = useState<Twoslash.Result>()
+  const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
   const [detected, setDetected] = useState<BundledLanguage>('tsx')
 
@@ -216,23 +220,52 @@ function Page() {
     }
   }, [code, language, settings.theme])
 
-  // Types are painted in the theme's own colors rather than a flat foreground,
-  // and their text does not change with the document, so they are tokenized
-  // once per theme rather than on every keystroke.
+  // The language service runs in a worker: it carries the TypeScript compiler,
+  // which would block typing on this thread. Debounced, because resolving a
+  // document costs more than drawing one.
   useEffect(() => {
+    const dialect = dialects[language as keyof typeof dialects]
+    if (!dialect) {
+      setResolved(undefined)
+      return
+    }
+    resolver.current ??= Twoslash.create({ onResult: setResolved })
+    const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
+    return () => clearTimeout(timer)
+  }, [code, language])
+
+  useEffect(() => () => resolver.current?.dispose(), [])
+
+  // Types are painted in the theme's own colors rather than a flat foreground.
+  // Tokenized per distinct type rather than per span, since a document repeats
+  // the same handful of types across many identifiers.
+  useEffect(() => {
+    if (!resolved) {
+      setAnnotations(empty)
+      return
+    }
     let active = true
+    const texts = [...new Set(resolved.hovers.map((hover) => hover.text))]
     Promise.all(
-      Object.entries(types).map(async ([name, type]) => {
-        const result = await renderer.tokens({ code: type, lang: 'ts', theme: settings.theme })
-        return [name, result.tokens] as const
+      texts.map(async (text) => {
+        const result = await renderer.tokens({ code: text, lang: 'ts', theme: settings.theme })
+        return [text, result.tokens] as const
       }),
     ).then((entries) => {
-      if (active) setAnnotations(Object.fromEntries(entries))
+      if (!active) return
+      const painted = new Map(entries)
+      setAnnotations(
+        resolved.hovers.map((hover) => ({
+          annotation: painted.get(hover.text) ?? [],
+          from: hover.from,
+          to: hover.to,
+        })),
+      )
     })
     return () => {
       active = false
     }
-  }, [settings.theme])
+  }, [resolved, settings.theme])
 
   const [measure, rect] = useEdges()
 
@@ -453,7 +486,7 @@ function Page() {
                   onCodeChange={setCode}
                   palette={frame.palette}
                   tokens={frame.tokens}
-                  types={typed(language) ? annotations : empty}
+                  types={annotations}
                 />
               </Frame>
             </div>

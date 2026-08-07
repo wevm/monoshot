@@ -14,15 +14,23 @@ import * as Identifier from './identifier.js'
  */
 const reach = 30
 
-/** Types by identifier name, tokenized so they paint like the code. */
-export type Types = Record<string, Annotation.Annotation>
+/** A type the language service resolved, over the span it belongs to. */
+export type Span = {
+  /** The type, tokenized so it paints like the code. */
+  annotation: Annotation.Annotation
+  from: number
+  to: number
+}
 
 /**
- * The type registered for an identifier. Own properties only, so a variable
- * named `constructor` or `toString` finds nothing rather than inheriting one.
+ * Types for a document, as spans of it. Positions rather than names: two
+ * variables sharing a name rarely share a type.
  */
-export function type(types: Types, name: string): Annotation.Annotation | undefined {
-  return Object.hasOwn(types, name) ? types[name] : undefined
+export type Types = readonly Span[]
+
+/** The type covering a document offset, if one is known. */
+export function type(types: Types, pos: number): Span | undefined {
+  return types.find((span) => pos >= span.from && pos <= span.to)
 }
 
 /**
@@ -35,8 +43,8 @@ export function hover(types: Types): Extension {
     marks(types),
     hoverTooltip(
       (view, pos) => {
-        const identifier = Identifier.at(view.state.doc, pos)
-        const found = identifier && type(types, identifier.name)
+        const found = type(types, pos)
+        const identifier = found && { from: found.from, to: found.to }
         if (!identifier || !found) return null
         // A pinned type is already on screen, so hovering it would only cover
         // the block it is asking about.
@@ -47,7 +55,7 @@ export function hover(types: Types): Extension {
           // goes above instead when that space is already showing a pinned
           // type, which a hover would otherwise sit on top of. CodeMirror
           // flips it back if there is no room up there.
-          above: covered(view, identifier, found.length),
+          above: covered(view, identifier, found.annotation.length),
           // Offset belongs on the view, not the spec: CodeMirror reads it off
           // what `create` returns. Back by the notch's own inset, so the notch
           // lands on the token rather than a few characters into it. The drop
@@ -56,7 +64,7 @@ export function hover(types: Types): Extension {
           // tooltip, so an offset gap is a moat you cannot cross.
           create: () => ({
             dom: bridge(
-              Annotation.element(found, {
+              Annotation.element(found.annotation, {
                 label: 'Pin this type',
                 select: () => toggle(view, identifier),
               }),
@@ -86,9 +94,9 @@ export function hover(types: Types): Extension {
       {
         key: 'Mod-i',
         run(view) {
-          const identifier = Identifier.at(view.state.doc, view.state.selection.main.head)
-          if (!identifier || !type(types, identifier.name)) return false
-          toggle(view, identifier)
+          const found = type(types, view.state.selection.main.head)
+          if (!found) return false
+          toggle(view, found)
           return true
         },
       },
@@ -101,7 +109,7 @@ export function hover(types: Types): Extension {
  * into. Counted in document lines rather than measured: a type is about as
  * tall as the code it covers, and one line either way only decides a side.
  */
-function covered(view: EditorView, identifier: Identifier.Identifier, lines: number) {
+function covered(view: EditorView, identifier: { from: number }, lines: number) {
   const { doc } = view.state
   const start = doc.lineAt(identifier.from).number
   const end = Math.min(doc.lines, start + lines + 1)
@@ -120,34 +128,32 @@ function bridge(surface: HTMLElement): HTMLElement {
 }
 
 /**
- * Marks every identifier that has a type. The marks are always here; the
+ * Marks every span a type is known for. The marks are always here; the
  * stylesheet reveals them when the pointer is over the code, so nothing
  * advertises itself until you go looking.
  */
 function marks(types: Types): Extension {
   return StateField.define<DecorationSet>({
-    create: (state) => build(state.doc, types),
+    create: () => build(types),
+    // Mapped rather than rebuilt: the spans belong to the document the language
+    // service last saw, so they follow an edit until the next result lands.
     update: (value, transaction) =>
-      transaction.docChanged ? build(transaction.state.doc, types) : value,
+      transaction.docChanged ? value.map(transaction.changes) : value,
     provide: (field) => EditorView.decorations.from(field),
   })
 }
 
 const mark = Decoration.mark({ class: 'twoslash-mark' })
 
-function build(doc: Parameters<typeof Identifier.at>[0], types: Types): DecorationSet {
-  const ranges = []
-  for (let line = 1; line <= doc.lines; line++) {
-    const text = doc.line(line)
-    for (const found of Identifier.all(text.text))
-      if (type(types, found.name))
-        ranges.push(mark.range(text.from + found.from, text.from + found.to))
-  }
-  return Decoration.set(ranges, true)
+function build(types: Types): DecorationSet {
+  return Decoration.set(
+    types.filter((span) => span.to > span.from).map((span) => mark.range(span.from, span.to)),
+    true,
+  )
 }
 
 /** The `^?` line under an identifier's line, whatever it points at. */
-function caretBelow(view: EditorView, identifier: Identifier.Identifier) {
+function caretBelow(view: EditorView, identifier: { from: number }) {
   const { doc } = view.state
   const line = doc.lineAt(identifier.from)
   if (line.number >= doc.lines) return undefined
@@ -156,13 +162,13 @@ function caretBelow(view: EditorView, identifier: Identifier.Identifier) {
 }
 
 /** Whether a caret line is already pointing at this identifier. */
-function pinned(view: EditorView, identifier: Identifier.Identifier) {
+function pinned(view: EditorView, identifier: { from: number }) {
   const below = caretBelow(view, identifier)
   const line = view.state.doc.lineAt(identifier.from)
   return below?.text === Identifier.caretLine(identifier.from - line.from) ? below : undefined
 }
 
-function toggle(view: EditorView, identifier: Identifier.Identifier) {
+function toggle(view: EditorView, identifier: { from: number }) {
   const line = view.state.doc.lineAt(identifier.from)
   const wanted = Identifier.caretLine(identifier.from - line.from)
   const below = caretBelow(view, identifier)

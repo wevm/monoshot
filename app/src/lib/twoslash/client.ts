@@ -1,5 +1,8 @@
 import type * as Twoslash from 'monoshot/twoslash'
 
+/** What the worker resolves for a document. */
+export type Result = Twoslash.Result
+
 import type { Lang, Request, Response } from './protocol.js'
 
 /**

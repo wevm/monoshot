@@ -15,6 +15,11 @@ const storage = createStorage({ driver: indexedDb({ base: 'monoshot:twoslash' })
 const twoslash = createTwoslashFromCDN({
   storage,
   twoSlashOptionsOverrides: {
+    // ESNext, numerically: the enums live in `typescript`, which belongs in
+    // the worker's payload once rather than imported for two constants. Note
+    // a snippet's top-level `await` is still not applied, so a type behind one
+    // resolves as the promise.
+    compilerOptions: { module: 99, moduleResolution: 100, target: 99 },
     // Half-typed code is the normal case in an editor, and twoslash otherwise
     // insists every compiler error be declared in the source.
     handbookOptions: { noErrorValidation: true },
