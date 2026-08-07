@@ -129,7 +129,10 @@
   /* One surface for a type, wherever it is shown: the hover and the pinned
      block differ in where they sit, not in how they look. */
   .twoslash {
-    background-color: color-mix(in oklab, currentColor 7%, transparent);
+    /* Composited onto the window rather than left translucent: the notch
+       inherits this fill and hangs off the surface, so a transparent one
+       shows the code through the part that sticks out. */
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
     box-shadow: inset 0 0 0 1px var(--window-border);
     font-family: var(--code-font-family);
     font-size: var(--code-annotation-size);
@@ -144,7 +147,6 @@
      It appears often, so it barely moves: enough to register, not to notice. */
   .cm-tooltip .twoslash {
     animation: twoslash-in var(--motion-fast) var(--motion-out) both;
-    background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
   }
 
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
