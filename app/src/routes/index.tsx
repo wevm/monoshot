@@ -189,6 +189,19 @@ type Artwork = {
   types: Editor.Props['types']
 }
 
+/**
+ * An export as it was asked for. One can be queued behind another, so it holds
+ * the state of the moment its action ran rather than of the moment the queue
+ * reaches it.
+ */
+type Capture = {
+  code: string
+  language: BundledLanguage
+  options: Export.capture.Options
+  settings: Settings
+  title: string
+}
+
 const fallback: Settings = {
   background: 'default',
   language: 'auto',
@@ -354,10 +367,9 @@ function Page() {
    * Renders the frame away from the page and captures that, so an export
    * carries the artwork rather than the editor's caret, selection, and handles.
    */
-  async function draw(options: Export.capture.Options) {
-    // Read before the first await, so the whole export is of one moment.
-    const snapshot = { settings, title }
-    const { theme } = snapshot.settings
+  async function draw(capture: Capture) {
+    const { code, language, options, settings, title } = capture
+    const { theme } = settings
     // The effects that fill `frame` and `annotations` trail a theme change, so
     // an export started right after one would pair new code colors with the
     // previous theme's backdrop and pinned types. Both come from this theme.
@@ -368,9 +380,10 @@ function Page() {
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
       setArtwork({
-        ...snapshot,
         html: rendered.html,
         palette: Theme.derive(rendered.theme),
+        settings,
+        title,
         types: pinned,
       }),
     )
@@ -404,9 +417,13 @@ function Page() {
   function take(options: Export.capture.Options) {
     const id = (attempt.current += 1)
     setNotice(undefined)
+    // Read now rather than when the queue reaches this export: the page stays
+    // editable while an earlier one runs, and this one is of the moment it was
+    // asked for.
+    const capture: Capture = { code, language, options, settings, title }
     const run = Promise.resolve(pending.current)
       .catch(() => {})
-      .then(() => draw(options))
+      .then(() => draw(capture))
     // A failed export must not strand the queue, and the caller still sees the
     // rejection through `run`.
     pending.current = run.catch(() => {})
@@ -420,9 +437,10 @@ function Page() {
 
   function save(options: Export.capture.Options) {
     const { report, run } = take(options)
-    void run
-      .then((blob) => Export.download(blob, `${title || 'untitled'}.${options.type}`))
-      .catch(report)
+    // Named for the title the export was asked under, not for whatever the
+    // field says once the capture finishes.
+    const name = `${title || 'untitled'}.${options.type}`
+    void run.then((blob) => Export.download(blob, name)).catch(report)
   }
 
   function copyImage() {
