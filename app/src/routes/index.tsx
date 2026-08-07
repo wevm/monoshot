@@ -233,7 +233,10 @@ function Page() {
   const [title, setTitle] = useState('')
   const [code, setCode] = useState(sample)
 
-  const [restored, setRestored] = useState(false)
+  // The theme the fragment on screen opened with, and the signal that a
+  // fragment has been applied at all. Holding the theme rather than a boolean
+  // is what lets a second shared link restart the sweep below.
+  const [opened, setOpened] = useState<Settings['theme']>()
 
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
@@ -248,7 +251,7 @@ function Page() {
       setCode(shared.code)
       setSettings(shared.settings)
       setTitle(shared.title)
-      setRestored(true)
+      setOpened(shared.settings.theme)
     }
     apply()
     window.addEventListener('hashchange', apply)
@@ -371,14 +374,14 @@ function Page() {
 
   // Themes load their own chunk on first use, so an unvisited one costs a
   // round trip. Warming the list outward from the opening theme keeps every
-  // switch after the page settles instant. Runs once, after the fragment has
-  // been applied, so a shared link sweeps outward from the theme on screen
-  // rather than from the default it rendered for a frame.
+  // switch after the page settles instant. Waits for the fragment, so a shared
+  // link sweeps outward from the theme on screen rather than from the default
+  // it rendered for a frame, and starts over when a second link brings another.
   useEffect(() => {
-    if (!restored) return
+    if (!opened) return
     const controller = new AbortController()
     void Warm.themes({
-      from: settings.theme,
+      from: opened,
       // The full sweep is a couple of megabytes of chunks, so a metered
       // connection gets the neighbours the arrows reach and nothing more.
       limit: metered() ? 4 : names.length,
@@ -387,7 +390,7 @@ function Page() {
       signal: controller.signal,
     })
     return () => controller.abort()
-  }, [restored])
+  }, [opened])
 
   useEffect(() => {
     function walk(event: KeyboardEvent) {
