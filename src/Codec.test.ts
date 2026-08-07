@@ -114,6 +114,26 @@ describe('deserialize', () => {
     `)
   })
 
+  test('refuses a fragment that expands past what is worth parsing', () => {
+    // A link someone else wrote: short enough to send, large enough decoded to
+    // block the tab that opens it.
+    const bomb = lzString.compressToEncodedURIComponent(
+      JSON.stringify({ c: 'a'.repeat(1_000_000) }),
+    )
+    const honest = lzString.compressToEncodedURIComponent(JSON.stringify({ c: 'a'.repeat(1000) }))
+    expect({
+      bombFragment: bomb.length,
+      bombOpensOn: Codec.deserialize(bomb).code.length,
+      honestOpensOn: Codec.deserialize(honest).code.length,
+    }).toMatchInlineSnapshot(`
+      {
+        "bombFragment": 2286,
+        "bombOpensOn": 0,
+        "honestOpensOn": 1000,
+      }
+    `)
+  })
+
   test('rejects sizes outside what the frame can render', () => {
     const wide = Codec.deserialize(Codec.serialize({ ...state, width: 9000 }))
     const negative = Codec.deserialize(Codec.serialize({ ...state, padding: -20 }))

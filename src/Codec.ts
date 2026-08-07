@@ -12,9 +12,11 @@ export const schema = z.object({
   background: z
     .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
     .catch('default'),
+  /** The snippet itself, which is empty when the window holds nothing. */
   code: z.string().catch(''),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
+  /** Whether the snippet is numbered down its left edge. */
   lineNumbers: z.boolean().catch(false),
   /** Space around the window, in pixels. */
   padding: z.number().int().min(0).max(256).catch(64),
@@ -24,6 +26,7 @@ export const schema = z.object({
   theme: z.string().catch('vitesse-dark'),
   /** The window's title, which is empty when it has none. */
   title: z.string().catch(''),
+  /** Whether the window wears a title bar. */
   titleBar: z.boolean().catch(true),
   /** Width of the window, in pixels. */
   width: z.number().int().min(320).max(1600).catch(640),
@@ -72,9 +75,17 @@ export declare namespace serialize {
 }
 
 /**
- * Reads state back out of a URL fragment. A fragment that does not decompress,
- * is not an object, or carries the wrong types still yields usable state:
- * every field falls back on its own.
+ * How much untrusted text is worth expanding. lz-string offers no bounded
+ * decompression, and a crafted fragment expands by a factor of thousands: 16 kB
+ * of it reaches 32 MB. A 200 kB snippet packs into 85 kB, so an honest link is
+ * far under both.
+ */
+const limit = { decoded: 512_000, fragment: 128_000 } as const
+
+/**
+ * Reads state back out of a URL fragment. A fragment that is oversized, does
+ * not decompress, is not an object, or carries the wrong types still yields
+ * usable state: every field falls back on its own.
  *
  * @example
  * ```ts twoslash
@@ -88,8 +99,11 @@ export declare namespace serialize {
 export function deserialize(hash: string): State {
   const packed = (() => {
     try {
-      const json = lzString.decompressFromEncodedURIComponent(hash.replace(/^#/, ''))
-      const value: unknown = json ? JSON.parse(json) : undefined
+      const fragment = hash.replace(/^#/, '')
+      if (fragment.length > limit.fragment) return {}
+      const json = lzString.decompressFromEncodedURIComponent(fragment)
+      if (!json || json.length > limit.decoded) return {}
+      const value: unknown = JSON.parse(json)
       return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
     } catch {
       return {}
