@@ -200,11 +200,11 @@
 
   /* The run between the word and its type. Transparent, and part of the
      tooltip rather than empty space beside it, so the pointer stays inside the
-     hover the whole way down and out to the pin. The negative margin buys the
-     room back, leaving the surface where it would have sat. */
+     hover the whole way down and out to the pin. It has to be real width, not
+     overflow: CodeMirror measures the tooltip's box, so anything hanging
+     outside it is not part of the hover. */
   .twoslash-bridge {
-    margin-left: -30px;
-    padding-left: 30px;
+    padding-left: var(--twoslash-reach, 0);
     padding-top: 4px;
   }
 

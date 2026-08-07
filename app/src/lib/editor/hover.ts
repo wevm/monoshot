@@ -6,6 +6,14 @@ import type { DecorationSet } from '@codemirror/view'
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
 
+/**
+ * How far the hover reaches past its own left edge. CodeMirror keeps a hover
+ * open while the pointer is inside the tooltip's bounding box, so the pin
+ * hanging outside the surface only stays reachable if the tooltip is this much
+ * wider than what it draws.
+ */
+const reach = 30
+
 /** Types by identifier name, tokenized so they paint like the code. */
 export type Types = Record<string, Annotation.Annotation>
 
@@ -42,7 +50,9 @@ export function hover(types: Types): Extension {
                 select: () => toggle(view, identifier),
               }),
             ),
-            offset: { x: -8, y: 0 },
+            // Back by the reach as well, so widening the tooltip leftwards
+            // leaves the surface itself where it was.
+            offset: { x: -8 - reach, y: 0 },
           }),
           end: identifier.to,
           pos: identifier.from,
@@ -56,10 +66,11 @@ export function hover(types: Types): Extension {
   ]
 }
 
-/** Wraps a surface in the transparent run that carries the pointer down to it. */
+/** Wraps a surface in the transparent run that carries the pointer out to it. */
 function bridge(surface: HTMLElement): HTMLElement {
   const root = document.createElement('div')
   root.className = 'twoslash-bridge'
+  root.style.setProperty('--twoslash-reach', `${reach}px`)
   root.appendChild(surface)
   return root
 }
