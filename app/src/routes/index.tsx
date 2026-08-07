@@ -178,25 +178,28 @@ const fallback: Settings = {
  * build carries before they reach the renderer.
  */
 function restore(hash: string) {
-  const state = Codec.deserialize(hash)
+  const fragment = hash.replace(/^#/, '')
+  const state = Codec.deserialize(fragment)
   const theme = names.find((name) => name === state.theme) ?? fallback.theme
   const language =
     state.lang === 'auto'
       ? 'auto'
       : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
+  const size = Frame.fit({ padding: state.padding, width: state.width })
   return {
-    // A fragment that does not decode reads the same as no fragment at all, so
-    // an empty document falls back rather than opening on nothing.
-    code: state.code || sample,
+    // Only the absence of a fragment opens on the sample. A link that carries
+    // an empty document is state of its own, and replacing it would show the
+    // recipient something the sender never had.
+    code: fragment ? state.code : sample,
     settings: {
       background: state.background,
       language,
       lineNumbers: state.lineNumbers,
-      padding: state.padding,
+      padding: size.padding,
       radius: state.radius,
       theme,
       titleBar: state.titleBar,
-      width: state.width,
+      width: size.width,
     } satisfies Settings,
     title: state.title,
   }
@@ -230,14 +233,26 @@ function Page() {
   const [title, setTitle] = useState('')
   const [code, setCode] = useState(sample)
 
+  const [restored, setRestored] = useState(false)
+
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
+  //
+  // Reapplied on `hashchange`, which is how a second shared link opened in
+  // this tab arrives: the route stays mounted, and the debounced writer below
+  // goes through `replaceState`, which never raises the event.
   useLayoutEffect(() => {
-    const shared = restore(window.location.hash)
-    setCode(shared.code)
-    setSettings(shared.settings)
-    setTitle(shared.title)
+    function apply() {
+      const shared = restore(window.location.hash)
+      setCode(shared.code)
+      setSettings(shared.settings)
+      setTitle(shared.title)
+      setRestored(true)
+    }
+    apply()
+    window.addEventListener('hashchange', apply)
+    return () => window.removeEventListener('hashchange', apply)
   }, [])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
@@ -267,6 +282,33 @@ function Page() {
     }, 500)
     return () => clearTimeout(timer)
   }, [code, navigate, settings, title])
+
+  const latest = useRef({ code, settings, title })
+  useEffect(() => {
+    latest.current = { code, settings, title }
+  }, [code, settings, title])
+
+  // An edit made inside the debounce window would otherwise never reach the
+  // fragment, which is the only place state is kept. Leaving the page writes
+  // it synchronously instead: navigating through the router is not something
+  // an unloading document can still finish.
+  useEffect(() => {
+    const path = window.location.pathname
+    function flush() {
+      // Unmounting can also mean the router has already moved on, and this
+      // page's state belongs to this page's URL alone.
+      if (window.location.pathname !== path) return
+      const url = new URL(window.location.href)
+      url.hash = share(latest.current)
+      if (url.hash === window.location.hash) return
+      window.history.replaceState(window.history.state, '', url)
+    }
+    window.addEventListener('pagehide', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      flush()
+    }
+  }, [])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
@@ -329,9 +371,11 @@ function Page() {
 
   // Themes load their own chunk on first use, so an unvisited one costs a
   // round trip. Warming the list outward from the opening theme keeps every
-  // switch after the page settles instant. Runs once: the sweep covers the
-  // whole list wherever it starts.
+  // switch after the page settles instant. Runs once, after the fragment has
+  // been applied, so a shared link sweeps outward from the theme on screen
+  // rather than from the default it rendered for a frame.
   useEffect(() => {
+    if (!restored) return
     const controller = new AbortController()
     void Warm.themes({
       from: settings.theme,
@@ -343,7 +387,7 @@ function Page() {
       signal: controller.signal,
     })
     return () => controller.abort()
-  }, [])
+  }, [restored])
 
   useEffect(() => {
     function walk(event: KeyboardEvent) {

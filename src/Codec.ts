@@ -1,4 +1,6 @@
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
+// lz-string is CommonJS and assigns its API object to `module.exports`, which
+// Node cannot read as named exports, so the whole object arrives as default.
+import lzString from 'lz-string'
 import * as z from 'zod'
 
 /**
@@ -6,8 +8,10 @@ import * as z from 'zod'
  * failing, so a truncated or hand-edited link still opens something usable.
  */
 export const schema = z.object({
-  /** `default`, `none`, or a hex color for the frame's backdrop. */
-  background: z.string().catch('default'),
+  /** `default`, `none`, or a `#rrggbb` color for the frame's backdrop. */
+  background: z
+    .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
+    .catch('default'),
   code: z.string().catch(''),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
@@ -59,7 +63,7 @@ export function serialize(state: serialize.Options): string {
   const parsed = schema.parse({ ...state })
   const packed: Record<string, unknown> = {}
   for (const [field, key] of Object.entries(keys)) packed[key] = parsed[field as keyof State]
-  return compressToEncodedURIComponent(JSON.stringify(packed))
+  return lzString.compressToEncodedURIComponent(JSON.stringify(packed))
 }
 
 export declare namespace serialize {
@@ -84,7 +88,7 @@ export declare namespace serialize {
 export function deserialize(hash: string): State {
   const packed = (() => {
     try {
-      const json = decompressFromEncodedURIComponent(hash.replace(/^#/, ''))
+      const json = lzString.decompressFromEncodedURIComponent(hash.replace(/^#/, ''))
       const value: unknown = json ? JSON.parse(json) : undefined
       return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
     } catch {

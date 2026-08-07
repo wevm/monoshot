@@ -1,4 +1,4 @@
-import { compressToEncodedURIComponent } from 'lz-string'
+import lzString from 'lz-string'
 
 import * as Codec from './Codec.js'
 
@@ -75,7 +75,7 @@ describe('deserialize', () => {
   test('falls back per field, keeping the ones it can read', () => {
     // Hand-built rather than round-tripped: `serialize` validates, so a bad
     // field can only reach `deserialize` from a link someone edited.
-    const hash = compressToEncodedURIComponent(
+    const hash = lzString.compressToEncodedURIComponent(
       JSON.stringify({ c: 'const a = 1', g: 'rust', t: 42, w: 'wide', y: 'yes' }),
     )
     expect(Codec.deserialize(hash)).toMatchInlineSnapshot(`
@@ -91,6 +91,26 @@ describe('deserialize', () => {
         "titleBar": true,
         "width": 640,
       }
+    `)
+  })
+
+  test('falls back on a backdrop the frame cannot paint', () => {
+    const hash = (background: string) =>
+      lzString.compressToEncodedURIComponent(JSON.stringify({ b: background }))
+    expect([
+      Codec.deserialize(hash('#1c1c1e')).background,
+      Codec.deserialize(hash('none')).background,
+      Codec.deserialize(hash('red')).background,
+      Codec.deserialize(hash('#bogus')).background,
+      Codec.deserialize(hash('#fff')).background,
+    ]).toMatchInlineSnapshot(`
+      [
+        "#1c1c1e",
+        "none",
+        "default",
+        "default",
+        "default",
+      ]
     `)
   })
 
