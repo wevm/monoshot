@@ -97,26 +97,33 @@ function build(doc: Parameters<typeof Identifier.at>[0], types: Types): Decorati
   return Decoration.set(ranges, true)
 }
 
-/** The caret line below the identifier, when one is already pointing at it. */
-function pinned(view: EditorView, identifier: Identifier.Identifier) {
+/** The `^?` line under an identifier's line, whatever it points at. */
+function caretBelow(view: EditorView, identifier: Identifier.Identifier) {
   const { doc } = view.state
   const line = doc.lineAt(identifier.from)
   if (line.number >= doc.lines) return undefined
   const below = doc.line(line.number + 1)
-  return below.text === Identifier.caretLine(identifier.from - line.from) ? below : undefined
+  return Identifier.caretColumn(below.text) === undefined ? undefined : below
+}
+
+/** Whether a caret line is already pointing at this identifier. */
+function pinned(view: EditorView, identifier: Identifier.Identifier) {
+  const below = caretBelow(view, identifier)
+  const line = view.state.doc.lineAt(identifier.from)
+  return below?.text === Identifier.caretLine(identifier.from - line.from) ? below : undefined
 }
 
 function toggle(view: EditorView, identifier: Identifier.Identifier) {
   const line = view.state.doc.lineAt(identifier.from)
-  const existing = pinned(view, identifier)
-  view.dispatch(
-    existing
-      ? { changes: { from: line.to, to: existing.to } }
-      : {
-          changes: {
-            from: line.to,
-            insert: `\n${Identifier.caretLine(identifier.from - line.from)}`,
-          },
-        },
-  )
+  const wanted = Identifier.caretLine(identifier.from - line.from)
+  const below = caretBelow(view, identifier)
+  // A line carries one caret, so pinning a second identifier on it moves the
+  // caret across rather than stacking one under the other.
+  if (below)
+    view.dispatch(
+      below.text === wanted
+        ? { changes: { from: line.to, to: below.to } }
+        : { changes: { from: below.from, insert: wanted, to: below.to } },
+    )
+  else view.dispatch({ changes: { from: line.to, insert: `\n${wanted}` } })
 }

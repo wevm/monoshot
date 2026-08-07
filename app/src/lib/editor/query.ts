@@ -35,15 +35,12 @@ type Value = {
   types: Types
 }
 
-const caret = /^(\s*\/\/\s*)\^\?\s*$/
-
 function build(doc: Text, types: Types): DecorationSet {
   const ranges = []
   for (let line = 1; line <= doc.lines; line++) {
     const text = doc.line(line)
-    const match = caret.exec(text.text)
-    if (!match) continue
-    const column = match[1]?.length ?? 0
+    const column = Identifier.caretColumn(text.text)
+    if (column === undefined) continue
     // A caret pointing at nothing stays the comment it is, rather than
     // collapsing into an empty box.
     const type = types[Identifier.queried(doc, line, column)?.name ?? '']

@@ -44,6 +44,12 @@ export function queried(doc: Text, line: number, column: number): Identifier | u
   return at(doc, above.from + column)
 }
 
+/** The column a `^?` line's caret addresses, or nothing if it is not one. */
+export function caretColumn(text: string): number | undefined {
+  const match = /^(\s*\/\/\s*)\^\?\s*$/.exec(text)
+  return match ? (match[1]?.length ?? 0) : undefined
+}
+
 /**
  * A `// ^?` line whose caret sits at `column`. Two characters go to the comment
  * itself, so a caret nearer the start than that lands as close as it can.
