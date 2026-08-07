@@ -331,6 +331,11 @@ function Page() {
       // Fonts first: capturing before they load bakes in fallback metrics.
       await document.fonts.ready
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      // The copy mounts fresh, so everything in it is partway through its
+      // entrance. A type fading in from nothing would be captured at nothing:
+      // present, taking its space, and invisible.
+      for (const animation of node.getAnimations({ subtree: true }))
+        if (animation.playState !== 'idle') animation.finish()
       const size = node.getBoundingClientRect()
       return await Export.capture(node, { ...options, scale: Export.fit(size, options.scale) })
     } finally {
