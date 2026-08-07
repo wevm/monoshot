@@ -15,10 +15,6 @@ export type Types = Record<string, Annotation.Annotation>
  * beside it: it survives a reload, and the export already knows how to draw it.
  */
 export function hover(types: Types): Extension {
-  // The identifier the last single click toggled, so a second click of the
-  // same gesture can put it back rather than leaving a pin behind.
-  let last: Identifier.Identifier | undefined
-
   return [
     marks(types),
     hoverTooltip(
@@ -36,7 +32,13 @@ export function hover(types: Types): Extension {
           // Offset belongs on the view, not the spec: CodeMirror reads it off
           // what `create` returns. Back by the notch's own inset, so the notch
           // lands on the token rather than a few characters into it.
-          create: () => ({ dom: Annotation.element(type), offset: { x: -8, y: 4 } }),
+          create: () => ({
+            dom: Annotation.element(type, {
+              label: 'Pin this type',
+              select: () => toggle(view, identifier),
+            }),
+            offset: { x: -8, y: 4 },
+          }),
           end: identifier.to,
           pos: identifier.from,
         }
@@ -46,28 +48,6 @@ export function hover(types: Types): Extension {
       // this as `hoverTime || 300`, so a falsy value restores the default.
       { hoverTime: 1 },
     ),
-    EditorView.domEventHandlers({
-      mousedown(event, view) {
-        // A double click selects a word, so it undoes the pin its own first
-        // click made rather than pinning on the way past.
-        if (event.detail > 1) {
-          if (last) toggle(view, last)
-          last = undefined
-          return false
-        }
-        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
-        const identifier = pos === null ? undefined : Identifier.at(view.state.doc, pos)
-        // Only identifiers that carry a type respond, so an ordinary click
-        // somewhere else still just places the cursor.
-        if (!identifier || !types[identifier.name]) {
-          last = undefined
-          return false
-        }
-        toggle(view, identifier)
-        last = identifier
-        return false
-      },
-    }),
   ]
 }
 

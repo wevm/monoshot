@@ -67,11 +67,22 @@ class Block extends WidgetType {
     return other.type === this.type && other.column === this.column
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const root = document.createElement('div')
     root.className = 'twoslash-block'
     root.style.setProperty('--twoslash-column', String(this.column))
-    root.appendChild(Annotation.element(this.type))
+    root.appendChild(
+      Annotation.element(this.type, {
+        label: 'Unpin this type',
+        // The widget stands in for the caret line, so its own position is the
+        // line to take away.
+        select: () => {
+          const pos = view.posAtDOM(root)
+          const line = view.state.doc.lineAt(pos)
+          view.dispatch({ changes: { from: Math.max(0, line.from - 1), to: line.to } })
+        },
+      }),
+    )
     return root
   }
 

@@ -142,6 +142,51 @@
     white-space: pre-wrap;
   }
 
+  /* The pin sits in the surface's corner rather than in the text flow. Only a
+     surface that carries one gives up the room, so a type rendered without a
+     control still sets flush. */
+  .twoslash:has(.twoslash-pin) {
+    padding-right: 30px;
+  }
+
+  .twoslash-pin {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    /* Dimmed at rest: it is the only chrome on the surface, and the type is
+       what you came to read. */
+    opacity: 0.5;
+    padding: 4px;
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    transition: opacity var(--motion-fast) var(--motion-out);
+  }
+
+  /* A pinned type is part of the picture, so its control stays out of the
+     composition until the pointer goes looking for it. */
+  .twoslash-block .twoslash-pin {
+    opacity: 0;
+  }
+
+  .twoslash-block:hover .twoslash-pin,
+  .twoslash-pin:hover,
+  .twoslash-pin:focus-visible {
+    opacity: 1;
+  }
+
+  .twoslash-pin svg {
+    fill: none;
+    height: 12px;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2;
+    width: 12px;
+  }
+
   /* The hover floats over code, so the same tint is composited onto the window
      rather than left transparent. Same color, but nothing reads through it.
      It appears often, so it barely moves: enough to register, not to notice. */
