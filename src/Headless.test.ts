@@ -1,4 +1,6 @@
 import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 
 import * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
@@ -13,35 +15,6 @@ const chrome = [
   '/usr/bin/google-chrome',
 ].find((path) => path && fs.existsSync(path))
 
-describe('fit', () => {
-  test('keeps a scale the browser can rasterize', () => {
-    expect({
-      asked: Headless.fit({ height: 500, width: 800 }, 4),
-      capped: Headless.fit({ height: 500, width: 8000 }, 6),
-      unknown: Headless.fit(null, 3),
-    }).toMatchInlineSnapshot(`
-      {
-        "asked": 4,
-        "capped": 2.048,
-        "unknown": 3,
-      }
-    `)
-  })
-
-  test('shrinks a frame that is already past the raster limit', () => {
-    // A floor of 1 here would leave the image over the limit and blank.
-    expect({
-      tall: Headless.fit({ height: 40_000, width: 600 }, 2),
-      wide: Headless.fit({ height: 500, width: 20_000 }, 2),
-    }).toMatchInlineSnapshot(`
-      {
-        "tall": 0.4096,
-        "wide": 0.8192,
-      }
-    `)
-  })
-})
-
 describe('create', () => {
   test.skipIf(!chrome)('stays usable after being disposed', { timeout: 120_000 }, async () => {
     const renderer = Headless.create()
@@ -49,6 +22,32 @@ describe('create', () => {
     await renderer.dispose()
     const png = await renderer.render({ code: 'const b = 2', lang: 'ts', theme: 'vitesse-dark' })
     await renderer.dispose()
+    expect(png.length > 5000).toMatchInlineSnapshot(`true`)
+  })
+
+  test.skipIf(!chrome)('recovers from a browser that died', { timeout: 120_000 }, async () => {
+    // `exec` keeps the pid the wrapper recorded, so the kill lands on the
+    // browser this renderer launched rather than any other Chrome running.
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'monoshot-'))
+    const pidFile = path.join(directory, 'pid')
+    const executable = path.join(directory, 'chrome')
+    fs.writeFileSync(
+      executable,
+      `#!/bin/sh\necho $$ > ${JSON.stringify(pidFile)}\nexec ${JSON.stringify(chrome)} "$@"\n`,
+      { mode: 0o755 },
+    )
+
+    const renderer = Headless.create({ executable })
+    await renderer.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+    process.kill(Number(fs.readFileSync(pidFile, 'utf8').trim()), 'SIGKILL')
+    // Nothing here observes the renderer noticing, so give the closed pipe a
+    // turn of the loop to reach it.
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // A renderer holding the dead browser would fail here and never recover.
+    const png = await renderer.render({ code: 'const b = 2', lang: 'ts', theme: 'vitesse-dark' })
+    await renderer.dispose()
+    fs.rmSync(directory, { force: true, recursive: true })
     expect(png.length > 5000).toMatchInlineSnapshot(`true`)
   })
 

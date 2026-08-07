@@ -1,12 +1,7 @@
 import type { Browser } from 'puppeteer-core'
 
 import * as Frame from './Frame.js'
-
-/**
- * Chromium refuses to rasterize past this on either side, and fails by
- * returning a blank image rather than by throwing.
- */
-const side = 16_384
+import * as Raster from './internal/Raster.js'
 
 /**
  * Creates a renderer that owns a browser for its lifetime.
@@ -33,12 +28,33 @@ const side = 16_384
  * ```
  */
 export function create(options: create.Options = {}): create.ReturnType {
-  const { executable, frame = Frame.create() } = options
+  const { args, executable, frame = Frame.create() } = options
   // A frame passed in belongs to the caller, so only one made here is released.
   const owned = !options.frame
   // Kept as a promise so concurrent renders share one launch rather than
   // racing to start a browser each.
   let browser: Promise<Browser> | undefined
+
+  // A browser this renderer can no longer use must not stay cached: a launch
+  // that failed would poison every later render, and a Chrome that has since
+  // exited would take every `newPage` down with it.
+  function start(): Promise<Browser> {
+    const pending: Promise<Browser> = launch({ args, executable }).then(
+      (instance) => {
+        instance.once('disconnected', () => forget(pending))
+        return instance
+      },
+      (cause: unknown) => {
+        forget(pending)
+        throw cause
+      },
+    )
+    return pending
+  }
+
+  function forget(pending: Promise<Browser>) {
+    if (browser === pending) browser = undefined
+  }
 
   return {
     async dispose() {
@@ -50,19 +66,21 @@ export function create(options: create.Options = {}): create.ReturnType {
     async render(parameters) {
       const { scale = 2, ...rest } = parameters
       const html = await frame.toDocument({ ...defaults, ...rest })
-      // A rejected launch must not be cached, or one transient failure would
-      // poison every later render on this renderer.
-      browser ??= launch(executable).catch((cause: unknown) => {
-        browser = undefined
-        throw cause
-      })
-      return capture(await browser, { html, scale })
+      // Read once: the browser can drop out of the cache while this waits.
+      const pending = (browser ??= start())
+      return capture(await pending, { html, scale })
     },
   }
 }
 
 export declare namespace create {
   type Options = {
+    /**
+     * Extra flags for the browser, passed through as given. A container
+     * running as root needs `--no-sandbox`; a small `/dev/shm` needs
+     * `--disable-dev-shm-usage`. Defaults to none.
+     */
+    args?: readonly string[] | undefined
     /**
      * Path to a Chrome or Chromium binary. Falls back to
      * `PUPPETEER_EXECUTABLE_PATH`, then to a Chrome installed on this machine.
@@ -105,8 +123,8 @@ export declare namespace create {
  * ```
  */
 export async function render(options: render.Options): Promise<Uint8Array> {
-  const { executable, frame, ...rest } = options
-  const renderer = create({ executable, frame })
+  const { args, executable, frame, ...rest } = options
+  const renderer = create({ args, executable, frame })
   try {
     return await renderer.render(rest)
   } finally {
@@ -152,7 +170,7 @@ async function capture(
     if (!canvas) throw new ChromeError('The document rendered no frame.')
     const box = await canvas.boundingBox()
     await page.setViewport({
-      deviceScaleFactor: fit(box, scale),
+      deviceScaleFactor: Raster.fit(box, scale),
       height: Math.ceil(box?.height ?? 1),
       width: Math.ceil(box?.width ?? 1),
     })
@@ -179,23 +197,18 @@ export declare namespace render {
   >
 }
 
-/**
- * The largest scale that still rasterizes, at or below the one asked for. A
- * frame already past the limit at 1x gets a scale below 1: clamping to 1 would
- * hand back a scale this cannot promise.
- */
-export function fit(box: { height: number; width: number } | null, scale: number): number {
-  if (!box?.height || !box.width) return scale
-  return Math.min(scale, side / box.width, side / box.height)
-}
-
-async function launch(executable: string | undefined): Promise<Browser> {
+async function launch(options: {
+  args: readonly string[] | undefined
+  executable: string | undefined
+}): Promise<Browser> {
+  const { args, executable } = options
   const puppeteer = await import('puppeteer-core').catch(() => {
     throw new ChromeError('Rendering needs `puppeteer-core` installed alongside monoshot.')
   })
   const path = executable ?? process.env['PUPPETEER_EXECUTABLE_PATH']
   try {
     return await puppeteer.launch({
+      ...(args ? { args: [...args] } : {}),
       // A path wins; otherwise puppeteer finds a Chrome already on the machine
       // rather than downloading one.
       ...(path ? { executablePath: path } : { channel: 'chrome' }),
