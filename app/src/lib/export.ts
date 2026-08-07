@@ -64,6 +64,11 @@ export async function capture(node: Element, options: capture.Options): Promise<
 }
 
 export declare namespace capture {
+  /**
+   * What an export was asked for: how big, and in which format. Shared with
+   * {@link fit}, which answers the same request at a scale the browser can
+   * actually rasterize.
+   */
   type Options = {
     /** Multiplier on the node's own size. */
     scale: number
@@ -76,15 +81,23 @@ export declare namespace capture {
 }
 
 /** Saves a blob to the user's downloads. */
-export function download(blob: Blob, name: string): void {
+export function download(blob: Blob, options: download.Options): void {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
-  link.download = name
+  link.download = options.name
   link.href = url
   link.click()
   // Not in this tick: revoking before the browser has read the blob cancels
   // the download.
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export declare namespace download {
+  /** Options for {@link download}. */
+  type Options = {
+    /** Filename offered to the browser, extension included. */
+    name: string
+  }
 }
 
 /**

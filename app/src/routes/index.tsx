@@ -440,7 +440,7 @@ function Page() {
     // Named for the title the export was asked under, not for whatever the
     // field says once the capture finishes.
     const name = `${title || 'untitled'}.${options.type}`
-    void run.then((blob) => Export.download(blob, name)).catch(report)
+    void run.then((blob) => Export.download(blob, { name })).catch(report)
   }
 
   function copyImage() {
@@ -532,9 +532,12 @@ function Page() {
         event.preventDefault()
         save({ scale: 2, type: 'png' })
       } else if (key === 'c' && event.shiftKey) {
+        // ⌘ only, as the menu advertises it. Ctrl+Shift+C is the element
+        // picker on Windows and Linux, which the page has no business taking.
+        if (!event.metaKey) return
         event.preventDefault()
         copyUrl()
-      } else if (key === 'c' && !copying(event)) {
+      } else if (key === 'c' && !event.shiftKey && !copying(event)) {
         event.preventDefault()
         copyImage()
       }
@@ -675,7 +678,6 @@ function Page() {
             <Frame
               background={artwork.settings.background}
               onPaddingChange={() => {}}
-              onTitleChange={() => {}}
               onWidthChange={() => {}}
               padding={artwork.settings.padding}
               onRadiusChange={() => {}}

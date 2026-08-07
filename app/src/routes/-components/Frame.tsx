@@ -237,11 +237,16 @@ export function Frame(props: Frame.Props) {
                       <span {...stylex.props(styles.light)} />
                       <span {...stylex.props(styles.light)} />
                     </div>
+                    {/* Read-only without a handler, so the copy an export
+                        serializes carries the title rather than a field the
+                        viewer of a saved SVG can type into. */}
                     <input
                       aria-label="Title"
-                      onChange={(event) => onTitleChange(event.target.value)}
+                      onChange={(event) => onTitleChange?.(event.target.value)}
                       placeholder="untitled"
+                      readOnly={!onTitleChange}
                       spellCheck={false}
+                      tabIndex={onTitleChange ? undefined : -1}
                       value={title}
                       {...stylex.props(styles.title, text.label13)}
                     />
@@ -444,7 +449,8 @@ export declare namespace Frame {
     children: ReactNode
     /** Receives the dragged padding, in pixels. */
     onPaddingChange: (padding: number) => void
-    onTitleChange: (title: string) => void
+    /** Receives the typed title. Left out, the title field is read-only. */
+    onTitleChange?: ((title: string) => void) | undefined
     /** Receives the dragged width, in pixels. */
     onWidthChange: (width: number) => void
     /** Space around the window, in pixels. */
