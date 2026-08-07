@@ -115,6 +115,13 @@
     }
   }
 
+  @keyframes twoslash-in-above {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+
   /* One surface for a type, wherever it is shown: the hover and the pinned
      block differ in where they sit, not in how they look. */
   .twoslash {
@@ -214,13 +221,28 @@
      It appears often, so it barely moves: enough to register, not to notice. */
   .cm-tooltip .twoslash {
     animation: twoslash-in var(--motion-fast) var(--motion-out) both;
-    /* The only place depth is spent: what a hover covers is often a pinned
-       type wearing the same surface, and without a shadow the two merge into
-       one shape with a bar hanging off it. */
+    /* The same edge as a pinned type: a hover differs in where it sits, not in
+       how it looks. Only the cast separates it from the code underneath. */
     box-shadow:
-      inset 0 0 0 1px color-mix(in oklab, currentColor 18%, var(--window-border)),
-      0 2px 4px rgb(0 0 0 / 0.28),
-      0 12px 28px -8px rgb(0 0 0 / 0.45);
+      inset 0 0 0 1px var(--window-border),
+      0 8px 24px -10px rgb(0 0 0 / 0.4);
+  }
+
+  /* Opened above the word instead, so the run and the notch swap ends. */
+  .cm-tooltip-above .twoslash-bridge {
+    padding-bottom: 4px;
+    padding-top: 0;
+  }
+
+  .cm-tooltip-above .twoslash::before {
+    bottom: -4px;
+    top: auto;
+    transform: rotate(225deg);
+  }
+
+  /* Settles up rather than down, so it still arrives from the word's side. */
+  .cm-tooltip-above .twoslash {
+    animation-name: twoslash-in-above;
   }
 
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
@@ -275,6 +297,12 @@
    they just stop travelling to get there. */
 @media (prefers-reduced-motion: reduce) {
   @keyframes twoslash-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes twoslash-in-above {
     from {
       opacity: 0;
     }

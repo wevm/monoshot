@@ -42,9 +42,12 @@ export function hover(types: Types): Extension {
         // the block it is asking about.
         if (pinned(view, identifier)) return null
         return {
-          // Below the identifier, where pinning will leave it: hovering previews
-          // the pinned block in place rather than somewhere else.
-          above: false,
+          // Below the identifier, where pinning will leave it, so hovering
+          // previews the pinned block in place rather than somewhere else. It
+          // goes above instead when that space is already showing a pinned
+          // type, which a hover would otherwise sit on top of. CodeMirror
+          // flips it back if there is no room up there.
+          above: covered(view, identifier, found.length),
           // Offset belongs on the view, not the spec: CodeMirror reads it off
           // what `create` returns. Back by the notch's own inset, so the notch
           // lands on the token rather than a few characters into it. The drop
@@ -66,10 +69,16 @@ export function hover(types: Types): Extension {
           pos: identifier.from,
         }
       },
-      // The types are already in hand, so waiting only makes the editor feel
-      // slower than it is. One millisecond rather than zero: CodeMirror reads
-      // this as `hoverTime || 300`, so a falsy value restores the default.
-      { hoverTime: 1 },
+      {
+        // Pinning writes the caret line, and the type it puts in flow is the
+        // one the hover is showing: without this the hover outlives the edit
+        // and sits on top of the block it just made.
+        hideOnChange: true,
+        // The types are already in hand, so waiting only makes the editor feel
+        // slower than it is. One millisecond rather than zero: CodeMirror reads
+        // this as `hoverTime || 300`, so a falsy value restores the default.
+        hoverTime: 1,
+      },
     ),
     // The pin is a pointer affordance on a surface only a pointer opens, so
     // the caret gets its own way in.
@@ -85,6 +94,20 @@ export function hover(types: Types): Extension {
       },
     ]),
   ]
+}
+
+/**
+ * Whether a pinned type sits in the space a popover of `lines` would open
+ * into. Counted in document lines rather than measured: a type is about as
+ * tall as the code it covers, and one line either way only decides a side.
+ */
+function covered(view: EditorView, identifier: Identifier.Identifier, lines: number) {
+  const { doc } = view.state
+  const start = doc.lineAt(identifier.from).number
+  const end = Math.min(doc.lines, start + lines + 1)
+  for (let line = start + 1; line <= end; line++)
+    if (Identifier.caretColumn(doc.line(line).text) !== undefined) return true
+  return false
 }
 
 /** Wraps a surface in the transparent run that carries the pointer out to it. */
