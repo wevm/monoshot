@@ -133,6 +133,9 @@
     font-family: var(--code-font-family);
     font-size: var(--code-annotation-size);
     line-height: 1.5;
+    /* Real types run long, so they wrap at a readable measure rather than
+       stretching a popover across the whole frame. */
+    max-width: 64ch;
     padding: 6px 10px;
     position: relative;
     white-space: pre-wrap;
