@@ -2,9 +2,9 @@ import type * as Theme from '../Theme.js'
 
 /** A font to embed, so the document asks the network for nothing. */
 export type Font = {
-  /** The family name the stylesheet refers to. */
+  /** The family name the stylesheet registers and the code font stack asks for. */
   family: string
-  /** A `data:` URL holding the font itself. */
+  /** A `data:` URL holding the font itself. Any other URL is rejected. */
   source: string
   /** Defaults to `normal`. */
   style?: string | undefined
@@ -14,17 +14,31 @@ export type Font = {
 
 /** Everything the document needs beyond the highlighted markup. */
 export type Options = {
-  /** `default` paints the theme's gradient, `none` leaves it transparent. */
+  /**
+   * `default` paints the theme's gradient, `none` leaves it transparent, and
+   * any other value is used as the CSS `background` of the canvas.
+   */
   background: string
   /** The code, already highlighted. */
   html: string
+  /** Whether to draw a line-number gutter beside the code. */
   lineNumbers: boolean
+  /** Space in pixels between the backdrop's edge and the window. */
   padding: number
+  /** Frame colors, derived from the theme the code was highlighted with. */
   palette: Theme.derive.Result
+  /** Corner radius of the window, in pixels. */
   radius: number
+  /** Window title. An empty title renders as `untitled`. */
   title: string
+  /** Whether to draw the title bar above the code. */
   titleBar: boolean
+  /** Width of the backdrop in pixels, padding included. */
   width: number
+  /**
+   * Fonts to embed. The first family listed leads the code font stack, so a
+   * document renders the same anywhere. Defaults to none.
+   */
   fonts?: readonly Font[] | undefined
 }
 
@@ -32,24 +46,28 @@ export type Options = {
  * Builds a standalone document for a frame: no scripts, no requests, and every
  * font inlined. This is what a headless browser screenshots, so it is the one
  * contract the CLI and the image API share.
+ *
+ * Throws `UnsafeValueError` when `background` or a font field carries CSS that
+ * would leave the stylesheet or fetch a resource.
  */
 export function build(options: Options): string {
   const { background, html, lineNumbers, padding, palette, radius, title, titleBar, width } =
     options
+  const fonts = options.fonts ?? []
   const backdrop =
     background === 'none'
       ? 'transparent'
       : background === 'default'
         ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
-        : background
+        : css(background, 'background')
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <style>
-${fontFaces(options.fonts ?? [])}
+${fontFaces(fonts)}
 :root {
-  --code-font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --code-font-family: ${fontStack(fonts)};
   --code-font-size: 14px;
   --code-line-height: 22px;
   --code-tab-size: 2;
@@ -190,13 +208,48 @@ function fontFaces(fonts: readonly Font[]) {
   return fonts
     .map(
       (font) => `@font-face {
-  font-family: '${font.family}';
-  font-style: ${font.style ?? 'normal'};
-  font-weight: ${font.weight ?? 'normal'};
-  src: url(${font.source});
+  font-family: '${css(font.family, 'fonts[].family')}';
+  font-style: ${css(font.style ?? 'normal', 'fonts[].style')};
+  font-weight: ${css(font.weight ?? 'normal', 'fonts[].weight')};
+  src: url(${source(font.source)});
 }`,
     )
     .join('\n')
+}
+
+/**
+ * Embedded families lead, so the document asks for the face it carries rather
+ * than whatever monospace the host happens to have.
+ */
+function fontStack(fonts: readonly Font[]) {
+  const families = [...new Set([...fonts.map((font) => font.family), 'Geist Mono Variable'])]
+  return [
+    ...families.map((family) => `'${css(family, 'fonts[].family')}'`),
+    'ui-monospace',
+    `'SF Mono'`,
+    'Menlo',
+    'monospace',
+  ].join(', ')
+}
+
+/**
+ * A caller's CSS lands in a raw-text `<style>` element, so `<` would start
+ * markup and a fetching function would reach the network, breaking the
+ * standalone, script-free document this module promises. Banning `:` and `\`
+ * leaves no scheme and no escape to spell those function names another way.
+ */
+const unsafe = /[<>{};:@'"\\]|url\(|image-set\(|src\(/i
+
+function css(value: string, field: string) {
+  if (unsafe.test(value)) throw new UnsafeValueError({ field, value })
+  return value
+}
+
+/** Font data is embedded, never fetched, so only a `data:` URL is a font here. */
+function source(value: string) {
+  if (!/^data:[^\s<>'"()\\]+$/.test(value))
+    throw new UnsafeValueError({ field: 'fonts[].source', value })
+  return value
 }
 
 /** The title is the one place a caller's text reaches the markup unhighlighted. */
@@ -206,4 +259,13 @@ function escape(value: string) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+/** Thrown when an option would escape the stylesheet or fetch a resource. */
+export class UnsafeValueError extends Error {
+  override name = 'Document.UnsafeValueError'
+
+  constructor(options: { field: string; value: string }) {
+    super(`\`${options.field}\` is not a safe standalone CSS value: ${options.value}`)
+  }
 }

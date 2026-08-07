@@ -50,6 +50,29 @@ export function create(options: create.Options = {}): create.ReturnType {
     return instance
   }
 
+  // A closure rather than a sibling method: an operation read off a destructured
+  // renderer has no receiver to resolve.
+  async function highlight(parameters: render.Options): Promise<render.ReturnType> {
+    const { code, lang, theme } = parameters
+    const instance = await resolve({ lang, theme })
+    return {
+      html: instance.codeToHtml(code, {
+        lang,
+        theme,
+        transformers: [
+          {
+            line(node, line) {
+              node.properties['data-line'] = line
+            },
+          },
+        ],
+      }),
+      // Detached: the registry entry is shared, so handing it out would let
+      // one caller's edit change what later renders produce.
+      theme: structuredClone(instance.getTheme(theme)),
+    }
+  }
+
   return {
     async dispose() {
       const instance = await highlighter?.catch(() => undefined)
@@ -59,29 +82,10 @@ export function create(options: create.Options = {}): create.ReturnType {
     async load(parameters) {
       await resolve(parameters)
     },
-    async render(parameters) {
-      const { code, lang, theme } = parameters
-      const instance = await resolve({ lang, theme })
-      return {
-        html: instance.codeToHtml(code, {
-          lang,
-          theme,
-          transformers: [
-            {
-              line(node, line) {
-                node.properties['data-line'] = line
-              },
-            },
-          ],
-        }),
-        // Detached: the registry entry is shared, so handing it out would let
-        // one caller's edit change what later renders produce.
-        theme: structuredClone(instance.getTheme(theme)),
-      }
-    },
+    render: highlight,
     async toDocument(parameters) {
       const { code, lang, theme, ...rest } = parameters
-      const result = await this.render({ code, lang, theme })
+      const result = await highlight({ code, lang, theme })
       return Document.build({ ...rest, html: result.html, palette: Theme.derive(result.theme) })
     },
     async tokens(parameters) {
@@ -126,6 +130,10 @@ export declare namespace create {
      *
      * This is what every headless surface screenshots, so a CLI and a hosted
      * API produce the same image from the same state.
+     *
+     * Rejects when shiki cannot load the requested theme or language, and when
+     * `background` or a font field carries CSS that would leave the stylesheet
+     * or fetch a resource.
      */
     toDocument: (options: toDocument.Options) => Promise<string>
     /**

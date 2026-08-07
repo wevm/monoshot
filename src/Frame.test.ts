@@ -20,6 +20,23 @@ describe('create', () => {
     const result = await frame.render({ code: 'a', lang: 'ts', theme: 'nord' })
     expect(result.theme.name).toBe('nord')
   })
+
+  test('hands out operations that carry their own renderer', async () => {
+    const { toDocument } = Frame.create()
+    const document = await toDocument({
+      background: 'none',
+      code: 'const a = 1',
+      lang: 'ts',
+      lineNumbers: false,
+      padding: 32,
+      radius: 12,
+      theme: 'nord',
+      title: 'a.ts',
+      titleBar: true,
+      width: 480,
+    })
+    expect(document.startsWith('<!doctype html>')).toMatchInlineSnapshot(`true`)
+  })
 })
 
 describe('render', () => {

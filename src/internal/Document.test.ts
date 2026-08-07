@@ -101,4 +101,70 @@ describe('build', () => {
       }"
     `)
   })
+
+  test('asks for the families it embedded, not just the default', async () => {
+    const stack = async (fonts?: readonly { family: string; source: string }[]) => {
+      const document = await frame.toDocument({ ...options, ...(fonts ? { fonts } : {}) })
+      return /--code-font-family: ([^;]+);/.exec(document)?.[1]
+    }
+    expect({
+      embedded: await stack([{ family: 'Geist Mono', source: 'data:font/woff2;base64,AAAA' }]),
+      none: await stack(),
+      // The default is already in the stack, so embedding it adds no duplicate.
+      redundant: await stack([
+        { family: 'Geist Mono Variable', source: 'data:font/woff2;base64,AAAA' },
+      ]),
+    }).toMatchInlineSnapshot(`
+      {
+        "embedded": "'Geist Mono', 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
+        "none": "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
+        "redundant": "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
+      }
+    `)
+  })
+
+  test('refuses a background that would leave the stylesheet or fetch a resource', async () => {
+    const rejected = async (background: string) =>
+      await frame
+        .toDocument({ ...options, background })
+        .then(() => 'accepted')
+        .catch((error: Error) => `${error.name}: ${error.message}`)
+    expect({
+      escape: await rejected('red</style><script>alert(1)</script><style>'),
+      // `\` would spell `url(` past the check, so the escape itself is refused.
+      escaped: await rejected('\\75 rl(https://example.com/a.png)'),
+      imageSet: await rejected('image-set(a.png 1x)'),
+      remote: await rejected('url(https://example.com/a.png)'),
+      // A color or gradient is still an ordinary background.
+      safe: await rejected('linear-gradient(140deg, #101014, rgb(0 0 0 / 50%))'),
+    }).toMatchInlineSnapshot(`
+      {
+        "escape": "Document.UnsafeValueError: \`background\` is not a safe standalone CSS value: red</style><script>alert(1)</script><style>",
+        "escaped": "Document.UnsafeValueError: \`background\` is not a safe standalone CSS value: \\75 rl(https://example.com/a.png)",
+        "imageSet": "Document.UnsafeValueError: \`background\` is not a safe standalone CSS value: image-set(a.png 1x)",
+        "remote": "Document.UnsafeValueError: \`background\` is not a safe standalone CSS value: url(https://example.com/a.png)",
+        "safe": "accepted",
+      }
+    `)
+  })
+
+  test('refuses a font that would leave the stylesheet or fetch a resource', async () => {
+    const rejected = async (font: { family: string; source: string }) =>
+      await frame
+        .toDocument({ ...options, fonts: [font] })
+        .then(() => 'accepted')
+        .catch((error: Error) => `${error.name}: ${error.message}`)
+    expect({
+      family: await rejected({
+        family: "a'; } </style><script>alert(1)</script><style> .x {",
+        source: 'data:font/woff2;base64,AAAA',
+      }),
+      remote: await rejected({ family: 'Geist Mono', source: 'https://example.com/a.woff2' }),
+    }).toMatchInlineSnapshot(`
+      {
+        "family": "Document.UnsafeValueError: \`fonts[].family\` is not a safe standalone CSS value: a'; } </style><script>alert(1)</script><style> .x {",
+        "remote": "Document.UnsafeValueError: \`fonts[].source\` is not a safe standalone CSS value: https://example.com/a.woff2",
+      }
+    `)
+  })
 })
