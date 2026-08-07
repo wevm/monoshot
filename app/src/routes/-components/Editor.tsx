@@ -9,7 +9,7 @@ import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
 import type { Types } from '#/lib/editor/hover.js'
-import { query as queries, setQuery } from '#/lib/editor/query.js'
+import { number, query as queries, setQuery } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 
 const styles = stylex.create({
@@ -43,10 +43,12 @@ export function Editor(props: Editor.Props) {
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.lineWrapping,
+          // Without a name the code surface reads as an unlabelled edit field.
+          EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           queries,
           hovers.of(hover(types)),
-          gutters.of(lineNumbers ? gutter() : []),
+          gutters.of(lineNumbers ? gutter({ formatNumber: number }) : []),
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange.current(update.state.doc.toString())
@@ -68,12 +70,10 @@ export function Editor(props: Editor.Props) {
   }, [palette, palettes])
 
   useEffect(() => {
-    view.current?.dispatch({ effects: gutters.reconfigure(lineNumbers ? gutter() : []) })
+    view.current?.dispatch({
+      effects: gutters.reconfigure(lineNumbers ? gutter({ formatNumber: number }) : []),
+    })
   }, [gutters, lineNumbers])
-
-  useEffect(() => {
-    view.current?.dispatch({ effects: setTokens.of(tokens) })
-  }, [tokens])
 
   useEffect(() => {
     view.current?.dispatch({
@@ -89,6 +89,12 @@ export function Editor(props: Editor.Props) {
       changes: { from: 0, insert: code, to: instance.state.doc.length },
     })
   }, [code])
+
+  // After the document above, never before: tokens built against a restored
+  // snippet would map through its own replacement and vanish.
+  useEffect(() => {
+    view.current?.dispatch({ effects: setTokens.of(tokens) })
+  }, [tokens])
 
   return <div ref={host} {...stylex.props(styles.root)} />
 }

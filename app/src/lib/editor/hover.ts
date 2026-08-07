@@ -1,6 +1,6 @@
 import { StateField } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
-import { Decoration, EditorView, hoverTooltip } from '@codemirror/view'
+import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
@@ -18,6 +18,14 @@ const reach = 30
 export type Types = Record<string, Annotation.Annotation>
 
 /**
+ * The type registered for an identifier. Own properties only, so a variable
+ * named `constructor` or `toString` finds nothing rather than inheriting one.
+ */
+export function type(types: Types, name: string): Annotation.Annotation | undefined {
+  return Object.hasOwn(types, name) ? types[name] : undefined
+}
+
+/**
  * Shows an identifier's type on hover, and pins it on click. Pinning writes the
  * `^?` line twoslash reads, so a pin is part of the snippet rather than state
  * beside it: it survives a reload, and the export already knows how to draw it.
@@ -28,8 +36,8 @@ export function hover(types: Types): Extension {
     hoverTooltip(
       (view, pos) => {
         const identifier = Identifier.at(view.state.doc, pos)
-        const type = identifier && types[identifier.name]
-        if (!identifier || !type) return null
+        const found = identifier && type(types, identifier.name)
+        if (!identifier || !found) return null
         // A pinned type is already on screen, so hovering it would only cover
         // the block it is asking about.
         if (pinned(view, identifier)) return null
@@ -45,7 +53,7 @@ export function hover(types: Types): Extension {
           // tooltip, so an offset gap is a moat you cannot cross.
           create: () => ({
             dom: bridge(
-              Annotation.element(type, {
+              Annotation.element(found, {
                 label: 'Pin this type',
                 select: () => toggle(view, identifier),
               }),
@@ -63,6 +71,19 @@ export function hover(types: Types): Extension {
       // this as `hoverTime || 300`, so a falsy value restores the default.
       { hoverTime: 1 },
     ),
+    // The pin is a pointer affordance on a surface only a pointer opens, so
+    // the caret gets its own way in.
+    keymap.of([
+      {
+        key: 'Mod-i',
+        run(view) {
+          const identifier = Identifier.at(view.state.doc, view.state.selection.main.head)
+          if (!identifier || !type(types, identifier.name)) return false
+          toggle(view, identifier)
+          return true
+        },
+      },
+    ]),
   ]
 }
 
@@ -96,7 +117,8 @@ function build(doc: Parameters<typeof Identifier.at>[0], types: Types): Decorati
   for (let line = 1; line <= doc.lines; line++) {
     const text = doc.line(line)
     for (const found of Identifier.all(text.text))
-      if (types[found.name]) ranges.push(mark.range(text.from + found.from, text.from + found.to))
+      if (type(types, found.name))
+        ranges.push(mark.range(text.from + found.from, text.from + found.to))
   }
   return Decoration.set(ranges, true)
 }

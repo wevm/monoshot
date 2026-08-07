@@ -172,33 +172,19 @@ function Page() {
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
-    types: Editor.Props['types']
   }>()
+  const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
   const [error, setError] = useState<Error>()
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
     let active = true
-    // Types are tokenized alongside the code so an annotation is painted in
-    // the theme's own colors rather than a flat foreground.
-    Promise.all([
-      renderer.tokens({ code, lang: 'tsx', theme: settings.theme }),
-      Promise.all(
-        Object.entries(types).map(async ([name, type]) => {
-          const result = await renderer.tokens({ code: type, lang: 'ts', theme: settings.theme })
-          return [name, result.tokens] as const
-        }),
-      ),
-    ]).then(
-      ([result, annotations]) => {
+    renderer.tokens({ code, lang: 'tsx', theme: settings.theme }).then(
+      (result) => {
         if (!active) return
         setError(undefined)
-        setFrame({
-          palette: Theme.derive(result.theme),
-          tokens: result.tokens,
-          types: Object.fromEntries(annotations),
-        })
+        setFrame({ palette: Theme.derive(result.theme), tokens: result.tokens })
       },
       (cause: Error) => {
         if (active) setError(cause)
@@ -208,6 +194,24 @@ function Page() {
       active = false
     }
   }, [code, settings.theme])
+
+  // Types are painted in the theme's own colors rather than a flat foreground,
+  // and their text does not change with the document, so they are tokenized
+  // once per theme rather than on every keystroke.
+  useEffect(() => {
+    let active = true
+    Promise.all(
+      Object.entries(types).map(async ([name, type]) => {
+        const result = await renderer.tokens({ code: type, lang: 'ts', theme: settings.theme })
+        return [name, result.tokens] as const
+      }),
+    ).then((entries) => {
+      if (active) setAnnotations(Object.fromEntries(entries))
+    })
+    return () => {
+      active = false
+    }
+  }, [settings.theme])
 
   const [measure, rect] = useEdges()
 
@@ -410,7 +414,7 @@ function Page() {
                   onCodeChange={setCode}
                   palette={frame.palette}
                   tokens={frame.tokens}
-                  types={frame.types}
+                  types={annotations}
                 />
               </Frame>
             </div>

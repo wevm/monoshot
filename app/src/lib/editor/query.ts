@@ -1,10 +1,11 @@
 import { StateEffect, StateField } from '@codemirror/state'
-import type { Text } from '@codemirror/state'
+import type { EditorState, Text } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
+import { type as lookup } from './hover.js'
 import type { Types } from './hover.js'
 
 /** Sets the types a `^?` caret can resolve to, keyed by identifier. */
@@ -16,35 +17,53 @@ export const setQuery = StateEffect.define<Types>()
  * an export carries it the same way the editor shows it.
  */
 export const query = StateField.define<Value>({
-  create: () => ({ decorations: Decoration.none, types: {} }),
+  create: () => ({ decorations: Decoration.none, lines: [], types: {} }),
   update(value, transaction) {
     for (const effect of transaction.effects)
-      if (effect.is(setQuery))
-        return { decorations: build(transaction.state.doc, effect.value), types: effect.value }
+      if (effect.is(setQuery)) return build(transaction.state.doc, effect.value)
     if (!transaction.docChanged) return value
     // A caret line can appear or move with any edit, so the set is rebuilt
     // rather than mapped; only the types arrive out of band.
-    return { decorations: build(transaction.state.doc, value.types), types: value.types }
+    return build(transaction.state.doc, value.types)
   },
-  provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
+  provide: (field) => [
+    EditorView.decorations.from(field, (value) => value.decorations),
+    // A replaced line still holds its characters, so without this the caret
+    // walks into the hidden `^?` and Backspace corrupts it unseen.
+    EditorView.atomicRanges.of((view) => view.state.field(field).decorations),
+  ],
 })
+
+/**
+ * The number a line shows in the gutter. A pinned type stands in for its `^?`
+ * line, so that line takes no number and the code after it keeps counting.
+ */
+export function number(line: number, state: EditorState): string {
+  const { lines } = state.field(query)
+  if (lines.includes(line)) return ''
+  return String(line - lines.filter((pinned) => pinned < line).length)
+}
 
 /** The types ride with the decorations, so an edit can rebuild them. */
 type Value = {
   decorations: DecorationSet
+  /** Document lines a pinned type replaced, in order. */
+  lines: readonly number[]
   types: Types
 }
 
-function build(doc: Text, types: Types): DecorationSet {
+function build(doc: Text, types: Types): Value {
   const ranges = []
+  const lines = []
   for (let line = 1; line <= doc.lines; line++) {
     const text = doc.line(line)
     const column = Identifier.caretColumn(text.text)
     if (column === undefined) continue
     // A caret pointing at nothing stays the comment it is, rather than
     // collapsing into an empty box.
-    const type = types[Identifier.queried(doc, line, column)?.name ?? '']
+    const type = lookup(types, Identifier.queried(doc, line, column)?.name ?? '')
     if (!type) continue
+    lines.push(line)
     ranges.push(
       Decoration.replace({ block: true, widget: new Block(type, column) }).range(
         text.from,
@@ -52,7 +71,7 @@ function build(doc: Text, types: Types): DecorationSet {
       ),
     )
   }
-  return Decoration.set(ranges, true)
+  return { decorations: Decoration.set(ranges, true), lines, types }
 }
 
 class Block extends WidgetType {

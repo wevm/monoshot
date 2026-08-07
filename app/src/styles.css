@@ -184,6 +184,11 @@
     transform: none;
   }
 
+  /* Presses read as pressed, not as a hover that happens to be clicked. */
+  .twoslash-pin:active {
+    transform: scale(0.92);
+  }
+
   .twoslash-pin svg {
     fill: none;
     height: 10px;

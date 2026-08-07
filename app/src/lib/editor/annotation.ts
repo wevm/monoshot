@@ -43,6 +43,8 @@ export function paint(root: HTMLElement, annotation: Annotation): void {
       const style = token.fontStyle ?? 0
       if (style & 1) span.style.fontStyle = 'italic'
       if (style & 2) span.style.fontWeight = 'bold'
+      const decoration = [style & 4 && 'underline', style & 8 && 'line-through'].filter(Boolean)
+      if (decoration.length) span.style.textDecoration = decoration.join(' ')
       root.appendChild(span)
     }
   }
@@ -56,8 +58,11 @@ function control(action: Action): HTMLElement {
   button.title = action.label
   button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${pin}"/></svg>`
   // Pointer down rather than click: the editor would otherwise take the focus
-  // back and dismiss the hover before the click landed.
+  // back and dismiss the hover before the click landed. Plain primary presses
+  // only, so a context menu or a modified click stays non-mutating.
   button.addEventListener('mousedown', (event) => {
+    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+      return
     event.preventDefault()
     event.stopPropagation()
     action.select()

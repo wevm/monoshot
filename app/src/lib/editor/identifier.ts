@@ -40,8 +40,9 @@ export function* all(text: string): Generator<{ from: number; name: string; to: 
 export function queried(doc: Text, line: number, column: number): Identifier | undefined {
   if (line <= 1) return undefined
   const above = doc.line(line - 1)
-  if (column > above.length) return undefined
-  return at(doc, above.from + column)
+  // A caret cannot sit before column 2, so one aimed past the end of a short
+  // line still addresses that line's last identifier.
+  return at(doc, above.from + Math.min(column, above.length))
 }
 
 /** The column a `^?` line's caret addresses, or nothing if it is not one. */

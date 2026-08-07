@@ -54,13 +54,16 @@ function mark(token: Token): Decoration {
   const cached = marks.get(key)
   if (cached) return cached
   const style = token.fontStyle ?? 0
+  // Underline and strikethrough share one property, so they compose into a
+  // single declaration rather than overwriting each other.
+  const decoration = [style & 4 && 'underline', style & 8 && 'line-through'].filter(Boolean)
   const created = Decoration.mark({
     attributes: {
       style: [
         token.color && `color:${token.color}`,
         style & 1 && 'font-style:italic',
         style & 2 && 'font-weight:bold',
-        style & 4 && 'text-decoration:underline',
+        decoration.length && `text-decoration:${decoration.join(' ')}`,
       ]
         .filter(Boolean)
         .join(';'),
