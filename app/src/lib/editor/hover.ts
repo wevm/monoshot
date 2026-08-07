@@ -69,10 +69,16 @@ export function hover(types: Types): Extension {
           pos: identifier.from,
         }
       },
-      // The types are already in hand, so waiting only makes the editor feel
-      // slower than it is. One millisecond rather than zero: CodeMirror reads
-      // this as `hoverTime || 300`, so a falsy value restores the default.
-      { hoverTime: 1 },
+      {
+        // Pinning writes the caret line, and the type it puts in flow is the
+        // one the hover is showing: without this the hover outlives the edit
+        // and sits on top of the block it just made.
+        hideOnChange: true,
+        // The types are already in hand, so waiting only makes the editor feel
+        // slower than it is. One millisecond rather than zero: CodeMirror reads
+        // this as `hoverTime || 300`, so a falsy value restores the default.
+        hoverTime: 1,
+      },
     ),
     // The pin is a pointer affordance on a surface only a pointer opens, so
     // the caret gets its own way in.
