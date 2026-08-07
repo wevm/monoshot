@@ -9,8 +9,11 @@ import * as Frame from './Frame.js'
 const side = 16_384
 
 /**
- * Renders a frame to an image, by screenshotting the standalone document in a
- * real browser.
+ * Creates a renderer that owns a browser for its lifetime.
+ *
+ * Launching Chrome costs seconds and rendering costs milliseconds, so anything
+ * producing more than one image should hold a renderer rather than call
+ * {@link render}, which starts and stops a browser per call.
  *
  * `puppeteer-core` is an optional peer: a consumer that only builds documents
  * never installs a browser. Bring your own Chrome, either through `executable`
@@ -18,7 +21,63 @@ const side = 16_384
  *
  * @example
  * ```ts twoslash
- * import { Headless } from 'monoshot/headless'
+ * import * as Headless from 'monoshot/headless'
+ *
+ * const renderer = Headless.create()
+ * const png = await renderer.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+ * await renderer.dispose()
+ * ```
+ */
+export function create(options: create.Options = {}): create.ReturnType {
+  const { executable } = options
+  // Kept as a promise so concurrent renders share one launch rather than
+  // racing to start a browser each.
+  let browser: Promise<Browser> | undefined
+
+  return {
+    async dispose() {
+      const instance = browser
+      browser = undefined
+      await instance?.then((value) => value.close()).catch(() => {})
+    },
+    async render(parameters) {
+      // A rejected launch must not be cached, or one transient failure would
+      // poison every later render on this renderer.
+      browser ??= launch(executable).catch((cause: unknown) => {
+        browser = undefined
+        throw cause
+      })
+      return capture(await browser, parameters)
+    },
+  }
+}
+
+export declare namespace create {
+  type Options = {
+    /**
+     * Path to a Chrome or Chromium binary. Falls back to
+     * `PUPPETEER_EXECUTABLE_PATH`, then to a Chrome installed on this machine.
+     */
+    executable?: string | undefined
+  }
+
+  type ReturnType = {
+    /** Closes the browser. The renderer stays usable: the next render starts a fresh one. */
+    dispose: () => Promise<void>
+    /** Renders a frame to a PNG. */
+    render: (options: Options_render) => Promise<Uint8Array>
+  }
+}
+
+/**
+ * Renders one frame to an image, in a browser started and stopped for it.
+ *
+ * Convenient for a single image; use {@link create} for more than one, which
+ * pays for the browser once rather than per render.
+ *
+ * @example
+ * ```ts twoslash
+ * import * as Headless from 'monoshot/headless'
  *
  * const png = await Headless.render({
  *   code: 'const a = 1',
@@ -28,7 +87,18 @@ const side = 16_384
  * ```
  */
 export async function render(options: render.Options): Promise<Uint8Array> {
-  const { executable, scale = 2, ...rest } = options
+  const { executable, ...rest } = options
+  const renderer = create({ executable })
+  try {
+    return await renderer.render(rest)
+  } finally {
+    await renderer.dispose()
+  }
+}
+
+/** Screenshots the frame a document draws. */
+async function capture(browser: Browser, options: Options_render): Promise<Uint8Array> {
+  const { scale = 2, ...rest } = options
   const html = await frame().toDocument({
     background: 'default',
     lineNumbers: false,
@@ -39,9 +109,8 @@ export async function render(options: render.Options): Promise<Uint8Array> {
     width: 640,
     ...rest,
   })
-  const browser = await launch(executable)
+  const page = await browser.newPage()
   try {
-    const page = await browser.newPage()
     // No network: the document carries everything, so nothing can arrive late
     // and change the image.
     await page.setContent(html, { waitUntil: 'load' })
@@ -56,21 +125,19 @@ export async function render(options: render.Options): Promise<Uint8Array> {
     })
     return await canvas.screenshot({ omitBackground: true, type: 'png' })
   } finally {
-    await browser.close()
+    await page.close()
   }
 }
 
+/** What a render needs, less the browser it runs in. */
+type Options_render = Omit<Frame.toDocument.Options, keyof render.Defaults> &
+  Partial<render.Defaults> & {
+    /** Multiplier on the frame's own size. Defaults to 2. */
+    scale?: number | undefined
+  }
+
 export declare namespace render {
-  type Options = Omit<Frame.toDocument.Options, keyof Defaults> &
-    Partial<Defaults> & {
-      /**
-       * Path to a Chrome or Chromium binary. Falls back to
-       * `PUPPETEER_EXECUTABLE_PATH`, then to a Chrome installed on this machine.
-       */
-      executable?: string | undefined
-      /** Multiplier on the frame's own size. Defaults to 2. */
-      scale?: number | undefined
-    }
+  type Options = Options_render & create.Options
 
   /** What a caller can leave out, and what it gets instead. */
   type Defaults = Pick<

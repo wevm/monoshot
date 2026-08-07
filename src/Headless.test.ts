@@ -28,6 +28,17 @@ describe('fit', () => {
   })
 })
 
+describe('create', () => {
+  test.skipIf(!chrome)('stays usable after being disposed', { timeout: 120_000 }, async () => {
+    const renderer = Headless.create()
+    await renderer.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+    await renderer.dispose()
+    const png = await renderer.render({ code: 'const b = 2', lang: 'ts', theme: 'vitesse-dark' })
+    await renderer.dispose()
+    expect(png.length > 5000).toMatchInlineSnapshot(`true`)
+  })
+})
+
 describe('render', () => {
   test.skipIf(!chrome)('screenshots a frame through a browser', { timeout: 90_000 }, async () => {
     const png = await Headless.render({
