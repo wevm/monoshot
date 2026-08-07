@@ -1,9 +1,11 @@
 import * as stylex from '@stylexjs/stylex'
 import { createFileRoute } from '@tanstack/react-router'
 import { Frame as Core, Theme } from 'monoshot'
+import type { BundledLanguage } from 'shiki'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { types } from '#/lib/annotations.js'
+import { detect, typed } from '#/lib/detect.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -152,6 +154,10 @@ const styles = stylex.create({
   controlsInner: { pointerEvents: 'auto' },
 })
 
+/** No types outside the TypeScript family, held still so the editor is not
+ * reconfigured with a fresh object on every render. */
+const empty = {}
+
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
@@ -162,6 +168,7 @@ function Page() {
     Toolbar.State & { padding: number; radius: number; width: number }
   >({
     background: 'default',
+    language: 'auto',
     lineNumbers: false,
     padding: 64,
     radius: 12,
@@ -177,12 +184,24 @@ function Page() {
   }>()
   const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
   const [error, setError] = useState<Error>()
+  const [detected, setDetected] = useState<BundledLanguage>('tsx')
+
+  // Under `auto` the language is read from the code, debounced: reading the
+  // whole document on every keystroke would recolor the frame mid-word, and a
+  // guess that cannot be made leaves the language where it is.
+  useEffect(() => {
+    if (settings.language !== 'auto') return
+    const timer = setTimeout(() => setDetected((current) => detect(code) ?? current), 400)
+    return () => clearTimeout(timer)
+  }, [code, settings.language])
+
+  const language = settings.language === 'auto' ? detected : settings.language
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
     let active = true
-    renderer.tokens({ code, lang: 'tsx', theme: settings.theme }).then(
+    renderer.tokens({ code, lang: language, theme: settings.theme }).then(
       (result) => {
         if (!active) return
         setError(undefined)
@@ -195,7 +214,7 @@ function Page() {
     return () => {
       active = false
     }
-  }, [code, settings.theme])
+  }, [code, language, settings.theme])
 
   // Types are painted in the theme's own colors rather than a flat foreground,
   // and their text does not change with the document, so they are tokenized
@@ -434,7 +453,7 @@ function Page() {
                   onCodeChange={setCode}
                   palette={frame.palette}
                   tokens={frame.tokens}
-                  types={annotations}
+                  types={typed(language) ? annotations : empty}
                 />
               </Frame>
             </div>
@@ -447,6 +466,7 @@ function Page() {
       <div {...stylex.props(styles.controls)}>
         <div {...stylex.props(styles.controlsInner)}>
           <Toolbar
+            resolved={language}
             {...settings}
             onChange={(next) => setSettings((current) => ({ ...current, ...next }))}
           />

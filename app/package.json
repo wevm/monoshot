@@ -24,6 +24,7 @@
     "@stylexjs/stylex": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "highlight.js": "catalog:",
     "hono": "catalog:",
     "monoshot": "workspace:*",
     "motion": "catalog:",
