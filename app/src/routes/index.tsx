@@ -1,11 +1,11 @@
 import * as stylex from '@stylexjs/stylex'
-import { createFileRoute } from '@tanstack/react-router'
-import { Frame as Core, Theme } from 'monoshot'
+import { createFileRoute, useLocation, useNavigate } from '@tanstack/react-router'
+import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { types } from '#/lib/annotations.js'
-import { detect, typed } from '#/lib/detect.js'
+import { detect, languages, typed } from '#/lib/detect.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -158,26 +158,82 @@ const styles = stylex.create({
  * reconfigured with a fresh object on every render. */
 const empty = {}
 
+/** Everything on screen that a shared link carries, less the code and title. */
+type Settings = Toolbar.State & { padding: number; radius: number; width: number }
+
+const fallback: Settings = {
+  background: 'default',
+  language: 'auto',
+  lineNumbers: false,
+  padding: 64,
+  radius: 12,
+  theme: 'vitesse-dark',
+  titleBar: true,
+  width: 640,
+}
+
+/**
+ * Page state from a shared fragment. The codec guarantees the shape but not
+ * that a theme or language still exists, so both are checked against what this
+ * build carries before they reach the renderer.
+ */
+function restore(hash: string) {
+  const state = Codec.deserialize(hash)
+  const theme = names.find((name) => name === state.theme) ?? fallback.theme
+  const language =
+    state.lang === 'auto'
+      ? 'auto'
+      : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
+  return {
+    // A fragment that does not decode reads the same as no fragment at all, so
+    // an empty document falls back rather than opening on nothing.
+    code: state.code || sample,
+    settings: {
+      background: state.background,
+      language,
+      lineNumbers: state.lineNumbers,
+      padding: state.padding,
+      radius: state.radius,
+      theme,
+      titleBar: state.titleBar,
+      width: state.width,
+    } satisfies Settings,
+    title: state.title,
+  }
+}
+
+/** The fragment a link carries for the state on screen. */
+function share(parameters: { code: string; settings: Settings; title: string }) {
+  const { code, settings, title } = parameters
+  return Codec.serialize({
+    background: settings.background,
+    code,
+    lang: settings.language,
+    lineNumbers: settings.lineNumbers,
+    padding: settings.padding,
+    radius: settings.radius,
+    theme: settings.theme,
+    title,
+    titleBar: settings.titleBar,
+    width: settings.width,
+  })
+}
+
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
 const names = themes.map((entry) => entry.name)
 
 function Page() {
-  const [settings, setSettings] = useState<
-    Toolbar.State & { padding: number; radius: number; width: number }
-  >({
-    background: 'default',
-    language: 'auto',
-    lineNumbers: false,
-    padding: 64,
-    radius: 12,
-    theme: 'vitesse-dark',
-    titleBar: true,
-    width: 640,
-  })
-  const [title, setTitle] = useState('')
-  const [code, setCode] = useState(sample)
+  const navigate = useNavigate()
+  const { hash } = useLocation()
+  // Read once, at mount: the fragment is written back below, and reacting to
+  // it would fight the writer.
+  const [shared] = useState(() => restore(hash))
+
+  const [settings, setSettings] = useState<Settings>(shared.settings)
+  const [title, setTitle] = useState(shared.title)
+  const [code, setCode] = useState(shared.code)
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
@@ -196,6 +252,16 @@ function Page() {
   }, [code, settings.language])
 
   const language = settings.language === 'auto' ? detected : settings.language
+
+  // The fragment is the only place state is kept, so it is written on every
+  // change, debounced: a keystroke should not push a history entry, and the
+  // router owns the address bar rather than `history.replaceState`.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void navigate({ hash: share({ code, settings, title }), replace: true, resetScroll: false })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [code, navigate, settings, title])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
@@ -423,7 +489,15 @@ function Page() {
 
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
-        <ExportMenu />
+        <ExportMenu
+          onCopyUrl={() => {
+            // Built from state rather than read from the address bar, so a
+            // copy never waits on the debounced write.
+            const url = new URL(window.location.href)
+            url.hash = share({ code, settings, title })
+            void navigator.clipboard.writeText(url.toString())
+          }}
+        />
       </header>
 
       <div {...stylex.props(styles.stage)}>
