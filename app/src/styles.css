@@ -142,51 +142,48 @@
     white-space: pre-wrap;
   }
 
-  /* Nearest corner to the pointer, since the surface opens under the word it
-     describes. Floated rather than absolute: only the first line steps around
-     it, so a reserved column never pushes the whole type across. */
+  /* The control takes the notch's place: it sits on the surface's top corner,
+     covering the plain notch underneath, so it bridges the word and the type
+     rather than sitting somewhere in the type's way. Nothing reflows, because
+     it is out of flow entirely. */
   .twoslash-pin {
-    background: none;
+    align-items: center;
+    /* The surface's own composited fill, so the part hanging off the edge is
+       opaque rather than showing code through it. */
+    background-color: inherit;
     border: none;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--window-border);
     color: inherit;
     cursor: pointer;
     display: flex;
-    float: left;
-    margin-right: 6px;
-    /* Dimmed at rest: it is the only chrome on the surface, and the type is
-       what you came to read. */
-    opacity: 0.5;
-    padding: 1px;
-    transition: opacity var(--motion-fast) var(--motion-out);
-  }
-
-  /* A pinned type is part of the picture, so its control stays out of the
-     composition until the pointer goes looking for it, and sits beyond the
-     surface rather than floating inside it: an invisible float would still
-     hold its space, indenting a block an export renders flush. */
-  .twoslash-block .twoslash-pin {
-    float: none;
-    left: 100%;
-    margin: 0 0 0 6px;
+    height: 18px;
+    justify-content: center;
+    left: 2px;
+    /* Out of the picture until reached for. It still takes hits while it is
+       invisible, so the pointer travelling from the word to the type passes
+       over it and brings it out. */
     opacity: 0;
+    padding: 0;
     position: absolute;
-    top: 6px;
+    top: -9px;
+    transition: opacity var(--motion-fast) var(--motion-out);
+    width: 18px;
   }
 
-  .twoslash-block:hover .twoslash-pin,
-  .twoslash-pin:hover,
+  .twoslash:hover .twoslash-pin,
   .twoslash-pin:focus-visible {
     opacity: 1;
   }
 
   .twoslash-pin svg {
     fill: none;
-    height: 12px;
+    height: 10px;
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 2;
-    width: 12px;
+    width: 10px;
   }
 
   /* The hover floats over code, so the same tint is composited onto the window

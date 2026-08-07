@@ -37,7 +37,7 @@ export function hover(types: Types): Extension {
               label: 'Pin this type',
               select: () => toggle(view, identifier),
             }),
-            offset: { x: -8, y: 4 },
+            offset: { x: -8, y: 10 },
           }),
           end: identifier.to,
           pos: identifier.from,
