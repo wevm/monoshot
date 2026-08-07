@@ -22,47 +22,111 @@ import yaml from 'highlight.js/lib/languages/yaml'
 import type { AutoHighlightResult, LanguageFn } from 'highlight.js'
 import type { BundledLanguage } from 'shiki'
 
+/** A language the picker offers: shiki's id against the name shown. */
 type Language = {
-  /** The name highlight.js knows the grammar by; some grammars embed others. */
-  name: string
-  grammar: LanguageFn
-  /** Shiki's id, which is what the frame is rendered with. */
   id: BundledLanguage
   title: string
 }
 
 /**
- * What the picker offers and detection can return. Grammars are registered one
- * at a time rather than through the default bundle, which carries every
- * language highlight.js knows.
+ * Every language the frame can be rendered in, tracking ray.so's list. Shiki
+ * loads a grammar the first time it is asked for, so the length of this list
+ * costs nothing until one is picked.
  */
 export const languages: readonly Language[] = [
-  { grammar: bash, id: 'bash', name: 'bash', title: 'Shell' },
-  { grammar: c, id: 'c', name: 'c', title: 'C' },
-  { grammar: cpp, id: 'cpp', name: 'cpp', title: 'C++' },
-  { grammar: csharp, id: 'csharp', name: 'csharp', title: 'C#' },
-  { grammar: css, id: 'css', name: 'css', title: 'CSS' },
-  { grammar: go, id: 'go', name: 'go', title: 'Go' },
-  { grammar: java, id: 'java', name: 'java', title: 'Java' },
-  // JSX and TSX read plain JavaScript and TypeScript too, so the pair covers
-  // the family without asking a snippet which dialect it is.
-  { grammar: javascript, id: 'jsx', name: 'javascript', title: 'JavaScript' },
-  { grammar: json, id: 'json', name: 'json', title: 'JSON' },
-  { grammar: kotlin, id: 'kotlin', name: 'kotlin', title: 'Kotlin' },
-  { grammar: markdown, id: 'markdown', name: 'markdown', title: 'Markdown' },
-  { grammar: php, id: 'php', name: 'php', title: 'PHP' },
-  { grammar: python, id: 'python', name: 'python', title: 'Python' },
-  { grammar: ruby, id: 'ruby', name: 'ruby', title: 'Ruby' },
-  { grammar: rust, id: 'rust', name: 'rust', title: 'Rust' },
-  { grammar: sql, id: 'sql', name: 'sql', title: 'SQL' },
-  { grammar: swift, id: 'swift', name: 'swift', title: 'Swift' },
-  { grammar: typescript, id: 'tsx', name: 'typescript', title: 'TypeScript' },
-  { grammar: xml, id: 'html', name: 'xml', title: 'HTML' },
-  { grammar: yaml, id: 'yaml', name: 'yaml', title: 'YAML' },
+  { id: 'astro', title: 'Astro' },
+  { id: 'bash', title: 'Bash' },
+  { id: 'c', title: 'C' },
+  { id: 'csharp', title: 'C#' },
+  { id: 'cpp', title: 'C++' },
+  { id: 'clojure', title: 'Clojure' },
+  { id: 'console', title: 'Console' },
+  { id: 'crystal', title: 'Crystal' },
+  { id: 'css', title: 'CSS' },
+  { id: 'cypher', title: 'Cypher' },
+  { id: 'dart', title: 'Dart' },
+  { id: 'diff', title: 'Diff' },
+  { id: 'dockerfile', title: 'Docker' },
+  { id: 'elixir', title: 'Elixir' },
+  { id: 'elm', title: 'Elm' },
+  { id: 'erb', title: 'ERB' },
+  { id: 'erlang', title: 'Erlang' },
+  { id: 'gleam', title: 'Gleam' },
+  { id: 'go', title: 'Go' },
+  { id: 'graphql', title: 'GraphQL' },
+  { id: 'haskell', title: 'Haskell' },
+  { id: 'hcl', title: 'HCL' },
+  { id: 'html', title: 'HTML' },
+  { id: 'java', title: 'Java' },
+  { id: 'javascript', title: 'JavaScript' },
+  { id: 'json', title: 'JSON' },
+  { id: 'jsx', title: 'JSX' },
+  { id: 'julia', title: 'Julia' },
+  { id: 'kotlin', title: 'Kotlin' },
+  { id: 'latex', title: 'LaTeX' },
+  { id: 'liquid', title: 'Liquid' },
+  { id: 'lisp', title: 'Lisp' },
+  { id: 'lua', title: 'Lua' },
+  { id: 'markdown', title: 'Markdown' },
+  { id: 'matlab', title: 'MATLAB' },
+  { id: 'move', title: 'Move' },
+  { id: 'nix', title: 'Nix' },
+  { id: 'objc', title: 'Objective-C' },
+  { id: 'ocaml', title: 'OCaml' },
+  { id: 'php', title: 'PHP' },
+  { id: 'powershell', title: 'Powershell' },
+  { id: 'prisma', title: 'Prisma' },
+  { id: 'python', title: 'Python' },
+  { id: 'r', title: 'R' },
+  { id: 'ruby', title: 'Ruby' },
+  { id: 'rust', title: 'Rust' },
+  { id: 'scala', title: 'Scala' },
+  { id: 'scss', title: 'SCSS' },
+  { id: 'solidity', title: 'Solidity' },
+  { id: 'sql', title: 'SQL' },
+  { id: 'svelte', title: 'Svelte' },
+  { id: 'swift', title: 'Swift' },
+  { id: 'toml', title: 'TOML' },
+  { id: 'tsx', title: 'TSX' },
+  { id: 'typescript', title: 'TypeScript' },
+  { id: 'v', title: 'V' },
+  { id: 'vue', title: 'Vue' },
+  { id: 'xml', title: 'XML' },
+  { id: 'yaml', title: 'YAML' },
+  { id: 'zig', title: 'Zig' },
+]
+
+/**
+ * The grammars detection can recognise, which is a subset: highlight.js bundles
+ * every one eagerly, and it has no grammar at all for several of the above.
+ * Registered one at a time rather than through the default bundle, which
+ * carries all ~190 languages highlight.js knows.
+ */
+const detectable: readonly { grammar: LanguageFn; id: BundledLanguage; name: string }[] = [
+  { grammar: bash, id: 'bash', name: 'bash' },
+  { grammar: c, id: 'c', name: 'c' },
+  { grammar: cpp, id: 'cpp', name: 'cpp' },
+  { grammar: csharp, id: 'csharp', name: 'csharp' },
+  { grammar: css, id: 'css', name: 'css' },
+  { grammar: go, id: 'go', name: 'go' },
+  { grammar: java, id: 'java', name: 'java' },
+  { grammar: javascript, id: 'javascript', name: 'javascript' },
+  { grammar: json, id: 'json', name: 'json' },
+  { grammar: kotlin, id: 'kotlin', name: 'kotlin' },
+  { grammar: markdown, id: 'markdown', name: 'markdown' },
+  { grammar: php, id: 'php', name: 'php' },
+  { grammar: python, id: 'python', name: 'python' },
+  { grammar: ruby, id: 'ruby', name: 'ruby' },
+  { grammar: rust, id: 'rust', name: 'rust' },
+  { grammar: sql, id: 'sql', name: 'sql' },
+  { grammar: swift, id: 'swift', name: 'swift' },
+  { grammar: typescript, id: 'typescript', name: 'typescript' },
+  { grammar: xml, id: 'html', name: 'xml' },
+  { grammar: yaml, id: 'yaml', name: 'yaml' },
 ]
 
 const ids = new Map<string, BundledLanguage>()
-for (const language of languages) {
+for (const language of detectable) {
   hljs.registerLanguage(language.name, language.grammar)
   ids.set(language.name, language.id)
 }
@@ -75,7 +139,7 @@ const confident = 6
 
 /** Whether twoslash applies: only the TypeScript family carries types. */
 export function typed(id: BundledLanguage): boolean {
-  return id === 'tsx' || id === 'jsx'
+  return id === 'javascript' || id === 'jsx' || id === 'tsx' || id === 'typescript'
 }
 
 /** The name shown for a language id. */

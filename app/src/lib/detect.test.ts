@@ -1,4 +1,4 @@
-import { detect, title, typed } from './detect.js'
+import { detect, languages, title, typed } from './detect.js'
 
 const python = `import json
 from dataclasses import dataclass
@@ -93,7 +93,7 @@ describe('detect', () => {
         "python": "python",
         "rust": "rust",
         "sql": "sql",
-        "typescript": "tsx",
+        "typescript": "typescript",
       }
     `)
   })
@@ -122,11 +122,30 @@ describe('typed', () => {
   })
 })
 
+describe('languages', () => {
+  test('covers ray.so and names every id detection can return', () => {
+    const titles = new Set(languages.map((language) => language.title))
+    const named = ['Astro', 'Elixir', 'Gleam', 'Nix', 'Prisma', 'Solidity', 'Svelte', 'Vue', 'Zig']
+    expect({
+      count: languages.length,
+      // A detected id with no entry here would show as a raw id in the picker.
+      missing: named.filter((title) => !titles.has(title)),
+      unique: new Set(languages.map((language) => language.id)).size,
+    }).toMatchInlineSnapshot(`
+      {
+        "count": 60,
+        "missing": [],
+        "unique": 60,
+      }
+    `)
+  })
+})
+
 describe('title', () => {
   test('names a language id', () => {
     expect([title('tsx'), title('html'), title('cpp')]).toMatchInlineSnapshot(`
       [
-        "TypeScript",
+        "TSX",
         "HTML",
         "C++",
       ]
