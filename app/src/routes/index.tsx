@@ -1,11 +1,11 @@
 import * as stylex from '@stylexjs/stylex'
-import { createFileRoute } from '@tanstack/react-router'
-import { Frame as Core, Theme } from 'monoshot'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { types } from '#/lib/annotations.js'
-import { detect, typed } from '#/lib/detect.js'
+import { detect, languages, typed } from '#/lib/detect.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -158,26 +158,105 @@ const styles = stylex.create({
  * reconfigured with a fresh object on every render. */
 const empty = {}
 
+/** Everything on screen that a shared link carries, less the code and title. */
+type Settings = Toolbar.State & { padding: number; radius: number; width: number }
+
+const fallback: Settings = {
+  background: 'default',
+  language: 'auto',
+  lineNumbers: false,
+  padding: 64,
+  radius: 12,
+  theme: 'vitesse-dark',
+  titleBar: true,
+  width: 640,
+}
+
+/**
+ * Page state from a shared fragment. The codec guarantees the shape but not
+ * that a theme or language still exists, so both are checked against what this
+ * build carries before they reach the renderer.
+ */
+function restore(hash: string) {
+  const fragment = hash.replace(/^#/, '')
+  const state = Codec.deserialize(fragment)
+  const theme = names.find((name) => name === state.theme) ?? fallback.theme
+  const language =
+    state.lang === 'auto'
+      ? 'auto'
+      : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
+  const size = Frame.fit({ padding: state.padding, width: state.width })
+  return {
+    // Only the absence of a fragment opens on the sample. A link that carries
+    // an empty document is state of its own, and replacing it would show the
+    // recipient something the sender never had.
+    code: fragment ? state.code : sample,
+    settings: {
+      background: state.background,
+      language,
+      lineNumbers: state.lineNumbers,
+      padding: size.padding,
+      radius: state.radius,
+      theme,
+      titleBar: state.titleBar,
+      width: size.width,
+    } satisfies Settings,
+    title: state.title,
+  }
+}
+
+/** The fragment a link carries for the state on screen. */
+function share(parameters: { code: string; settings: Settings; title: string }) {
+  const { code, settings, title } = parameters
+  return Codec.serialize({
+    background: settings.background,
+    code,
+    lang: settings.language,
+    lineNumbers: settings.lineNumbers,
+    padding: settings.padding,
+    radius: settings.radius,
+    theme: settings.theme,
+    title,
+    titleBar: settings.titleBar,
+    width: settings.width,
+  })
+}
+
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
 const names = themes.map((entry) => entry.name)
 
 function Page() {
-  const [settings, setSettings] = useState<
-    Toolbar.State & { padding: number; radius: number; width: number }
-  >({
-    background: 'default',
-    language: 'auto',
-    lineNumbers: false,
-    padding: 64,
-    radius: 12,
-    theme: 'vitesse-dark',
-    titleBar: true,
-    width: 640,
-  })
+  const navigate = useNavigate()
+  const [settings, setSettings] = useState<Settings>(fallback)
   const [title, setTitle] = useState('')
   const [code, setCode] = useState(sample)
+
+  // The theme the fragment on screen opened with, and the signal that a
+  // fragment has been applied at all. Holding the theme rather than a boolean
+  // is what lets a second shared link restart the sweep below.
+  const [opened, setOpened] = useState<Settings['theme']>()
+
+  // A fragment is never sent to the server, so it is applied after mount
+  // rather than during render, which could not match what was served. Before
+  // paint, so a shared link never shows the defaults first.
+  //
+  // Reapplied on `hashchange`, which is how a second shared link opened in
+  // this tab arrives: the route stays mounted, and the debounced writer below
+  // goes through `replaceState`, which never raises the event.
+  useLayoutEffect(() => {
+    function apply() {
+      const shared = restore(window.location.hash)
+      setCode(shared.code)
+      setSettings(shared.settings)
+      setTitle(shared.title)
+      setOpened(shared.settings.theme)
+    }
+    apply()
+    window.addEventListener('hashchange', apply)
+    return () => window.removeEventListener('hashchange', apply)
+  }, [])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
@@ -196,6 +275,43 @@ function Page() {
   }, [code, settings.language])
 
   const language = settings.language === 'auto' ? detected : settings.language
+
+  // The fragment is the only place state is kept, so it is written on every
+  // change, debounced: a keystroke should not push a history entry, and the
+  // router owns the address bar rather than `history.replaceState`.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void navigate({ hash: share({ code, settings, title }), replace: true, resetScroll: false })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [code, navigate, settings, title])
+
+  const latest = useRef({ code, settings, title })
+  useEffect(() => {
+    latest.current = { code, settings, title }
+  }, [code, settings, title])
+
+  // An edit made inside the debounce window would otherwise never reach the
+  // fragment, which is the only place state is kept. Leaving the page writes
+  // it synchronously instead: navigating through the router is not something
+  // an unloading document can still finish.
+  useEffect(() => {
+    const path = window.location.pathname
+    function flush() {
+      // Unmounting can also mean the router has already moved on, and this
+      // page's state belongs to this page's URL alone.
+      if (window.location.pathname !== path) return
+      const url = new URL(window.location.href)
+      url.hash = share(latest.current)
+      if (url.hash === window.location.hash) return
+      window.history.replaceState(window.history.state, '', url)
+    }
+    window.addEventListener('pagehide', flush)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      flush()
+    }
+  }, [])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
@@ -258,12 +374,14 @@ function Page() {
 
   // Themes load their own chunk on first use, so an unvisited one costs a
   // round trip. Warming the list outward from the opening theme keeps every
-  // switch after the page settles instant. Runs once: the sweep covers the
-  // whole list wherever it starts.
+  // switch after the page settles instant. Waits for the fragment, so a shared
+  // link sweeps outward from the theme on screen rather than from the default
+  // it rendered for a frame, and starts over when a second link brings another.
   useEffect(() => {
+    if (!opened) return
     const controller = new AbortController()
     void Warm.themes({
-      from: settings.theme,
+      from: opened,
       // The full sweep is a couple of megabytes of chunks, so a metered
       // connection gets the neighbours the arrows reach and nothing more.
       limit: metered() ? 4 : names.length,
@@ -272,7 +390,7 @@ function Page() {
       signal: controller.signal,
     })
     return () => controller.abort()
-  }, [])
+  }, [opened])
 
   useEffect(() => {
     function walk(event: KeyboardEvent) {
@@ -423,7 +541,15 @@ function Page() {
 
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
-        <ExportMenu />
+        <ExportMenu
+          onCopyUrl={() => {
+            // Built from state rather than read from the address bar, so a
+            // copy never waits on the debounced write.
+            const url = new URL(window.location.href)
+            url.hash = share({ code, settings, title })
+            void navigator.clipboard.writeText(url.toString())
+          }}
+        />
       </header>
 
       <div {...stylex.props(styles.stage)}>

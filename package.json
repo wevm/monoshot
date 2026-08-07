@@ -56,6 +56,8 @@
   },
   "dependencies": {
     "culori": "catalog:",
-    "shiki": "catalog:"
+    "lz-string": "catalog:",
+    "shiki": "catalog:",
+    "zod": "catalog:"
   }
 }

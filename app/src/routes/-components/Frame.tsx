@@ -188,8 +188,8 @@ export function Frame(props: Frame.Props) {
     typeof window === 'undefined' ? 1280 : Math.max(width, Math.min(1280, window.innerWidth - 320))
   // The window keeps a usable width whatever the artwork is sized to. Both
   // bounds move together, so neither handle can squeeze the code away.
-  const paddingMax = Math.min(160, Math.max(0, Math.floor((width - 240) / 2)))
-  const widthMin = Math.max(360, padding * 2 + 240)
+  const paddingMax = Frame.maxPadding(width)
+  const widthMin = Frame.minWidth(padding)
 
   return (
     <MotionConfig reducedMotion="user">
@@ -468,7 +468,30 @@ type Palette = {
   to: string
 }
 
+/** The most padding the frame takes, however wide the artwork is. */
+const paddingCeiling = 160
+
 export namespace Frame {
+  /** The largest padding that still leaves the window a usable width. */
+  export function maxPadding(width: number) {
+    return Math.min(paddingCeiling, Math.max(0, Math.floor((width - 240) / 2)))
+  }
+
+  /** The narrowest artwork the window stays usable in, at this padding. */
+  export function minWidth(padding: number) {
+    return Math.max(360, padding * 2 + 240)
+  }
+
+  /**
+   * Sizes the frame can actually render. The codec bounds each field on its
+   * own, so a link can still pair a padding with a width that leaves the code
+   * no room: the padding is kept and the artwork grows to fit it.
+   */
+  export function fit(size: { padding: number; width: number }) {
+    const padding = Math.min(paddingCeiling, Math.max(0, size.padding))
+    return { padding, width: Math.max(size.width, minWidth(padding)) }
+  }
+
   /**
    * The highlighted code surface. Markup comes from shiki, which escapes the
    * source when it serializes, so arbitrary user code is safe to inject here.
