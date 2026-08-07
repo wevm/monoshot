@@ -294,6 +294,8 @@ function Page() {
   const [artwork, setArtwork] = useState<Artwork>()
   const stage = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
+  // Which export the notice on screen belongs to.
+  const attempt = useRef(0)
   const [detected, setDetected] = useState<BundledLanguage>('tsx')
 
   // Under `auto` the language is read from the code, debounced: reading the
@@ -394,8 +396,13 @@ function Page() {
    * Captures the artwork, one at a time. Every export mounts into the same
    * offscreen stage, so a second one starting mid-flight would clear the stage
    * the first is still reading from.
+   *
+   * The notice belongs to the newest export. An older one queued behind it
+   * still runs, but its failure arrives about work the user has moved on from,
+   * so it is not put back on screen.
    */
   function take(options: Export.capture.Options) {
+    const id = (attempt.current += 1)
     setNotice(undefined)
     const run = Promise.resolve(pending.current)
       .catch(() => {})
@@ -403,23 +410,26 @@ function Page() {
     // A failed export must not strand the queue, and the caller still sees the
     // rejection through `run`.
     pending.current = run.catch(() => {})
-    return run
-  }
-
-  function report(cause: Error) {
-    setNotice(cause.message)
+    return {
+      report(cause: Error) {
+        if (attempt.current === id) setNotice(cause.message)
+      },
+      run,
+    }
   }
 
   function save(options: Export.capture.Options) {
-    void take(options)
+    const { report, run } = take(options)
+    void run
       .then((blob) => Export.download(blob, `${title || 'untitled'}.${options.type}`))
       .catch(report)
   }
 
   function copyImage() {
+    const { report, run } = take({ scale: 2, type: 'png' })
     // Handed over as a promise: Safari only honors a clipboard write that
     // starts in the gesture that asked for it.
-    void Export.copy(take({ scale: 2, type: 'png' })).catch(report)
+    void Export.copy(run).catch(report)
   }
 
   function copyUrl() {

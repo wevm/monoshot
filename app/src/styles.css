@@ -70,9 +70,11 @@
     /* Both wrap, so a long line breaks at the same column in each. Wrapping
        alone stops at word boundaries, which a long URL or identifier never
        offers, so these carry the editor's own breaks: `break-word` is what
-       Safari understands, `anywhere` what everything else does. */
+       Safari understands, `anywhere` what everything else does. `break-spaces`
+       rather than `pre-wrap` for the same reason: a run of spaces reaching the
+       edge wraps in CodeMirror instead of hanging past it. */
     overflow-wrap: anywhere;
-    white-space: pre-wrap;
+    white-space: break-spaces;
     word-break: break-word;
   }
 

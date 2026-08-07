@@ -67,6 +67,10 @@ export declare namespace capture {
   type Options = {
     /** Multiplier on the node's own size. */
     scale: number
+    /**
+     * The image to write. A `png` is drawn on a canvas, so {@link fit} holds it
+     * to the browser's limits; an `svg` is serialized and keeps any scale.
+     */
     type: 'png' | 'svg'
   }
 }
