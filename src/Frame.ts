@@ -1,4 +1,6 @@
 import { createHighlighter } from 'shiki'
+import * as Document from './internal/Document.js'
+import * as Theme from './Theme.js'
 import type {
   BundledLanguage,
   BundledTheme,
@@ -77,6 +79,11 @@ export function create(options: create.Options = {}): create.ReturnType {
         theme: structuredClone(instance.getTheme(theme)),
       }
     },
+    async toDocument(parameters) {
+      const { code, lang, theme, ...rest } = parameters
+      const result = await this.render({ code, lang, theme })
+      return Document.build({ ...rest, html: result.html, palette: Theme.derive(result.theme) })
+    },
     async tokens(parameters) {
       const { code, lang, theme } = parameters
       const instance = await resolve({ lang, theme })
@@ -114,6 +121,14 @@ export declare namespace create {
      */
     render: (options: render.Options) => Promise<render.ReturnType>
     /**
+     * Renders a frame as a standalone document: chrome, backdrop, and code in
+     * one HTML string with no scripts and no external requests.
+     *
+     * This is what every headless surface screenshots, so a CLI and a hosted
+     * API produce the same image from the same state.
+     */
+    toDocument: (options: toDocument.Options) => Promise<string>
+    /**
      * Tokenizes code without rendering it, for a surface that draws its own
      * text. An editor colors its own document from these.
      */
@@ -139,6 +154,11 @@ export declare namespace tokens {
     /** One array of tokens per line, in source order. */
     tokens: readonly (readonly ThemedToken[])[]
   }
+}
+
+export declare namespace toDocument {
+  /** What to render, and the frame to render it in. */
+  type Options = Omit<Document.Options, 'html' | 'palette'> & render.Options
 }
 
 export declare namespace render {
