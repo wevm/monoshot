@@ -1,5 +1,6 @@
 import * as fs from 'node:fs'
 
+import * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
 
 /**
@@ -26,6 +27,19 @@ describe('fit', () => {
       }
     `)
   })
+
+  test('shrinks a frame that is already past the raster limit', () => {
+    // A floor of 1 here would leave the image over the limit and blank.
+    expect({
+      tall: Headless.fit({ height: 40_000, width: 600 }, 2),
+      wide: Headless.fit({ height: 500, width: 20_000 }, 2),
+    }).toMatchInlineSnapshot(`
+      {
+        "tall": 0.4096,
+        "wide": 0.8192,
+      }
+    `)
+  })
 })
 
 describe('create', () => {
@@ -37,6 +51,28 @@ describe('create', () => {
     await renderer.dispose()
     expect(png.length > 5000).toMatchInlineSnapshot(`true`)
   })
+
+  test.skipIf(!chrome)(
+    'renders through a frame the caller owns',
+    { timeout: 120_000 },
+    async () => {
+      const frame = Frame.create()
+      const renderer = Headless.create({ frame })
+      const png = await renderer.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+      await renderer.dispose()
+      // The renderer highlighted through the frame it was handed, and the frame
+      // outlives it.
+      const result = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+      await frame.dispose()
+      expect({ highlighted: result.html.includes('shiki'), sized: png.length > 5000 })
+        .toMatchInlineSnapshot(`
+      {
+        "highlighted": true,
+        "sized": true,
+      }
+    `)
+    },
+  )
 })
 
 describe('render', () => {

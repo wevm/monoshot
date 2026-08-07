@@ -19,6 +19,10 @@ const side = 16_384
  * never installs a browser. Bring your own Chrome, either through `executable`
  * or `PUPPETEER_EXECUTABLE_PATH`.
  *
+ * Pass `fonts` to every render that must match across machines. Without them
+ * the code falls back to whatever monospace the host has, which changes glyph
+ * metrics, wrapping, and the image's size.
+ *
  * @example
  * ```ts twoslash
  * import * as Headless from 'monoshot/headless'
@@ -29,7 +33,9 @@ const side = 16_384
  * ```
  */
 export function create(options: create.Options = {}): create.ReturnType {
-  const { executable } = options
+  const { executable, frame = Frame.create() } = options
+  // A frame passed in belongs to the caller, so only one made here is released.
+  const owned = !options.frame
   // Kept as a promise so concurrent renders share one launch rather than
   // racing to start a browser each.
   let browser: Promise<Browser> | undefined
@@ -39,15 +45,18 @@ export function create(options: create.Options = {}): create.ReturnType {
       const instance = browser
       browser = undefined
       await instance?.then((value) => value.close()).catch(() => {})
+      if (owned) await frame.dispose()
     },
     async render(parameters) {
+      const { scale = 2, ...rest } = parameters
+      const html = await frame.toDocument({ ...defaults, ...rest })
       // A rejected launch must not be cached, or one transient failure would
       // poison every later render on this renderer.
       browser ??= launch(executable).catch((cause: unknown) => {
         browser = undefined
         throw cause
       })
-      return capture(await browser, parameters)
+      return capture(await browser, { html, scale })
     },
   }
 }
@@ -59,10 +68,19 @@ export declare namespace create {
      * `PUPPETEER_EXECUTABLE_PATH`, then to a Chrome installed on this machine.
      */
     executable?: string | undefined
+    /**
+     * Renderer to highlight with. Defaults to one this renderer makes and
+     * releases on `dispose`. Pass one to share loaded grammars and themes
+     * across renderers, and to keep its lifetime yours.
+     */
+    frame?: Frame.create.ReturnType | undefined
   }
 
   type ReturnType = {
-    /** Closes the browser. The renderer stays usable: the next render starts a fresh one. */
+    /**
+     * Closes the browser, and the frame renderer if this one made it. Stays
+     * usable: the next render starts a fresh browser.
+     */
     dispose: () => Promise<void>
     /** Renders a frame to a PNG. */
     render: (options: Options_render) => Promise<Uint8Array>
@@ -73,7 +91,7 @@ export declare namespace create {
  * Renders one frame to an image, in a browser started and stopped for it.
  *
  * Convenient for a single image; use {@link create} for more than one, which
- * pays for the browser once rather than per render.
+ * pays for the browser and the highlighter once rather than per render.
  *
  * @example
  * ```ts twoslash
@@ -87,8 +105,8 @@ export declare namespace create {
  * ```
  */
 export async function render(options: render.Options): Promise<Uint8Array> {
-  const { executable, ...rest } = options
-  const renderer = create({ executable })
+  const { executable, frame, ...rest } = options
+  const renderer = create({ executable, frame })
   try {
     return await renderer.render(rest)
   } finally {
@@ -96,24 +114,39 @@ export async function render(options: render.Options): Promise<Uint8Array> {
   }
 }
 
+/** What a caller can leave out of a render, and what it gets instead. */
+const defaults = {
+  background: 'default',
+  lineNumbers: false,
+  padding: 64,
+  radius: 12,
+  title: '',
+  titleBar: true,
+  width: 640,
+} as const satisfies render.Defaults
+
 /** Screenshots the frame a document draws. */
-async function capture(browser: Browser, options: Options_render): Promise<Uint8Array> {
-  const { scale = 2, ...rest } = options
-  const html = await frame().toDocument({
-    background: 'default',
-    lineNumbers: false,
-    padding: 64,
-    radius: 12,
-    title: '',
-    titleBar: true,
-    width: 640,
-    ...rest,
-  })
+async function capture(
+  browser: Browser,
+  options: { html: string; scale: number },
+): Promise<Uint8Array> {
+  const { html, scale } = options
   const page = await browser.newPage()
   try {
-    // No network: the document carries everything, so nothing can arrive late
-    // and change the image.
+    // The document carries everything it needs, so nothing here should run or
+    // arrive: a script could rewrite the frame and a request could fail late,
+    // and either would change the image. Enforced rather than assumed, because
+    // the caller supplies the options the document is built from.
+    await page.setJavaScriptEnabled(false)
+    await page.setRequestInterception(true)
+    page.on('request', (request) => {
+      // A `data:` URL never leaves the process. Anything else would.
+      if (request.url().startsWith('data:')) void request.continue()
+      else void request.abort()
+    })
     await page.setContent(html, { waitUntil: 'load' })
+    // Still available with scripts disabled: this runs through the debugger,
+    // not as page script.
     await page.evaluate(() => document.fonts.ready)
     const canvas = await page.$('.canvas')
     if (!canvas) throw new ChromeError('The document rendered no frame.')
@@ -146,18 +179,14 @@ export declare namespace render {
   >
 }
 
-/** The largest scale that still rasterizes, at or below the one asked for. */
+/**
+ * The largest scale that still rasterizes, at or below the one asked for. A
+ * frame already past the limit at 1x gets a scale below 1: clamping to 1 would
+ * hand back a scale this cannot promise.
+ */
 export function fit(box: { height: number; width: number } | null, scale: number): number {
   if (!box?.height || !box.width) return scale
-  return Math.max(1, Math.min(scale, side / box.width, side / box.height))
-}
-
-let renderer: ReturnType<typeof Frame.create> | undefined
-
-/** One highlighter per process, so a batch of renders shares loaded grammars. */
-function frame() {
-  renderer ??= Frame.create()
-  return renderer
+  return Math.min(scale, side / box.width, side / box.height)
 }
 
 async function launch(executable: string | undefined): Promise<Browser> {
