@@ -142,10 +142,9 @@
     white-space: pre-wrap;
   }
 
-  /* The control takes the notch's place: it sits on the surface's top corner,
-     covering the plain notch underneath, so it bridges the word and the type
-     rather than sitting somewhere in the type's way. Nothing reflows, because
-     it is out of flow entirely. */
+  /* Beside the type's first line, just off the surface: near the word it
+     describes, clear of the notch, and out of flow entirely, so nothing
+     reflows when it appears. */
   .twoslash-pin {
     align-items: center;
     /* The surface's own composited fill, so the part hanging off the edge is
@@ -159,18 +158,23 @@
     display: flex;
     height: 18px;
     justify-content: center;
-    left: 2px;
+    margin-right: 6px;
     /* Out of the picture until reached for. It still takes hits while it is
-       invisible, so the pointer travelling from the word to the type passes
-       over it and brings it out. */
+       invisible, so the pointer passing over it brings it out. */
     opacity: 0;
     padding: 0;
     position: absolute;
-    top: -9px;
+    right: 100%;
+    /* Centered on the first line: 6px of surface padding plus half a line. */
+    top: 6px;
     transition: opacity var(--motion-fast) var(--motion-out);
     width: 18px;
   }
 
+  /* The hover only exists while you are pointing at the word, so its control
+     is there from the start; a pinned type is part of the picture, and gives
+     one up only once the pointer is on it. */
+  .cm-tooltip .twoslash-pin,
   .twoslash:hover .twoslash-pin,
   .twoslash-pin:focus-visible {
     opacity: 1;
@@ -184,6 +188,13 @@
     stroke-linejoin: round;
     stroke-width: 2;
     width: 10px;
+  }
+
+  /* The run between the word and its type. Transparent, and part of the
+     tooltip rather than empty space beside it, so the pointer stays inside the
+     hover the whole way down. The chip hangs into it. */
+  .twoslash-bridge {
+    padding-top: 4px;
   }
 
   /* The hover floats over code, so the same tint is composited onto the window

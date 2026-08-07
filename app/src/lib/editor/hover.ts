@@ -31,13 +31,18 @@ export function hover(types: Types): Extension {
           above: false,
           // Offset belongs on the view, not the spec: CodeMirror reads it off
           // what `create` returns. Back by the notch's own inset, so the notch
-          // lands on the token rather than a few characters into it.
+          // lands on the token rather than a few characters into it. The drop
+          // below the word is the bridge's, not the offset's: CodeMirror hides
+          // the hover as soon as the pointer leaves both the word and the
+          // tooltip, so an offset gap is a moat you cannot cross.
           create: () => ({
-            dom: Annotation.element(type, {
-              label: 'Pin this type',
-              select: () => toggle(view, identifier),
-            }),
-            offset: { x: -8, y: 10 },
+            dom: bridge(
+              Annotation.element(type, {
+                label: 'Pin this type',
+                select: () => toggle(view, identifier),
+              }),
+            ),
+            offset: { x: -8, y: 0 },
           }),
           end: identifier.to,
           pos: identifier.from,
@@ -49,6 +54,14 @@ export function hover(types: Types): Extension {
       { hoverTime: 1 },
     ),
   ]
+}
+
+/** Wraps a surface in the transparent run that carries the pointer down to it. */
+function bridge(surface: HTMLElement): HTMLElement {
+  const root = document.createElement('div')
+  root.className = 'twoslash-bridge'
+  root.appendChild(surface)
+  return root
 }
 
 /**
