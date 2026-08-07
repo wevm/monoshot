@@ -252,6 +252,21 @@ const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
 const names = themes.map((entry) => entry.name)
 
+/**
+ * The pinned types, tokenized in one theme so they are painted in its colors
+ * rather than a flat foreground. Their text does not change with the document,
+ * so a theme is all this needs.
+ */
+async function paint(theme: Settings['theme']): Promise<Editor.Props['types']> {
+  const entries = await Promise.all(
+    Object.entries(types).map(async ([name, type]) => {
+      const result = await renderer.tokens({ code: type, lang: 'ts', theme })
+      return [name, result.tokens] as const
+    }),
+  )
+  return Object.fromEntries(entries)
+}
+
 function Page() {
   const navigate = useNavigate()
   const [settings, setSettings] = useState<Settings>(fallback)
@@ -321,18 +336,12 @@ function Page() {
     }
   }, [code, language, settings.theme])
 
-  // Types are painted in the theme's own colors rather than a flat foreground,
-  // and their text does not change with the document, so they are tokenized
-  // once per theme rather than on every keystroke.
+  // Once per theme rather than on every keystroke: the types the editor shows
+  // do not change with the document.
   useEffect(() => {
     let active = true
-    Promise.all(
-      Object.entries(types).map(async ([name, type]) => {
-        const result = await renderer.tokens({ code: type, lang: 'ts', theme: settings.theme })
-        return [name, result.tokens] as const
-      }),
-    ).then((entries) => {
-      if (active) setAnnotations(Object.fromEntries(entries))
+    void paint(settings.theme).then((painted) => {
+      if (active) setAnnotations(painted)
     })
     return () => {
       active = false
@@ -344,17 +353,25 @@ function Page() {
    * carries the artwork rather than the editor's caret, selection, and handles.
    */
   async function draw(options: Export.capture.Options) {
-    if (!frame) throw new Error('The artwork is not ready.')
     // Read before the first await, so the whole export is of one moment.
-    const snapshot = {
-      palette: frame.palette,
-      settings,
-      title,
-      types: typed(language) ? annotations : empty,
-    }
-    const { html } = await renderer.render({ code, lang: language, theme: settings.theme })
+    const snapshot = { settings, title }
+    const { theme } = snapshot.settings
+    // The effects that fill `frame` and `annotations` trail a theme change, so
+    // an export started right after one would pair new code colors with the
+    // previous theme's backdrop and pinned types. Both come from this theme.
+    const [rendered, pinned] = await Promise.all([
+      renderer.render({ code, lang: language, theme }),
+      typed(language) ? paint(theme) : empty,
+    ])
     // Synchronous, so the copy is in the document before it is measured.
-    flushSync(() => setArtwork({ ...snapshot, html }))
+    flushSync(() =>
+      setArtwork({
+        ...snapshot,
+        html: rendered.html,
+        palette: Theme.derive(rendered.theme),
+        types: pinned,
+      }),
+    )
     try {
       const node = stage.current?.firstElementChild
       if (!node) throw new Error('The artwork is not ready.')
@@ -367,7 +384,7 @@ function Page() {
       for (const animation of node.getAnimations({ subtree: true }))
         if (animation.playState !== 'idle') animation.finish()
       const size = node.getBoundingClientRect()
-      return await Export.capture(node, { ...options, scale: Export.fit(size, options.scale) })
+      return await Export.capture(node, { ...options, scale: Export.fit(size, options) })
     } finally {
       setArtwork(undefined)
     }

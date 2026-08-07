@@ -21,10 +21,14 @@ const area = () => (matchMedia('(pointer: coarse)').matches ? 33_000_000 : 130_0
  * request past the cap is met rather than refused, at the size that works.
  * Artwork already over a limit at its own size comes back under 1, since a
  * capture it cannot shrink into is a blank image rather than a large one.
+ *
+ * An SVG is written out rather than drawn on a canvas, so it is held to no cap
+ * and keeps the scale it asked for at any size.
  */
-export function fit(size: { height: number; width: number }, scale: number): number {
+export function fit(size: { height: number; width: number }, options: capture.Options): number {
+  const { scale, type } = options
   const { height, width } = size
-  if (!height || !width) return scale
+  if (type === 'svg' || !height || !width) return scale
   const bySide = Math.min(side / width, side / height)
   const byArea = Math.sqrt(area() / (width * height))
   return Math.min(scale, bySide, byArea)
