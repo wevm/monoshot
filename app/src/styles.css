@@ -167,7 +167,13 @@
     right: 100%;
     /* Centered on the first line: 6px of surface padding plus half a line. */
     top: 6px;
-    transition: opacity var(--motion-fast) var(--motion-out);
+    /* Comes out of the surface's edge rather than appearing beside it: the
+       travel closes the gap exactly, so it never laps the type. */
+    transform: translateX(3px) scale(0.9);
+    transform-origin: right center;
+    transition:
+      opacity var(--motion-fast) var(--motion-out),
+      transform var(--motion-fast) var(--motion-out);
     width: 18px;
   }
 
@@ -186,6 +192,7 @@
   .twoslash:hover .twoslash-pin,
   .twoslash-pin:focus-visible {
     opacity: 1;
+    transform: none;
   }
 
   .twoslash-pin svg {
@@ -270,5 +277,9 @@
     from {
       opacity: 0;
     }
+  }
+
+  .twoslash-pin {
+    transform: none;
   }
 }
