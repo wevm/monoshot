@@ -1,4 +1,6 @@
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
+// lz-string is CommonJS and assigns its API object to `module.exports`, which
+// Node cannot read as named exports, so the whole object arrives as default.
+import lzString from 'lz-string'
 import * as z from 'zod'
 
 /**
@@ -6,11 +8,15 @@ import * as z from 'zod'
  * failing, so a truncated or hand-edited link still opens something usable.
  */
 export const schema = z.object({
-  /** `default`, `none`, or a hex color for the frame's backdrop. */
-  background: z.string().catch('default'),
+  /** `default`, `none`, or a `#rrggbb` color for the frame's backdrop. */
+  background: z
+    .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
+    .catch('default'),
+  /** The snippet itself, which is empty when the window holds nothing. */
   code: z.string().catch(''),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
+  /** Whether the snippet is numbered down its left edge. */
   lineNumbers: z.boolean().catch(false),
   /** Space around the window, in pixels. */
   padding: z.number().int().min(0).max(256).catch(64),
@@ -20,6 +26,7 @@ export const schema = z.object({
   theme: z.string().catch('vitesse-dark'),
   /** The window's title, which is empty when it has none. */
   title: z.string().catch(''),
+  /** Whether the window wears a title bar. */
   titleBar: z.boolean().catch(true),
   /** Width of the window, in pixels. */
   width: z.number().int().min(320).max(1600).catch(640),
@@ -59,7 +66,7 @@ export function serialize(state: serialize.Options): string {
   const parsed = schema.parse({ ...state })
   const packed: Record<string, unknown> = {}
   for (const [field, key] of Object.entries(keys)) packed[key] = parsed[field as keyof State]
-  return compressToEncodedURIComponent(JSON.stringify(packed))
+  return lzString.compressToEncodedURIComponent(JSON.stringify(packed))
 }
 
 export declare namespace serialize {
@@ -68,9 +75,19 @@ export declare namespace serialize {
 }
 
 /**
- * Reads state back out of a URL fragment. A fragment that does not decompress,
- * is not an object, or carries the wrong types still yields usable state:
- * every field falls back on its own.
+ * How much untrusted text is worth expanding. lz-string offers no bounded
+ * decompression, so `fragment` is what caps the expansion: measured against
+ * this version, a fragment that long reaches about 50 MB at worst, which
+ * decodes in well under a second and is then refused. Honest content packs far
+ * tighter, around 33,000 characters of source into that fragment, and never
+ * approaches `decoded`.
+ */
+const limit = { decoded: 512_000, fragment: 20_000 } as const
+
+/**
+ * Reads state back out of a URL fragment. A fragment that is oversized, does
+ * not decompress, is not an object, or carries the wrong types still yields
+ * usable state: every field falls back on its own.
  *
  * @example
  * ```ts twoslash
@@ -84,8 +101,11 @@ export declare namespace serialize {
 export function deserialize(hash: string): State {
   const packed = (() => {
     try {
-      const json = decompressFromEncodedURIComponent(hash.replace(/^#/, ''))
-      const value: unknown = json ? JSON.parse(json) : undefined
+      const fragment = hash.replace(/^#/, '')
+      if (fragment.length > limit.fragment) return {}
+      const json = lzString.decompressFromEncodedURIComponent(fragment)
+      if (!json || json.length > limit.decoded) return {}
+      const value: unknown = JSON.parse(json)
       return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
     } catch {
       return {}

@@ -1,4 +1,4 @@
-import { compressToEncodedURIComponent } from 'lz-string'
+import lzString from 'lz-string'
 
 import * as Codec from './Codec.js'
 
@@ -75,7 +75,7 @@ describe('deserialize', () => {
   test('falls back per field, keeping the ones it can read', () => {
     // Hand-built rather than round-tripped: `serialize` validates, so a bad
     // field can only reach `deserialize` from a link someone edited.
-    const hash = compressToEncodedURIComponent(
+    const hash = lzString.compressToEncodedURIComponent(
       JSON.stringify({ c: 'const a = 1', g: 'rust', t: 42, w: 'wide', y: 'yes' }),
     )
     expect(Codec.deserialize(hash)).toMatchInlineSnapshot(`
@@ -90,6 +90,62 @@ describe('deserialize', () => {
         "title": "",
         "titleBar": true,
         "width": 640,
+      }
+    `)
+  })
+
+  test('falls back on a backdrop the frame cannot paint', () => {
+    const hash = (background: string) =>
+      lzString.compressToEncodedURIComponent(JSON.stringify({ b: background }))
+    expect([
+      Codec.deserialize(hash('#1c1c1e')).background,
+      Codec.deserialize(hash('none')).background,
+      Codec.deserialize(hash('red')).background,
+      Codec.deserialize(hash('#bogus')).background,
+      Codec.deserialize(hash('#fff')).background,
+    ]).toMatchInlineSnapshot(`
+      [
+        "#1c1c1e",
+        "none",
+        "default",
+        "default",
+        "default",
+      ]
+    `)
+  })
+
+  test('refuses a fragment that expands past what is worth parsing', () => {
+    // A link someone else wrote: short enough to send, large enough decoded to
+    // block the tab that opens it.
+    const bomb = lzString.compressToEncodedURIComponent(
+      JSON.stringify({ c: 'a'.repeat(1_000_000) }),
+    )
+    const honest = lzString.compressToEncodedURIComponent(JSON.stringify({ c: 'a'.repeat(1000) }))
+    expect({
+      bombFragment: bomb.length,
+      bombOpensOn: Codec.deserialize(bomb).code.length,
+      honestOpensOn: Codec.deserialize(honest).code.length,
+    }).toMatchInlineSnapshot(`
+      {
+        "bombFragment": 2286,
+        "bombOpensOn": 0,
+        "honestOpensOn": 1000,
+      }
+    `)
+  })
+
+  test('refuses an overlong fragment before decompressing it', () => {
+    // Varied enough not to compress away, so the fragment itself is the thing
+    // over the limit rather than what it decodes to.
+    const noise = Array.from({ length: 30_000 }, (_, index) => index.toString(36)).join(' ')
+    const overlong = lzString.compressToEncodedURIComponent(JSON.stringify({ c: noise }))
+    expect({
+      fragment: overlong.length,
+      opensOn: Codec.deserialize(overlong).code.length,
+    }).toMatchInlineSnapshot(`
+      {
+        "fragment": 111869,
+        "opensOn": 0,
       }
     `)
   })
