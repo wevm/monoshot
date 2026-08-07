@@ -41,13 +41,22 @@ export function create(options: create.Options): create.ReturnType {
       if ('error' in event.data) onError?.(event.data.error)
       else onResult(event.data.result)
     })
+    // A worker that fails before its own handler runs, because its chunk will
+    // not load or its module scope throws, reports here rather than in a reply.
+    // Without this a caller waiting on the current document waits forever.
+    instance.addEventListener('error', (event) => {
+      onError?.(event.message || 'The type resolver could not start.')
+    })
+    instance.addEventListener('messageerror', () => {
+      onError?.('The type resolver sent a reply that could not be read.')
+    })
     return instance
   }
 }
 
 export declare namespace create {
   type Options = {
-    /** Called when a document could not be resolved at all. */
+    /** Called when a document could not be resolved, including when the worker never starts. */
     onError?: ((message: string) => void) | undefined
     /** Called with the types for the most recent document. */
     onResult: (result: Twoslash.Result) => void
