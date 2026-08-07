@@ -84,6 +84,9 @@ catalogs:
     idb-keyval:
       specifier: ^6.3.0
       version: 6.3.0
+    lz-string:
+      specifier: ^1.5.0
+      version: 1.5.0
     motion:
       specifier: ^13.0.0
       version: 13.0.0
@@ -120,6 +123,9 @@ catalogs:
     zile:
       specifier: ^0.0.30
       version: 0.0.30
+    zod:
+      specifier: ^4.4.3
+      version: 4.4.3
 
 overrides:
   monoshot: workspace:*
@@ -131,12 +137,18 @@ importers:
       culori:
         specifier: 'catalog:'
         version: 4.0.2
+      lz-string:
+        specifier: 'catalog:'
+        version: 1.5.0
       shiki:
         specifier: 'catalog:'
         version: 4.4.2
       twoslash:
         specifier: 'catalog:'
         version: 0.3.9(typescript@5.9.3)
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@changesets/cli':
         specifier: 'catalog:'

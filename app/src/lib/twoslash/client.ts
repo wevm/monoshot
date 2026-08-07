@@ -40,11 +40,22 @@ export function create(options: create.Options): create.ReturnType {
       version += 1
     },
     resolve(code, lang) {
-      worker ??= spawn()
       version += 1
       latest = code
+      const instance = (() => {
+        try {
+          return (worker ??= spawn())
+        } catch (cause) {
+          // A document policy can forbid workers outright, and the constructor
+          // throws before any listener of ours exists to hear it. `worker`
+          // stays unset, so a later edit tries again.
+          onError?.(cause instanceof Error ? cause.message : String(cause))
+          return undefined
+        }
+      })()
+      if (!instance) return
       const request: Request = { code, lang, version }
-      worker.postMessage(request)
+      instance.postMessage(request)
     },
   }
 
@@ -70,13 +81,29 @@ export function create(options: create.Options): create.ReturnType {
       if (worker === instance) worker = undefined
       onError?.(event.message)
     })
+    // A worker that fails before its own handler runs, because its chunk will
+    // not load or its module scope throws, reports here rather than in a reply.
+    // Without this a caller waiting on the current document waits forever.
+    instance.addEventListener('error', (event) => {
+      // It never installed its own handler, so posting to it again would go
+      // nowhere. Dropped, and the next document spawns a fresh one. Guarded on
+      // identity, so a worker spawned since is not taken down with it.
+      if (worker === instance) {
+        worker = undefined
+        instance.terminate()
+      }
+      onError?.(event.message || 'The type resolver could not start.')
+    })
+    instance.addEventListener('messageerror', () => {
+      onError?.('The type resolver sent a reply that could not be read.')
+    })
     return instance
   }
 }
 
 export declare namespace create {
   type Options = {
-    /** Called when a document could not be resolved at all. */
+    /** Called when a document could not be resolved, including when the worker never starts. */
     onError?: ((message: string) => void) | undefined
     /** Called with the types for the most recent document. */
     onResult: (resolved: Resolved) => void
