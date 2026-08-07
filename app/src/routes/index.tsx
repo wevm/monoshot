@@ -52,6 +52,10 @@ const styles = stylex.create({
     paddingInline: 20,
   },
   wordmark: { fontFamily: font.mono },
+  actions: { alignItems: 'center', display: 'flex', gap: 12 },
+  // Beside the menu that started the export, quiet enough to read as a note on
+  // the action rather than a failure of the page.
+  notice: { opacity: 0.7 },
   stage: {
     alignItems: 'center',
     display: 'flex',
@@ -171,6 +175,20 @@ const empty = {}
 /** Everything on screen that a shared link carries, less the code and title. */
 type Settings = Toolbar.State & { padding: number; radius: number; width: number }
 
+/**
+ * Everything the offscreen copy draws, taken together the moment an export is
+ * asked for. A capture spans several awaits, and the page stays editable
+ * throughout, so reading the live values would pair this code with a later
+ * title, palette, or geometry.
+ */
+type Artwork = {
+  html: string
+  palette: Theme.derive.Result
+  settings: Settings
+  title: string
+  types: Editor.Props['types']
+}
+
 const fallback: Settings = {
   background: 'default',
   language: 'auto',
@@ -255,8 +273,12 @@ function Page() {
   }>()
   const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
   const [error, setError] = useState<Error>()
-  const [artwork, setArtwork] = useState<string>()
+  // Export failures speak for themselves: sharing `error` would swap the
+  // artwork for the highlighter's fallback and leave it there.
+  const [notice, setNotice] = useState<string>()
+  const [artwork, setArtwork] = useState<Artwork>()
   const stage = useRef<HTMLDivElement>(null)
+  const pending = useRef<Promise<unknown> | undefined>(undefined)
   const [detected, setDetected] = useState<BundledLanguage>('tsx')
 
   // Under `auto` the language is read from the code, debounced: reading the
@@ -321,10 +343,18 @@ function Page() {
    * Renders the frame away from the page and captures that, so an export
    * carries the artwork rather than the editor's caret, selection, and handles.
    */
-  async function take(options: Export.capture.Options) {
+  async function draw(options: Export.capture.Options) {
+    if (!frame) throw new Error('The artwork is not ready.')
+    // Read before the first await, so the whole export is of one moment.
+    const snapshot = {
+      palette: frame.palette,
+      settings,
+      title,
+      types: typed(language) ? annotations : empty,
+    }
     const { html } = await renderer.render({ code, lang: language, theme: settings.theme })
     // Synchronous, so the copy is in the document before it is measured.
-    flushSync(() => setArtwork(html))
+    flushSync(() => setArtwork({ ...snapshot, html }))
     try {
       const node = stage.current?.firstElementChild
       if (!node) throw new Error('The artwork is not ready.')
@@ -341,6 +371,46 @@ function Page() {
     } finally {
       setArtwork(undefined)
     }
+  }
+
+  /**
+   * Captures the artwork, one at a time. Every export mounts into the same
+   * offscreen stage, so a second one starting mid-flight would clear the stage
+   * the first is still reading from.
+   */
+  function take(options: Export.capture.Options) {
+    setNotice(undefined)
+    const run = Promise.resolve(pending.current)
+      .catch(() => {})
+      .then(() => draw(options))
+    // A failed export must not strand the queue, and the caller still sees the
+    // rejection through `run`.
+    pending.current = run.catch(() => {})
+    return run
+  }
+
+  function report(cause: Error) {
+    setNotice(cause.message)
+  }
+
+  function save(options: Export.capture.Options) {
+    void take(options)
+      .then((blob) => Export.download(blob, `${title || 'untitled'}.${options.type}`))
+      .catch(report)
+  }
+
+  function copyImage() {
+    // Handed over as a promise: Safari only honors a clipboard write that
+    // starts in the gesture that asked for it.
+    void Export.copy(take({ scale: 2, type: 'png' })).catch(report)
+  }
+
+  function copyUrl() {
+    // Built from state rather than read from the address bar, so a copy never
+    // waits on the debounced write.
+    const url = new URL(window.location.href)
+    url.hash = share({ code, settings, title })
+    void navigator.clipboard.writeText(url.toString())
   }
 
   const [measure, rect] = useEdges()
@@ -406,6 +476,27 @@ function Page() {
       window.removeEventListener('keydown', walk)
     }
   }, [])
+
+  // The shortcuts the export menu advertises. Without these the browser answers
+  // them instead, saving the page or copying the selection.
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      if (event.altKey || !(event.ctrlKey || event.metaKey)) return
+      const key = event.key.toLowerCase()
+      if (key === 's' && !event.shiftKey) {
+        event.preventDefault()
+        save({ scale: 2, type: 'png' })
+      } else if (key === 'c' && event.shiftKey) {
+        event.preventDefault()
+        copyUrl()
+      } else if (key === 'c' && !copying(event)) {
+        event.preventDefault()
+        copyImage()
+      }
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [copyImage, copyUrl, save])
 
   // A dark fill lands on the same near-black the shell mixes to, leaving no
   // visible artwork edge, so the guides carry the crop the whole way across.
@@ -532,48 +623,39 @@ function Page() {
 
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
-        <div aria-hidden ref={stage} {...stylex.props(styles.offscreen)}>
-          {artwork && frame ? (
+        {/* Inert rather than `aria-hidden`: the copy carries a title field and
+            the frame's handles, which stay tabbable while a capture runs. */}
+        <div inert ref={stage} {...stylex.props(styles.offscreen)}>
+          {artwork ? (
             <Frame
-              background={settings.background}
+              background={artwork.settings.background}
               onPaddingChange={() => {}}
               onTitleChange={() => {}}
               onWidthChange={() => {}}
-              padding={settings.padding}
+              padding={artwork.settings.padding}
               onRadiusChange={() => {}}
-              palette={frame.palette}
-              radius={settings.radius}
-              title={title}
-              titleBar={settings.titleBar}
-              width={settings.width}
+              palette={artwork.palette}
+              radius={artwork.settings.radius}
+              title={artwork.title}
+              titleBar={artwork.settings.titleBar}
+              width={artwork.settings.width}
             >
               <Frame.Code
-                html={artwork}
-                lineNumbers={settings.lineNumbers}
-                types={typed(language) ? annotations : empty}
+                html={artwork.html}
+                lineNumbers={artwork.settings.lineNumbers}
+                types={artwork.types}
               />
             </Frame>
           ) : null}
         </div>
-        <ExportMenu
-          onCopyImage={() => {
-            // Handed over as a promise: Safari only honors a clipboard write
-            // that starts in the gesture that asked for it.
-            void Export.copy(take({ scale: 2, type: 'png' })).catch(setError)
-          }}
-          onSave={(options) => {
-            void take(options)
-              .then((blob) => Export.download(blob, `${title || 'untitled'}.${options.type}`))
-              .catch(setError)
-          }}
-          onCopyUrl={() => {
-            // Built from state rather than read from the address bar, so a
-            // copy never waits on the debounced write.
-            const url = new URL(window.location.href)
-            url.hash = share({ code, settings, title })
-            void navigator.clipboard.writeText(url.toString())
-          }}
-        />
+        <div {...stylex.props(styles.actions)}>
+          {notice && (
+            <span role="status" {...stylex.props(styles.notice, text.copy14)}>
+              {notice}
+            </span>
+          )}
+          <ExportMenu onCopyImage={copyImage} onCopyUrl={copyUrl} onSave={save} />
+        </div>
       </header>
 
       <div {...stylex.props(styles.stage)}>
@@ -676,6 +758,17 @@ type Edges = {
   right: number
   top: number
   width: number
+}
+
+/**
+ * Whether the platform's own copy already answers this press. The artwork only
+ * takes a bare Copy when nothing else would: the editor is where code is copied
+ * from, and a selection anywhere is a request for that text.
+ */
+function copying(event: KeyboardEvent) {
+  const { target } = event
+  if (target instanceof Element && target.closest('input, textarea, [contenteditable]')) return true
+  return getSelection()?.isCollapsed === false
 }
 
 /** Whether the connection asks callers to go easy on data. */

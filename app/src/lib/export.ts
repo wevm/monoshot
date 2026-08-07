@@ -19,13 +19,15 @@ const area = () => (matchMedia('(pointer: coarse)').matches ? 33_000_000 : 130_0
 /**
  * The largest scale that still rasterizes, at or below the one asked for. A
  * request past the cap is met rather than refused, at the size that works.
+ * Artwork already over a limit at its own size comes back under 1, since a
+ * capture it cannot shrink into is a blank image rather than a large one.
  */
 export function fit(size: { height: number; width: number }, scale: number): number {
   const { height, width } = size
   if (!height || !width) return scale
   const bySide = Math.min(side / width, side / height)
   const byArea = Math.sqrt(area() / (width * height))
-  return Math.max(1, Math.min(scale, bySide, byArea))
+  return Math.min(scale, bySide, byArea)
 }
 
 /**
@@ -34,7 +36,9 @@ export function fit(size: { height: number; width: number }, scale: number): num
  */
 export async function capture(node: Element, options: capture.Options): Promise<Blob> {
   const { scale, type } = options
-  const blob = await snapdom.toBlob(node, {
+  // Typed as a blob, but snapdom hands back whatever `canvas.toBlob` gives it,
+  // and a canvas past the browser's limit gives it a null.
+  const blob: Blob | null = await snapdom.toBlob(node, {
     // Transparent rather than white, so a frame exported without a backdrop
     // composites onto whatever it is pasted into.
     backgroundColor: 'transparent',
@@ -48,9 +52,10 @@ export async function capture(node: Element, options: capture.Options): Promise<
     scale,
     type,
   })
-  // A canvas past the browser's limit resolves to an empty image rather than
-  // throwing, which would otherwise save as a blank file.
-  if (type !== 'svg' && blob.size < 1024) throw new Error('The image came back empty.')
+  // Rasterization fails without throwing, which would otherwise save as a
+  // blank file. Encoded size says nothing here: flat artwork compresses to a
+  // few hundred bytes and is perfectly valid.
+  if (!blob) throw new Error('The image came back empty.')
   return blob
 }
 

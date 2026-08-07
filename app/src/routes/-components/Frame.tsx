@@ -9,6 +9,7 @@ import type {
 import { useEffect, useRef, useState } from 'react'
 
 import * as Annotation from '#/lib/editor/annotation.js'
+import { type as lookup } from '#/lib/editor/hover.js'
 import * as Identifier from '#/lib/editor/identifier.js'
 import { ignore } from '#/lib/export.js'
 import { text } from '#/theme/text.js'
@@ -486,14 +487,17 @@ export namespace Frame {
       let consumed = 0
       let last = 0
       const lines = [...(root.current?.querySelectorAll<HTMLElement>('.line') ?? [])]
+      // Every line as it arrived: a converted one reads back as the type put in
+      // its place, which a caret on the line below would resolve against.
+      const source = lines.map((line) => line.textContent ?? '')
       for (const [index, line] of lines.entries()) {
-        const column = Identifier.caretColumn(line.textContent ?? '')
-        const above = lines[index - 1]?.textContent ?? ''
+        const column = Identifier.caretColumn(source[index] ?? '')
+        const above = source[index - 1] ?? ''
         const identifier =
           column === undefined
             ? undefined
             : Identifier.atColumn(above, Math.min(column, above.length))
-        const annotation = identifier && types?.[identifier.name]
+        const annotation = identifier && types && lookup(types, identifier.name)
         if (column === undefined || !annotation) {
           // Every consumed query line shifts the numbering of the rest up. A
           // converted line has no number left to read, and the effect runs

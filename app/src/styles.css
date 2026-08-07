@@ -67,8 +67,13 @@
     font-variant-ligatures: none;
     line-height: var(--code-line-height);
     tab-size: var(--code-tab-size);
-    /* Both wrap, so a long line breaks at the same column in each. */
+    /* Both wrap, so a long line breaks at the same column in each. Wrapping
+       alone stops at word boundaries, which a long URL or identifier never
+       offers, so these carry the editor's own breaks: `break-word` is what
+       Safari understands, `anywhere` what everything else does. */
+    overflow-wrap: anywhere;
     white-space: pre-wrap;
+    word-break: break-word;
   }
 
   /* Every identifier that has a type says so while the pointer is in the

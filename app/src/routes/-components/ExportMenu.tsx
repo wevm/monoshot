@@ -3,7 +3,7 @@ import type { capture } from '#/lib/export.js'
 import { Kbd } from '#/ui/Kbd.js'
 import { Menu } from '#/ui/Menu.js'
 
-/** Export actions. Capture is wired in a later change; the link is live. */
+/** Export actions: the artwork as a file or on the clipboard, and a link to it. */
 export function ExportMenu(props: ExportMenu.Props) {
   return (
     <Menu label="Export">
