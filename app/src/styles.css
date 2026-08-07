@@ -171,6 +171,14 @@
     width: 18px;
   }
 
+  /* Reaches across the gap to the surface, so crossing it does not read as
+     leaving both. */
+  .twoslash-pin::after {
+    content: '';
+    inset: 0 -6px 0 0;
+    position: absolute;
+  }
+
   /* The hover only exists while you are pointing at the word, so its control
      is there from the start; a pinned type is part of the picture, and gives
      one up only once the pointer is on it. */
@@ -192,8 +200,11 @@
 
   /* The run between the word and its type. Transparent, and part of the
      tooltip rather than empty space beside it, so the pointer stays inside the
-     hover the whole way down. The chip hangs into it. */
+     hover the whole way down and out to the pin. The negative margin buys the
+     room back, leaving the surface where it would have sat. */
   .twoslash-bridge {
+    margin-left: -30px;
+    padding-left: 30px;
     padding-top: 4px;
   }
 
