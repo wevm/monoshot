@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { createFileRoute, useLocation, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -226,14 +226,19 @@ const names = themes.map((entry) => entry.name)
 
 function Page() {
   const navigate = useNavigate()
-  const { hash } = useLocation()
-  // Read once, at mount: the fragment is written back below, and reacting to
-  // it would fight the writer.
-  const [shared] = useState(() => restore(hash))
+  const [settings, setSettings] = useState<Settings>(fallback)
+  const [title, setTitle] = useState('')
+  const [code, setCode] = useState(sample)
 
-  const [settings, setSettings] = useState<Settings>(shared.settings)
-  const [title, setTitle] = useState(shared.title)
-  const [code, setCode] = useState(shared.code)
+  // A fragment is never sent to the server, so it is applied after mount
+  // rather than during render, which could not match what was served. Before
+  // paint, so a shared link never shows the defaults first.
+  useLayoutEffect(() => {
+    const shared = restore(window.location.hash)
+    setCode(shared.code)
+    setSettings(shared.settings)
+    setTitle(shared.title)
+  }, [])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
