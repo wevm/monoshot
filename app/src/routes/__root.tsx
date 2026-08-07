@@ -1,9 +1,11 @@
+import * as stylex from '@stylexjs/stylex'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 
 import * as Scheme from '#/lib/scheme.js'
 import appCss from '#/styles.css?url'
+import { motion } from '../theme/tokens.stylex.js'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -44,7 +46,7 @@ function Document({ children }: { children: ReactNode }) {
   return (
     // The pre-paint script sets `color-scheme` before React hydrates, which
     // React would otherwise report as a mismatched attribute.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning {...stylex.props(styles.root)}>
       <head>
         <HeadContent />
       </head>
@@ -55,6 +57,18 @@ function Document({ children }: { children: ReactNode }) {
     </html>
   )
 }
+
+// Republishes the motion consts as custom properties, so a `@keyframes` rule
+// and a CodeMirror theme reach the values StyleX inlines.
+const styles = stylex.create({
+  root: {
+    '--motion-fast': motion.fast,
+    '--motion-in-out': motion.inOut,
+    '--motion-medium': motion.medium,
+    '--motion-out': motion.out,
+    '--motion-slow': motion.slow,
+  },
+})
 
 // Subscribes the dev stylesheet to the plugin's `stylex:css-update` events so
 // edits hot-reload; the virtual module resolves only under `devMode: 'css-only'`.

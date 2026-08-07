@@ -57,17 +57,6 @@
     --code-annotation-size: 12px;
   }
 
-  /* Curves and durations, authoritative here so plain CSS and StyleX read the
-     same values; `theme/tokens.stylex.ts` derives its `motion` consts from
-     these rather than restating them. */
-  :root {
-    --motion-out: cubic-bezier(0.19, 1, 0.22, 1);
-    --motion-in-out: cubic-bezier(0.86, 0, 0.07, 1);
-    --motion-fast: 140ms;
-    --motion-medium: 260ms;
-    --motion-slow: 420ms;
-  }
-
   /* Shiki emits `pre > code`, and both carry UA font defaults that would
      otherwise win over anything inherited from the frame. */
   .shiki,

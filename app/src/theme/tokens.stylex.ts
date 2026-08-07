@@ -127,15 +127,15 @@ export const shadow = stylex.defineVars({
   window: '0 24px 48px -12px light-dark(#00000026, #00000059)',
 })
 
-// Inlined at build time: no CSS variables generated.
-// Declared in `styles.css`, so a CodeMirror theme and a `@keyframes` rule can
-// reach the same values these consts carry.
+// Inlined at build time: no CSS variables generated. The app shell republishes
+// them as `--motion-*` so plain CSS can reach them, and they stay literals here
+// because Motion parses the curves and durations rather than resolving them.
 export const motion = stylex.defineConsts({
   /** Decelerating curve for surfaces settling into place (out-expo). */
-  out: 'var(--motion-out)',
+  out: 'cubic-bezier(0.19, 1, 0.22, 1)',
   /** Symmetric curve for a value moving between two known states (in-out-quint). */
-  inOut: 'var(--motion-in-out)',
-  fast: 'var(--motion-fast)',
-  medium: 'var(--motion-medium)',
-  slow: 'var(--motion-slow)',
+  inOut: 'cubic-bezier(0.86, 0, 0.07, 1)',
+  fast: '140ms',
+  medium: '260ms',
+  slow: '420ms',
 })
