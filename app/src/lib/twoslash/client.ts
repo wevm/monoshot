@@ -22,6 +22,9 @@ export function create(options: create.Options): create.ReturnType {
       worker?.terminate()
       worker = undefined
     },
+    invalidate() {
+      version += 1
+    },
     resolve(code, lang) {
       worker ??= spawn()
       version += 1
@@ -59,6 +62,12 @@ export declare namespace create {
   type ReturnType = {
     /** Stops the worker and releases the compiler it holds. */
     dispose: () => void
+    /**
+     * Drops whatever is still in flight. The answer to a document that has
+     * since been edited is about that older document, so it is no more current
+     * than no answer at all.
+     */
+    invalidate: () => void
     /** Asks for a document's types, superseding any request still in flight. */
     resolve: (code: string, lang: Lang) => void
   }

@@ -224,12 +224,21 @@ function Page() {
   // which would block typing on this thread. Debounced, because resolving a
   // document costs more than drawing one.
   useEffect(() => {
+    // Anything still in flight was asked about the previous document, so it is
+    // dropped here rather than when its replacement goes out: the debounce is
+    // long enough for a stale answer to land inside it.
+    resolver.current?.invalidate()
     const dialect = dialects[language as keyof typeof dialects]
     if (!dialect) {
       setResolved(undefined)
       return
     }
-    resolver.current ??= Twoslash.create({ onResult: setResolved })
+    // A failure leaves the types belonging to a document that is no longer on
+    // screen, so they go rather than stand in for the current one.
+    resolver.current ??= Twoslash.create({
+      onError: () => setResolved(undefined),
+      onResult: setResolved,
+    })
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
     return () => clearTimeout(timer)
   }, [code, language])

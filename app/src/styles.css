@@ -281,14 +281,16 @@
     animation: twoslash-in var(--motion-medium) var(--motion-out) both;
   }
 
-  /* A notch pointing back at the token the type belongs to. */
+  /* A notch pointing back at the token the type belongs to. A hover measures
+     this back to its word once placed, since CodeMirror shoves a tooltip too
+     wide for the room to its right leftwards to keep it on screen. */
   .twoslash::before {
     background-color: inherit;
     border-left: 1px solid var(--window-border);
     border-top: 1px solid var(--window-border);
     content: '';
     height: 7px;
-    left: 8px;
+    left: var(--twoslash-notch, 8px);
     position: absolute;
     top: -4px;
     transform: rotate(45deg);

@@ -1,10 +1,10 @@
-import { StateField } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
-import type { DecorationSet } from '@codemirror/view'
+import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
+import * as Types from './types.js'
 
 /**
  * How far the hover reaches past its own left edge. CodeMirror keeps a hover
@@ -14,95 +14,124 @@ import * as Identifier from './identifier.js'
  */
 const reach = 30
 
-/** A type the language service resolved, over the span it belongs to. */
-export type Span = {
-  /** The type, tokenized so it paints like the code. */
-  annotation: Annotation.Annotation
-  from: number
-  to: number
-}
+/** How far the notch sits inside the surface's leading edge. */
+const inset = 8
+
+/** The notch's own side, before it is turned onto its corner. */
+const notch = 7
+
+const mark = Decoration.mark({ class: 'twoslash-mark' })
 
 /**
- * Types for a document, as spans of it. Positions rather than names: two
- * variables sharing a name rarely share a type.
+ * Marks every span a type is known for. Derived from the types rather than
+ * mapped alongside them, so the underline and the hover can never disagree
+ * about where a type belongs. The marks are always here; the stylesheet reveals
+ * them when the pointer is over the code, so nothing advertises itself until
+ * you go looking.
  */
-export type Types = readonly Span[]
-
-/** The type covering a document offset, if one is known. */
-export function type(types: Types, pos: number): Span | undefined {
-  return types.find((span) => pos >= span.from && pos <= span.to)
-}
+const marks = EditorView.decorations.compute([Types.types], (state) =>
+  Decoration.set(
+    state
+      .field(Types.types)
+      .filter((span) => span.to > span.from)
+      .map((span) => mark.range(span.from, span.to)),
+    true,
+  ),
+)
 
 /**
  * Shows an identifier's type on hover, and pins it on click. Pinning writes the
  * `^?` line twoslash reads, so a pin is part of the snippet rather than state
  * beside it: it survives a reload, and the export already knows how to draw it.
  */
-export function hover(types: Types): Extension {
-  return [
-    marks(types),
-    hoverTooltip(
-      (view, pos) => {
-        const found = type(types, pos)
-        const identifier = found && { from: found.from, to: found.to }
-        if (!identifier || !found) return null
-        // A pinned type is already on screen, so hovering it would only cover
-        // the block it is asking about.
-        if (pinned(view, identifier)) return null
-        return {
-          // Below the identifier, where pinning will leave it, so hovering
-          // previews the pinned block in place rather than somewhere else. It
-          // goes above instead when that space is already showing a pinned
-          // type, which a hover would otherwise sit on top of. CodeMirror
-          // flips it back if there is no room up there.
-          above: covered(view, identifier, found.annotation.length),
-          // Offset belongs on the view, not the spec: CodeMirror reads it off
-          // what `create` returns. Back by the notch's own inset, so the notch
-          // lands on the token rather than a few characters into it. The drop
-          // below the word is the bridge's, not the offset's: CodeMirror hides
-          // the hover as soon as the pointer leaves both the word and the
-          // tooltip, so an offset gap is a moat you cannot cross.
-          create: () => ({
-            dom: bridge(
-              Annotation.element(found.annotation, {
-                label: 'Pin this type',
-                select: () => toggle(view, identifier),
-              }),
-            ),
+export const hover: Extension = [
+  Types.types,
+  marks,
+  hoverTooltip(
+    (view, pos) => {
+      const found = Types.at(view.state, pos)
+      const identifier = found && { from: found.from, to: found.to }
+      if (!identifier || !found) return null
+      // A pinned type is already on screen, so hovering it would only cover
+      // the block it is asking about.
+      if (pinned(view, identifier)) return null
+      return {
+        // Below the identifier, where pinning will leave it, so hovering
+        // previews the pinned block in place rather than somewhere else. It
+        // goes above instead when that space is already showing a pinned
+        // type, which a hover would otherwise sit on top of. CodeMirror
+        // flips it back if there is no room up there.
+        above: covered(view, identifier, found.annotation.length),
+        create: () => {
+          const surface = Annotation.element(found.annotation, {
+            label: 'Pin this type',
+            select: () => toggle(view, identifier),
+          })
+          let word: Rect | null = null
+          return {
+            dom: bridge(surface),
+            // The measure phase is the one place a tooltip may ask CodeMirror
+            // where a position sits, so the word is taken here and read back
+            // once the surface has been placed.
+            getCoords(anchor) {
+              word = view.coordsAtPos(anchor)
+              // CodeMirror hides a tooltip whose anchor it cannot measure, and
+              // its own default returns the same nothing this does; only the
+              // hook's declared type leaves the case out.
+              return word as Rect
+            },
+            // Offset belongs on the view, not the spec: CodeMirror reads it off
+            // what `create` returns. Back by the notch's own inset, so the notch
+            // lands on the token rather than a few characters into it. The drop
+            // below the word is the bridge's, not the offset's: CodeMirror hides
+            // the hover as soon as the pointer leaves both the word and the
+            // tooltip, so an offset gap is a moat you cannot cross.
+            //
             // Back by the reach as well, so widening the tooltip leftwards
             // leaves the surface itself where it was.
-            offset: { x: -8 - reach, y: 0 },
-          }),
-          end: identifier.to,
-          pos: identifier.from,
-        }
-      },
-      {
-        // Pinning writes the caret line, and the type it puts in flow is the
-        // one the hover is showing: without this the hover outlives the edit
-        // and sits on top of the block it just made.
-        hideOnChange: true,
-        // The types are already in hand, so waiting only makes the editor feel
-        // slower than it is. One millisecond rather than zero: CodeMirror reads
-        // this as `hoverTime || 300`, so a falsy value restores the default.
-        hoverTime: 1,
-      },
-    ),
-    // The pin is a pointer affordance on a surface only a pointer opens, so
-    // the caret gets its own way in.
-    keymap.of([
-      {
-        key: 'Mod-i',
-        run(view) {
-          const found = type(types, view.state.selection.main.head)
-          if (!found) return false
-          toggle(view, found)
-          return true
+            offset: { x: -inset - reach, y: 0 },
+            // Runs after placement, which is the only point at which where the
+            // surface actually landed is known: a tooltip wider than the room
+            // to its right is clamped into the viewport, and a notch pinned at
+            // a fixed inset would then point somewhere left of its word.
+            positioned() {
+              if (!word) return
+              const box = surface.getBoundingClientRect()
+              const limit = Math.max(inset, box.width - inset - notch)
+              const left = Math.min(Math.max(word.left - box.left, inset), limit)
+              surface.style.setProperty('--twoslash-notch', `${left}px`)
+            },
+          }
         },
+        end: identifier.to,
+        pos: identifier.from,
+      }
+    },
+    {
+      // Pinning writes the caret line, and the type it puts in flow is the
+      // one the hover is showing: without this the hover outlives the edit
+      // and sits on top of the block it just made.
+      hideOnChange: true,
+      // The types are already in hand, so waiting only makes the editor feel
+      // slower than it is. One millisecond rather than zero: CodeMirror reads
+      // this as `hoverTime || 300`, so a falsy value restores the default.
+      hoverTime: 1,
+    },
+  ),
+  // The pin is a pointer affordance on a surface only a pointer opens, so
+  // the caret gets its own way in.
+  keymap.of([
+    {
+      key: 'Mod-i',
+      run(view) {
+        const found = Types.at(view.state, view.state.selection.main.head)
+        if (!found) return false
+        toggle(view, found)
+        return true
       },
-    ]),
-  ]
-}
+    },
+  ]),
+]
 
 /**
  * Whether a pinned type sits in the space a popover of `lines` would open
@@ -125,31 +154,6 @@ function bridge(surface: HTMLElement): HTMLElement {
   root.style.setProperty('--twoslash-reach', `${reach}px`)
   root.appendChild(surface)
   return root
-}
-
-/**
- * Marks every span a type is known for. The marks are always here; the
- * stylesheet reveals them when the pointer is over the code, so nothing
- * advertises itself until you go looking.
- */
-function marks(types: Types): Extension {
-  return StateField.define<DecorationSet>({
-    create: () => build(types),
-    // Mapped rather than rebuilt: the spans belong to the document the language
-    // service last saw, so they follow an edit until the next result lands.
-    update: (value, transaction) =>
-      transaction.docChanged ? value.map(transaction.changes) : value,
-    provide: (field) => EditorView.decorations.from(field),
-  })
-}
-
-const mark = Decoration.mark({ class: 'twoslash-mark' })
-
-function build(types: Types): DecorationSet {
-  return Decoration.set(
-    types.filter((span) => span.to > span.from).map((span) => mark.range(span.from, span.to)),
-    true,
-  )
 }
 
 /** The `^?` line under an identifier's line, whatever it points at. */
