@@ -74,6 +74,7 @@ ${fontFaces(fonts)}
   --code-annotation-size: 12px;
   --window-background: ${palette.window.background};
   --window-border: ${palette.window.border};
+  --window-shadow: ${shadow[palette.type]};
   --window-title: ${palette.window.title};
 }
 * { box-sizing: border-box; margin: 0; }
@@ -87,7 +88,7 @@ body { -webkit-font-smoothing: antialiased; }
 .window {
   background-color: var(--window-background);
   border-radius: ${radius}px;
-  box-shadow: 0 0 0 1px var(--window-border);
+  box-shadow: 0 0 0 1px var(--window-border), var(--window-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -122,6 +123,9 @@ body { -webkit-font-smoothing: antialiased; }
   font-size: var(--code-font-size);
   font-variant-ligatures: none;
   line-height: var(--code-line-height);
+  /* Whitespace is the only break pre-wrap offers, and the window clips the
+     rest: a long identifier or URL would run out of the image. */
+  overflow-wrap: anywhere;
   tab-size: var(--code-tab-size);
   white-space: pre-wrap;
 }
@@ -166,6 +170,16 @@ ${titleBar ? titleBarMarkup(title) : ''}
 </body>
 </html>`
 }
+
+/**
+ * The window's depth, one arm per surface type. Mirrors the preview's
+ * `shadow.window` token, resolved here because a standalone document sets no
+ * `color-scheme` for `light-dark()` to read.
+ */
+const shadow = {
+  dark: '0 24px 48px -12px #00000059',
+  light: '0 24px 48px -12px #00000026',
+} as const
 
 /**
  * The gutter, sized to the document rather than read from the DOM: there is no

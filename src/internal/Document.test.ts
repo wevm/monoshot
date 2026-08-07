@@ -35,6 +35,42 @@ describe('build', () => {
     `)
   })
 
+  test('leaves an unbreakable token somewhere to wrap', async () => {
+    const document = await frame.toDocument(options)
+    // Without a break opportunity inside the token, a long identifier or URL
+    // runs past the window, which clips it out of the image.
+    expect(/\.shiki, \.shiki code \{[\s\S]*?\n\}/.exec(document)?.[0]).toMatchInlineSnapshot(`
+      ".shiki, .shiki code {
+        background: transparent !important;
+        font-family: var(--code-font-family);
+        font-size: var(--code-font-size);
+        font-variant-ligatures: none;
+        line-height: var(--code-line-height);
+        /* Whitespace is the only break pre-wrap offers, and the window clips the
+           rest: a long identifier or URL would run out of the image. */
+        overflow-wrap: anywhere;
+        tab-size: var(--code-tab-size);
+        white-space: pre-wrap;
+      }"
+    `)
+  })
+
+  test('gives the window the depth the preview draws', async () => {
+    const shadow = async (theme: 'vitesse-dark' | 'vitesse-light') => {
+      const document = await frame.toDocument({ ...options, theme })
+      return /--window-shadow: ([^;]+);/.exec(document)?.[1]
+    }
+    expect({
+      dark: await shadow('vitesse-dark'),
+      light: await shadow('vitesse-light'),
+    }).toMatchInlineSnapshot(`
+      {
+        "dark": "0 24px 48px -12px #00000059",
+        "light": "0 24px 48px -12px #00000026",
+      }
+    `)
+  })
+
   test('escapes a title rather than letting it reach the markup', async () => {
     const document = await frame.toDocument({ ...options, title: '<script>alert(1)</script>' })
     expect(/<span class="title">([^<]*)<\/span>/.exec(document)?.[1]).toMatchInlineSnapshot(

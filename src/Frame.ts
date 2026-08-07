@@ -135,7 +135,7 @@ export declare namespace create {
      * `background` or a font field carries CSS that would leave the stylesheet
      * or fetch a resource.
      */
-    toDocument: (options: toDocument.Options) => Promise<string>
+    toDocument: (options: toDocument.Options) => Promise<toDocument.ReturnType>
     /**
      * Tokenizes code without rendering it, for a surface that draws its own
      * text. An editor colors its own document from these.
@@ -167,6 +167,9 @@ export declare namespace tokens {
 export declare namespace toDocument {
   /** What to render, and the frame to render it in. */
   type Options = Omit<Document.Options, 'html' | 'palette'> & render.Options
+
+  /** The frame as one standalone HTML document. */
+  type ReturnType = string
 }
 
 export declare namespace render {
