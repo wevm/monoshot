@@ -142,33 +142,35 @@
     white-space: pre-wrap;
   }
 
-  /* The pin sits in the surface's corner rather than in the text flow. Only a
-     surface that carries one gives up the room, so a type rendered without a
-     control still sets flush. */
-  .twoslash:has(.twoslash-pin) {
-    padding-right: 30px;
-  }
-
+  /* Nearest corner to the pointer, since the surface opens under the word it
+     describes. Floated rather than absolute: only the first line steps around
+     it, so a reserved column never pushes the whole type across. */
   .twoslash-pin {
     background: none;
     border: none;
     color: inherit;
     cursor: pointer;
     display: flex;
+    float: left;
+    margin-right: 6px;
     /* Dimmed at rest: it is the only chrome on the surface, and the type is
        what you came to read. */
     opacity: 0.5;
-    padding: 4px;
-    position: absolute;
-    right: 3px;
-    top: 3px;
+    padding: 1px;
     transition: opacity var(--motion-fast) var(--motion-out);
   }
 
   /* A pinned type is part of the picture, so its control stays out of the
-     composition until the pointer goes looking for it. */
+     composition until the pointer goes looking for it, and sits beyond the
+     surface rather than floating inside it: an invisible float would still
+     hold its space, indenting a block an export renders flush. */
   .twoslash-block .twoslash-pin {
+    float: none;
+    left: 100%;
+    margin: 0 0 0 6px;
     opacity: 0;
+    position: absolute;
+    top: 6px;
   }
 
   .twoslash-block:hover .twoslash-pin,

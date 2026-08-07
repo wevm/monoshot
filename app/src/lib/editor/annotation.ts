@@ -21,8 +21,8 @@ const pin =
 export function element(annotation: Annotation, action?: Action): HTMLElement {
   const root = document.createElement('div')
   root.className = 'twoslash'
-  paint(root, annotation)
   if (action) root.appendChild(control(action))
+  paint(root, annotation)
   return root
 }
 
@@ -33,6 +33,7 @@ export function element(annotation: Annotation, action?: Action): HTMLElement {
 export function paint(root: HTMLElement, annotation: Annotation): void {
   const existing = root.querySelector('.twoslash-pin')
   root.replaceChildren()
+  if (existing) root.appendChild(existing)
   for (const [index, line] of annotation.entries()) {
     if (index) root.appendChild(document.createTextNode('\n'))
     for (const token of line) {
@@ -45,7 +46,6 @@ export function paint(root: HTMLElement, annotation: Annotation): void {
       root.appendChild(span)
     }
   }
-  if (existing) root.appendChild(existing)
 }
 
 function control(action: Action): HTMLElement {
