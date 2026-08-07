@@ -542,7 +542,11 @@ function Page() {
               titleBar={settings.titleBar}
               width={settings.width}
             >
-              <Frame.Code html={artwork} lineNumbers={settings.lineNumbers} />
+              <Frame.Code
+                html={artwork}
+                lineNumbers={settings.lineNumbers}
+                types={typed(language) ? annotations : empty}
+              />
             </Frame>
           ) : null}
         </div>
