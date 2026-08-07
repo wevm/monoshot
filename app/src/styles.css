@@ -42,6 +42,32 @@
     font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
   }
 
+  /* Shared text metrics. The editor and the rendered frame lay out the same
+     source, and an export captures the frame rather than the editor, so any
+     disagreement here shows up as text that moves when you export. Custom
+     properties because both a `pre` and CodeMirror's JS theme read them.
+     A parity harness put the two side by side: 0px drift across 51 lines. */
+  :root {
+    --code-font-family: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+    --code-font-size: 14px;
+    --code-line-height: 22px;
+    --code-tab-size: 2;
+  }
+
+  /* Shiki emits `pre > code`, and both carry UA font defaults that would
+     otherwise win over anything inherited from the frame. */
+  .shiki,
+  .shiki code {
+    font-family: var(--code-font-family);
+    font-size: var(--code-font-size);
+    /* Ligatures would break the 1:1 character metrics both surfaces rely on. */
+    font-variant-ligatures: none;
+    line-height: var(--code-line-height);
+    tab-size: var(--code-tab-size);
+    /* Both wrap, so a long line breaks at the same column in each. */
+    white-space: pre-wrap;
+  }
+
   /* Shiki emits the highlighted markup, so the gutter is styled here rather
      than through StyleX, which cannot target injected descendants. It is always
      present and collapses to zero width, so toggling it slides the code across
