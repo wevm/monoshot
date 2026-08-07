@@ -115,6 +115,13 @@
     }
   }
 
+  @keyframes twoslash-in-above {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+
   /* One surface for a type, wherever it is shown: the hover and the pinned
      block differ in where they sit, not in how they look. */
   .twoslash {
@@ -223,6 +230,23 @@
       0 12px 28px -8px rgb(0 0 0 / 0.45);
   }
 
+  /* Opened above the word instead, so the run and the notch swap ends. */
+  .cm-tooltip-above .twoslash-bridge {
+    padding-bottom: 4px;
+    padding-top: 0;
+  }
+
+  .cm-tooltip-above .twoslash::before {
+    bottom: -4px;
+    top: auto;
+    transform: rotate(225deg);
+  }
+
+  /* Settles up rather than down, so it still arrives from the word's side. */
+  .cm-tooltip-above .twoslash {
+    animation-name: twoslash-in-above;
+  }
+
   /* Pinned: the `^?` line stands aside and the type takes its place in flow,
      so an export carries it. The editor draws it as a widget, the rendered
      frame as markup. */
@@ -275,6 +299,12 @@
    they just stop travelling to get there. */
 @media (prefers-reduced-motion: reduce) {
   @keyframes twoslash-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes twoslash-in-above {
     from {
       opacity: 0;
     }
