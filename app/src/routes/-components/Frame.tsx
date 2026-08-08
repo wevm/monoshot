@@ -8,6 +8,9 @@ import type {
 } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
+import * as Annotation from '#/lib/editor/annotation.js'
+import * as Identifier from '#/lib/editor/identifier.js'
+import { ignore } from '#/lib/export.js'
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -233,11 +236,16 @@ export function Frame(props: Frame.Props) {
                       <span {...stylex.props(styles.light)} />
                       <span {...stylex.props(styles.light)} />
                     </div>
+                    {/* Read-only without a handler, so the copy an export
+                        serializes carries the title rather than a field the
+                        viewer of a saved SVG can type into. */}
                     <input
                       aria-label="Title"
-                      onChange={(event) => onTitleChange(event.target.value)}
+                      onChange={(event) => onTitleChange?.(event.target.value)}
                       placeholder="untitled"
+                      readOnly={!onTitleChange}
                       spellCheck={false}
+                      tabIndex={onTitleChange ? undefined : -1}
                       value={title}
                       {...stylex.props(styles.title, text.label13)}
                     />
@@ -250,7 +258,7 @@ export function Frame(props: Frame.Props) {
         </div>
         {/* Padding grows on every side at once, so the artwork's own edge
             keeps pace with the pointer. */}
-        <div {...stylex.props(styles.handles, styles.handlesOuter)}>
+        <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesOuter)}>
           <Handle
             axis="y"
             edge="start"
@@ -278,7 +286,7 @@ export function Frame(props: Frame.Props) {
         </div>
         {/* Both window edges move together, so the artwork stays centered
             under the pointer and grows at twice its pace. */}
-        <div {...stylex.props(styles.handles, styles.handlesInner(padding))}>
+        <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesInner(padding))}>
           <Handle
             axis="x"
             edge="start"
@@ -304,7 +312,7 @@ export function Frame(props: Frame.Props) {
             value={width}
           />
         </div>
-        <div {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
+        <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
           <Handle
             axis="xy"
             edge="end"
@@ -440,7 +448,8 @@ export declare namespace Frame {
     children: ReactNode
     /** Receives the dragged padding, in pixels. */
     onPaddingChange: (padding: number) => void
-    onTitleChange: (title: string) => void
+    /** Receives the typed title. Left out, the title field is read-only. */
+    onTitleChange?: ((title: string) => void) | undefined
     /** Receives the dragged width, in pixels. */
     onWidthChange: (width: number) => void
     /** Space around the window, in pixels. */
@@ -497,20 +506,29 @@ export namespace Frame {
    * source when it serializes, so arbitrary user code is safe to inject here.
    */
   export function Code(props: Code.Props) {
-    const { html, lineNumbers, query } = props
+    const { html, lineNumbers, types } = props
     const root = useRef<HTMLDivElement>(null)
 
-    // The `^?` line is not code: twoslash drops it and puts the type in its
-    // place. Rebuilding the line in the DOM keeps that block in flow, so it
-    // lands in an export exactly as it reads here.
+    // A `^?` line is not code: the type takes its place, in flow, so an export
+    // carries the pinned blocks exactly as the editor shows them.
     useEffect(() => {
       let consumed = 0
       let last = 0
-      for (const line of root.current?.querySelectorAll<HTMLElement>('.line') ?? []) {
-        const caret = /^(\s*\/\/\s*)\^\?\s*$/.exec(line.textContent ?? '')
-        if (!caret) {
-          // Every consumed query line shifts the numbering of the rest up.
-          // A converted line has no number left to read, and the effect runs
+      const lines = [...(root.current?.querySelectorAll<HTMLElement>('.line') ?? [])]
+      // Every line as it arrived: a converted one reads back as the type put in
+      // its place, which a caret on the line below would resolve against.
+      const source = lines.map((line) => line.textContent ?? '')
+      for (const [index, line] of lines.entries()) {
+        const column = Identifier.caretColumn(source[index] ?? '')
+        const above = source[index - 1] ?? ''
+        const identifier =
+          column === undefined
+            ? undefined
+            : Identifier.atColumn(above, Math.min(column, above.length))
+        const annotation = identifier && types?.[identifier.name]
+        if (column === undefined || !annotation) {
+          // Every consumed query line shifts the numbering of the rest up. A
+          // converted line has no number left to read, and the effect runs
           // twice in development.
           const number = Number(line.dataset['line'])
           if (!Number.isFinite(number)) continue
@@ -519,18 +537,19 @@ export namespace Frame {
           continue
         }
         consumed += 1
-        line.classList.add('twoslash-query')
         // The block takes no line number: the query was never code.
         line.removeAttribute('data-line')
-        line.style.setProperty('--twoslash-column', String(caret[1]?.length ?? 0))
+        line.classList.add('twoslash-block')
+        line.style.setProperty('--twoslash-column', String(column))
         line.textContent = ''
-        const body = document.createElement('span')
-        body.textContent = query
-        line.appendChild(body)
+        const surface = document.createElement('div')
+        surface.className = 'twoslash'
+        Annotation.paint(surface, annotation)
+        line.appendChild(surface)
       }
       // A fixed two-character gutter clips the leading digit past line 99.
       root.current?.style.setProperty('--gutter', `${String(Math.max(last, 10)).length}ch`)
-    }, [html, query])
+    }, [html, types])
 
     return (
       <div
@@ -546,8 +565,8 @@ export namespace Frame {
     type Props = {
       html: string
       lineNumbers?: boolean | undefined
-      /** Type the snippet's `^?` query resolves to. */
-      query: string
+      /** Types a `^?` query can resolve to, keyed by identifier. */
+      types?: Record<string, Annotation.Annotation> | undefined
     }
   }
 }

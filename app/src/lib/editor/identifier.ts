@@ -15,13 +15,18 @@ const word = /[A-Za-z_$][\w$]*/g
  */
 export function at(doc: Text, pos: number): Identifier | undefined {
   const line = doc.lineAt(pos)
-  const column = pos - line.from
-  word.lastIndex = 0
-  for (let match = word.exec(line.text); match; match = word.exec(line.text)) {
-    const start = match.index
-    const end = start + match[0].length
-    if (column < start) return undefined
-    if (column <= end) return { from: line.from + start, name: match[0], to: line.from + end }
+  const found = atColumn(line.text, pos - line.from)
+  return found && { from: line.from + found.from, name: found.name, to: line.from + found.to }
+}
+
+/**
+ * The identifier covering a column of a line, as offsets within it. Takes the
+ * line as text so a caller holding markup rather than a document can ask too.
+ */
+export function atColumn(text: string, column: number): Identifier | undefined {
+  for (const found of all(text)) {
+    if (column < found.from) return undefined
+    if (column <= found.to) return found
   }
   return undefined
 }

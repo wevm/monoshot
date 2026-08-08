@@ -24,6 +24,7 @@
     "@stylexjs/stylex": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "@zumer/snapdom": "catalog:",
     "highlight.js": "catalog:",
     "hono": "catalog:",
     "idb-keyval": "catalog:",

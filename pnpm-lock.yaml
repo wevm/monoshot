@@ -69,6 +69,9 @@ catalogs:
     '@vitejs/plugin-react':
       specifier: ^6.0.1
       version: 6.0.5
+    '@zumer/snapdom':
+      specifier: ^2.23.2
+      version: 2.23.2
     babel-plugin-react-compiler:
       specifier: ^1.0.0
       version: 1.0.0
@@ -204,6 +207,9 @@ importers:
       '@tanstack/react-start':
         specifier: 'catalog:'
         version: 1.168.37(esbuild@0.28.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.2)(vite@8.2.0(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0))
+      '@zumer/snapdom':
+        specifier: 'catalog:'
+        version: 2.23.2
       highlight.js:
         specifier: 'catalog:'
         version: 11.11.1
@@ -2130,6 +2136,9 @@ packages:
 
   '@yuku-toolchain/types@0.5.43':
     resolution: {integrity: sha512-kSpvPntnXw5+lYjO71ffBEnQ5ycQ74KGIYknh0TS4xeyCuBkOqxyJumxZkMhLBBUCLjDAbx2+Icnr3Zh4ftjpQ==}
+
+  '@zumer/snapdom@2.23.2':
+    resolution: {integrity: sha512-pt/FYBYyDq1LXIjP2CI9qvR78o+hy9rdtTaFxEiDZTD8A3JhNkEj3CT6BQXAsa95UCZXbJKRxf1tEc89oVd7dA==}
 
   acorn@8.18.0:
     resolution: {integrity: sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==}
@@ -5160,6 +5169,8 @@ snapshots:
     optional: true
 
   '@yuku-toolchain/types@0.5.43': {}
+
+  '@zumer/snapdom@2.23.2': {}
 
   acorn@8.18.0: {}
 

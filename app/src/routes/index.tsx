@@ -2,9 +2,11 @@ import * as stylex from '@stylexjs/stylex'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
+import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { detect, languages } from '#/lib/detect.js'
+import * as Export from '#/lib/export.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
@@ -20,6 +22,14 @@ export const Route = createFileRoute('/')({
 })
 
 const styles = stylex.create({
+  offscreen: {
+    // In the document so it lays out at its real size, off the page so it is
+    // never seen. Not `display: none`, which would give it no box at all.
+    insetBlockStart: 0,
+    insetInlineStart: -20000,
+    pointerEvents: 'none',
+    position: 'fixed',
+  },
   page: {
     display: 'flex',
     flexDirection: 'column',
@@ -42,6 +52,10 @@ const styles = stylex.create({
     paddingInline: 20,
   },
   wordmark: { fontFamily: font.mono },
+  actions: { alignItems: 'center', display: 'flex', gap: 12 },
+  // Beside the menu that started the export, quiet enough to read as a note on
+  // the action rather than a failure of the page.
+  notice: { opacity: 0.7 },
   stage: {
     alignItems: 'center',
     display: 'flex',
@@ -163,6 +177,35 @@ const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } 
 /** Everything on screen that a shared link carries, less the code and title. */
 type Settings = Toolbar.State & { padding: number; radius: number; width: number }
 
+/**
+ * Everything the offscreen copy draws, taken together the moment an export is
+ * asked for. A capture spans several awaits, and the page stays editable
+ * throughout, so reading the live values would pair this code with a later
+ * title, palette, or geometry.
+ */
+type Artwork = {
+  html: string
+  palette: Theme.derive.Result
+  settings: Settings
+  title: string
+  types: Frame.Code.Props['types']
+}
+
+/**
+ * An export as it was asked for. One can be queued behind another, so it holds
+ * the state of the moment its action ran rather than of the moment the queue
+ * reaches it.
+ */
+type Capture = {
+  code: string
+  /** The types `code` asked for with `^?`, still unpainted. */
+  queries: Twoslash.Result['queries']
+  language: BundledLanguage
+  options: Export.capture.Options
+  settings: Settings
+  title: string
+}
+
 const fallback: Settings = {
   background: 'default',
   language: 'auto',
@@ -180,28 +223,25 @@ const fallback: Settings = {
  * build carries before they reach the renderer.
  */
 function restore(hash: string) {
-  const fragment = hash.replace(/^#/, '')
-  const state = Codec.deserialize(fragment)
+  const state = Codec.deserialize(hash)
   const theme = names.find((name) => name === state.theme) ?? fallback.theme
   const language =
     state.lang === 'auto'
       ? 'auto'
       : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
-  const size = Frame.fit({ padding: state.padding, width: state.width })
   return {
-    // Only the absence of a fragment opens on the sample. A link that carries
-    // an empty document is state of its own, and replacing it would show the
-    // recipient something the sender never had.
-    code: fragment ? state.code : sample,
+    // A fragment that does not decode reads the same as no fragment at all, so
+    // an empty document falls back rather than opening on nothing.
+    code: state.code || sample,
     settings: {
       background: state.background,
       language,
       lineNumbers: state.lineNumbers,
-      padding: size.padding,
+      padding: state.padding,
       radius: state.radius,
       theme,
       titleBar: state.titleBar,
-      width: size.width,
+      width: state.width,
     } satisfies Settings,
     title: state.title,
   }
@@ -229,35 +269,52 @@ const renderer = Core.create({ langs: ['tsx'] })
 const themes = Theme.list()
 const names = themes.map((entry) => entry.name)
 
+/**
+ * The resolved types, tokenized so they are painted in the theme's colors
+ * rather than a flat foreground. Distinct texts only: a type repeated across
+ * the document is one signature to tokenize.
+ */
+async function paint(
+  theme: Settings['theme'],
+  annotations: Twoslash.Result['hovers'],
+): Promise<Editor.Props['types']> {
+  const entries = await Promise.all(
+    [...new Set(annotations.map((annotation) => annotation.text))].map(async (text) => {
+      const result = await renderer.tokens({ code: text, lang: 'ts', theme })
+      return [text, result.tokens] as const
+    }),
+  )
+  const painted = new Map(entries)
+  return annotations.map((annotation) => ({
+    annotation: painted.get(annotation.text) ?? [],
+    from: annotation.from,
+    to: annotation.to,
+  }))
+}
+
+/**
+ * The same types keyed by the identifier they describe, which is what the
+ * exported markup resolves a `^?` query against: it walks shiki's lines and
+ * has no document offsets to match on.
+ */
+function named(code: string, types: Editor.Props['types']): Frame.Code.Props['types'] {
+  return Object.fromEntries(types.map((span) => [code.slice(span.from, span.to), span.annotation]))
+}
+
 function Page() {
   const navigate = useNavigate()
   const [settings, setSettings] = useState<Settings>(fallback)
   const [title, setTitle] = useState('')
   const [code, setCode] = useState(sample)
 
-  // The theme the fragment on screen opened with, and the signal that a
-  // fragment has been applied at all. Holding the theme rather than a boolean
-  // is what lets a second shared link restart the sweep below.
-  const [opened, setOpened] = useState<Settings['theme']>()
-
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
-  //
-  // Reapplied on `hashchange`, which is how a second shared link opened in
-  // this tab arrives: the route stays mounted, and the debounced writer below
-  // goes through `replaceState`, which never raises the event.
   useLayoutEffect(() => {
-    function apply() {
-      const shared = restore(window.location.hash)
-      setCode(shared.code)
-      setSettings(shared.settings)
-      setTitle(shared.title)
-      setOpened(shared.settings.theme)
-    }
-    apply()
-    window.addEventListener('hashchange', apply)
-    return () => window.removeEventListener('hashchange', apply)
+    const shared = restore(window.location.hash)
+    setCode(shared.code)
+    setSettings(shared.settings)
+    setTitle(shared.title)
   }, [])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
@@ -267,6 +324,14 @@ function Page() {
   const [resolved, setResolved] = useState<Twoslash.Resolved>()
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
+  // Export failures speak for themselves: sharing `error` would swap the
+  // artwork for the highlighter's fallback and leave it there.
+  const [notice, setNotice] = useState<string>()
+  const [artwork, setArtwork] = useState<Artwork>()
+  const stage = useRef<HTMLDivElement>(null)
+  const pending = useRef<Promise<unknown> | undefined>(undefined)
+  // Which export the notice on screen belongs to.
+  const attempt = useRef(0)
   const [detected, setDetected] = useState<BundledLanguage>('tsx')
 
   // Under `auto` the language is read from the code, debounced: reading the
@@ -289,33 +354,6 @@ function Page() {
     }, 500)
     return () => clearTimeout(timer)
   }, [code, navigate, settings, title])
-
-  const latest = useRef({ code, settings, title })
-  useEffect(() => {
-    latest.current = { code, settings, title }
-  }, [code, settings, title])
-
-  // An edit made inside the debounce window would otherwise never reach the
-  // fragment, which is the only place state is kept. Leaving the page writes
-  // it synchronously instead: navigating through the router is not something
-  // an unloading document can still finish.
-  useEffect(() => {
-    const path = window.location.pathname
-    function flush() {
-      // Unmounting can also mean the router has already moved on, and this
-      // page's state belongs to this page's URL alone.
-      if (window.location.pathname !== path) return
-      const url = new URL(window.location.href)
-      url.hash = share(latest.current)
-      if (url.hash === window.location.hash) return
-      window.history.replaceState(window.history.state, '', url)
-    }
-    window.addEventListener('pagehide', flush)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      flush()
-    }
-  }, [])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
@@ -375,27 +413,112 @@ function Page() {
     // wrong words. The editor keeps mapping the spans it already holds.
     if (resolved.document !== code) return
     let active = true
-    const texts = [...new Set(resolved.result.hovers.map((hover) => hover.text))]
-    Promise.all(
-      texts.map(async (text) => {
-        const result = await renderer.tokens({ code: text, lang: 'ts', theme: settings.theme })
-        return [text, result.tokens] as const
-      }),
-    ).then((entries) => {
-      if (!active) return
-      const painted = new Map(entries)
-      setAnnotations(
-        resolved.result.hovers.map((hover) => ({
-          annotation: painted.get(hover.text) ?? [],
-          from: hover.from,
-          to: hover.to,
-        })),
-      )
+    void paint(settings.theme, resolved.result.hovers).then((painted) => {
+      if (active) setAnnotations(painted)
     })
     return () => {
       active = false
     }
   }, [code, resolved, settings.theme])
+
+  /**
+   * Renders the frame away from the page and captures that, so an export
+   * carries the artwork rather than the editor's caret, selection, and handles.
+   */
+  async function draw(capture: Capture) {
+    const { code, language, options, queries, settings, title } = capture
+    const { theme } = settings
+    // The effects that fill `frame` and `annotations` trail a theme change, so
+    // an export started right after one would pair new code colors with the
+    // previous theme's backdrop and pinned types. Both come from this theme.
+    const [rendered, pinned] = await Promise.all([
+      renderer.render({ code, lang: language, theme }),
+      paint(theme, queries),
+    ])
+    // Synchronous, so the copy is in the document before it is measured.
+    flushSync(() =>
+      setArtwork({
+        html: rendered.html,
+        palette: Theme.derive(rendered.theme),
+        settings,
+        title,
+        types: named(code, pinned),
+      }),
+    )
+    try {
+      const node = stage.current?.firstElementChild
+      if (!node) throw new Error('The artwork is not ready.')
+      // Fonts first: capturing before they load bakes in fallback metrics.
+      await document.fonts.ready
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      // The copy mounts fresh, so everything in it is partway through its
+      // entrance. A type fading in from nothing would be captured at nothing:
+      // present, taking its space, and invisible.
+      for (const animation of node.getAnimations({ subtree: true }))
+        if (animation.playState !== 'idle') animation.finish()
+      const size = node.getBoundingClientRect()
+      return await Export.capture(node, { ...options, scale: Export.fit(size, options) })
+    } finally {
+      setArtwork(undefined)
+    }
+  }
+
+  /**
+   * Captures the artwork, one at a time. Every export mounts into the same
+   * offscreen stage, so a second one starting mid-flight would clear the stage
+   * the first is still reading from.
+   *
+   * The notice belongs to the newest export. An older one queued behind it
+   * still runs, but its failure arrives about work the user has moved on from,
+   * so it is not put back on screen.
+   */
+  function take(options: Export.capture.Options) {
+    const id = (attempt.current += 1)
+    setNotice(undefined)
+    // Read now rather than when the queue reaches this export: the page stays
+    // editable while an earlier one runs, and this one is of the moment it was
+    // asked for.
+    // The exported markup turns `^?` lines into blocks, so it wants the
+    // queries rather than every identifier's type. Only ones resolved against
+    // this document: an older answer's offsets would mark the wrong words.
+    const queries = resolved?.document === code ? resolved.result.queries : []
+    const capture: Capture = { code, language, options, queries, settings, title }
+    const run = Promise.resolve(pending.current)
+      .catch(() => {})
+      .then(() => draw(capture))
+    // A failed export must not strand the queue, and the caller still sees the
+    // rejection through `run`.
+    pending.current = run.catch(() => {})
+    return {
+      report(cause: Error) {
+        if (attempt.current === id) setNotice(cause.message)
+      },
+      run,
+    }
+  }
+
+  function save(options: Export.capture.Options) {
+    const { report, run } = take(options)
+    // Named for the title the export was asked under, not for whatever the
+    // field says once the capture finishes.
+    const name = `${title || 'untitled'}.${options.type}`
+    void run.then((blob) => Export.download(blob, { name })).catch(report)
+  }
+
+  function copyImage() {
+    const { report, run } = take({ scale: 2, type: 'png' })
+    // Handed over as a promise: Safari only honors a clipboard write that
+    // starts in the gesture that asked for it.
+    void Export.copy(run).catch(report)
+  }
+
+  function copyUrl() {
+    // Built from state rather than read from the address bar, so a copy never
+    // waits on the debounced write.
+    const url = new URL(window.location.href)
+    url.hash = share({ code, settings, title })
+    void navigator.clipboard.writeText(url.toString())
+  }
 
   const [measure, rect] = useEdges()
 
@@ -421,14 +544,12 @@ function Page() {
 
   // Themes load their own chunk on first use, so an unvisited one costs a
   // round trip. Warming the list outward from the opening theme keeps every
-  // switch after the page settles instant. Waits for the fragment, so a shared
-  // link sweeps outward from the theme on screen rather than from the default
-  // it rendered for a frame, and starts over when a second link brings another.
+  // switch after the page settles instant. Runs once: the sweep covers the
+  // whole list wherever it starts.
   useEffect(() => {
-    if (!opened) return
     const controller = new AbortController()
     void Warm.themes({
-      from: opened,
+      from: settings.theme,
       // The full sweep is a couple of megabytes of chunks, so a metered
       // connection gets the neighbours the arrows reach and nothing more.
       limit: metered() ? 4 : names.length,
@@ -437,7 +558,7 @@ function Page() {
       signal: controller.signal,
     })
     return () => controller.abort()
-  }, [opened])
+  }, [])
 
   useEffect(() => {
     function walk(event: KeyboardEvent) {
@@ -462,6 +583,30 @@ function Page() {
       window.removeEventListener('keydown', walk)
     }
   }, [])
+
+  // The shortcuts the export menu advertises. Without these the browser answers
+  // them instead, saving the page or copying the selection.
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      if (event.altKey || !(event.ctrlKey || event.metaKey)) return
+      const key = event.key.toLowerCase()
+      if (key === 's' && !event.shiftKey) {
+        event.preventDefault()
+        save({ scale: 2, type: 'png' })
+      } else if (key === 'c' && event.shiftKey) {
+        // ⌘ only, as the menu advertises it. Ctrl+Shift+C is the element
+        // picker on Windows and Linux, which the page has no business taking.
+        if (!event.metaKey) return
+        event.preventDefault()
+        copyUrl()
+      } else if (key === 'c' && !event.shiftKey && !copying(event)) {
+        event.preventDefault()
+        copyImage()
+      }
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [copyImage, copyUrl, save])
 
   // A dark fill lands on the same near-black the shell mixes to, leaving no
   // visible artwork edge, so the guides carry the crop the whole way across.
@@ -588,15 +733,38 @@ function Page() {
 
       <header {...stylex.props(styles.header)}>
         <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
-        <ExportMenu
-          onCopyUrl={() => {
-            // Built from state rather than read from the address bar, so a
-            // copy never waits on the debounced write.
-            const url = new URL(window.location.href)
-            url.hash = share({ code, settings, title })
-            void navigator.clipboard.writeText(url.toString())
-          }}
-        />
+        {/* Inert rather than `aria-hidden`: the copy carries a title field and
+            the frame's handles, which stay tabbable while a capture runs. */}
+        <div inert ref={stage} {...stylex.props(styles.offscreen)}>
+          {artwork ? (
+            <Frame
+              background={artwork.settings.background}
+              onPaddingChange={() => {}}
+              onWidthChange={() => {}}
+              padding={artwork.settings.padding}
+              onRadiusChange={() => {}}
+              palette={artwork.palette}
+              radius={artwork.settings.radius}
+              title={artwork.title}
+              titleBar={artwork.settings.titleBar}
+              width={artwork.settings.width}
+            >
+              <Frame.Code
+                html={artwork.html}
+                lineNumbers={artwork.settings.lineNumbers}
+                types={artwork.types}
+              />
+            </Frame>
+          ) : null}
+        </div>
+        <div {...stylex.props(styles.actions)}>
+          {notice && (
+            <span role="status" {...stylex.props(styles.notice, text.copy14)}>
+              {notice}
+            </span>
+          )}
+          <ExportMenu onCopyImage={copyImage} onCopyUrl={copyUrl} onSave={save} />
+        </div>
       </header>
 
       <div {...stylex.props(styles.stage)}>
@@ -699,6 +867,17 @@ type Edges = {
   right: number
   top: number
   width: number
+}
+
+/**
+ * Whether the platform's own copy already answers this press. The artwork only
+ * takes a bare Copy when nothing else would: the editor is where code is copied
+ * from, and a selection anywhere is a request for that text.
+ */
+function copying(event: KeyboardEvent) {
+  const { target } = event
+  if (target instanceof Element && target.closest('input, textarea, [contenteditable]')) return true
+  return getSelection()?.isCollapsed === false
 }
 
 /** Whether the connection asks callers to go easy on data. */
