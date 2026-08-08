@@ -12,6 +12,7 @@
     "@changesets/cli": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
+    "puppeteer-core": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "zile": "catalog:"
@@ -45,6 +46,11 @@
       "src": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./headless": {
+      "src": "./src/Headless.ts",
+      "types": "./dist/Headless.d.ts",
+      "default": "./dist/Headless.js"
     }
   },
   "sideEffects": false,
@@ -52,12 +58,20 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "culori": "catalog:",
     "lz-string": "catalog:",
     "shiki": "catalog:",
     "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "puppeteer-core": "^25.0.0"
+  },
+  "peerDependenciesMeta": {
+    "puppeteer-core": {
+      "optional": true
+    }
   }
 }
