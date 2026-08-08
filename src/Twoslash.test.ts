@@ -114,6 +114,7 @@ describe('annotate', () => {
   test('shifts every offset past the notation cuts before it', () => {
     expect(Twoslash.annotate(input)).toMatchInlineSnapshot(`
       {
+        "diagnostics": [],
         "hovers": [
           {
             "from": 3,
@@ -143,6 +144,7 @@ describe('annotate', () => {
   test('leaves offsets alone when nothing was cut', () => {
     expect(Twoslash.annotate({ ...input, meta: { removals: [] } })).toMatchInlineSnapshot(`
       {
+        "diagnostics": [],
         "hovers": [
           {
             "from": 3,
@@ -171,7 +173,6 @@ describe('annotate', () => {
 
   test('skips the node kinds it has nothing to say about', () => {
     const nodes = [
-      { length: 1, start: 0, text: 'Type error', type: 'error' },
       { length: 1, start: 1, type: 'completion' },
       { length: 1, start: 2, text: 'a note', type: 'highlight' },
       // A hover the language service resolved no type for.
@@ -179,9 +180,44 @@ describe('annotate', () => {
     ]
     expect(Twoslash.annotate({ ...input, nodes })).toMatchInlineSnapshot(`
       {
+        "diagnostics": [],
         "hovers": [],
         "queries": [],
       }
+    `)
+  })
+
+  test('reads an error onto the source as written', () => {
+    const nodes = [
+      {
+        code: 2322,
+        length: 6,
+        level: 'error' as const,
+        start: 3,
+        text: 'Not assignable.',
+        type: 'error',
+      },
+      // Severity is optional, and an absent one is an error.
+      { code: 6133, length: 1, start: 0, text: 'Declared but never read.', type: 'error' },
+    ]
+    // Offsets shift past the notation cuts `input` carries, exactly as hovers do.
+    expect(Twoslash.annotate({ ...input, nodes }).diagnostics).toMatchInlineSnapshot(`
+      [
+        {
+          "code": 2322,
+          "from": 3,
+          "level": "error",
+          "text": "Not assignable.",
+          "to": 9,
+        },
+        {
+          "code": 6133,
+          "from": 0,
+          "level": "error",
+          "text": "Declared but never read.",
+          "to": 1,
+        },
+      ]
     `)
   })
 })

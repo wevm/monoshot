@@ -171,6 +171,9 @@ const styles = stylex.create({
 /** Held still so the editor is not reconfigured with a fresh array each render. */
 const empty: Editor.Props['types'] = []
 
+/** The same, for a document the compiler has said nothing about yet. */
+const quiet: Editor.Props['diagnostics'] = []
+
 /** The dialect the language service should read a document as. */
 const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } as const
 
@@ -790,6 +793,10 @@ function Page() {
               >
                 <Editor
                   code={code}
+                  // Not gated on the document matching: the editor maps these
+                  // through later edits, so they follow the words they are
+                  // about rather than blinking out on every keystroke.
+                  diagnostics={resolved?.result.diagnostics ?? quiet}
                   lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
                   palette={frame.palette}
