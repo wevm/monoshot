@@ -1,0 +1,110 @@
+import type ts from 'typescript'
+
+/**
+ * Fills a virtual file system with the types a document's imports need.
+ *
+ * One request per package, against a route that reads whole npm tarballs,
+ * rather than one per declaration file: `shiki` alone ships 442 of them, and a
+ * CDN that serves files singly turns acquiring it into 442 round trips.
+ */
+export async function acquire(options: acquire.Options): Promise<void> {
+  const { code, compiler, files, onProgress } = options
+  const seen = new Set<string>()
+  let queue = references(compiler, code)
+  let done = 0
+
+  while (queue.length) {
+    // Deduplicated first: a package named by fifty declaration files is still
+    // one package, and filtering alone lets every copy through.
+    const wanted = [...new Set(queue)].filter((name) => !seen.has(name))
+    for (const name of wanted) seen.add(name)
+    if (!wanted.length) return
+
+    const packages = (await Promise.all(wanted.map((name) => read(name)))).filter(
+      (value) => value !== undefined,
+    )
+    done += wanted.length
+    onProgress?.(done, done + queue.length - wanted.length)
+
+    // Every package's own declarations can name further packages, so the next
+    // round is whatever this one just pulled in.
+    queue = packages.flatMap((entry) => {
+      const found: string[] = []
+      for (const [path, source] of Object.entries(entry.files)) {
+        files.set(`/node_modules/${entry.name}${path}`, source)
+        if (/\.d\.[cm]?ts$/.test(path)) found.push(...references(compiler, source))
+      }
+      return found
+    })
+  }
+
+  async function read(name: string): Promise<acquire.Package | undefined> {
+    const fetched = await load(name)
+    if (!fetched) return undefined
+    // A package shipping no declarations may still be described on
+    // DefinitelyTyped, which is where the compiler looks next.
+    const typed = Object.keys(fetched.files).some((path) => /\.d\.[cm]?ts$/.test(path))
+    if (typed) return fetched
+    const types = await load(`@types/${mangle(name)}`)
+    return types ? { files: types.files, name: `@types/${mangle(name)}` } : fetched
+  }
+
+  async function load(name: string): Promise<acquire.Package | undefined> {
+    try {
+      const response = await fetch(`${options.endpoint ?? '/api/types'}/${name}`)
+      if (!response.ok) return undefined
+      const body = (await response.json()) as { files: Record<string, string>; name: string }
+      return { files: body.files, name: body.name }
+    } catch {
+      // An import that cannot be resolved leaves its types as `any`, which is
+      // what the editor already shows before any of this runs.
+      return undefined
+    }
+  }
+}
+
+export declare namespace acquire {
+  type Options = {
+    /** The document whose imports to resolve. */
+    code: string
+    /** A TypeScript module, used to read imports out of source. */
+    compiler: typeof ts
+    /** The virtual file system to fill, keyed by absolute path. */
+    files: Map<string, string>
+    /** Where the types route is mounted. Defaults to `/api/types`. */
+    endpoint?: string | undefined
+    /** Called as packages land, for a caller that shows progress. */
+    onProgress?: ((loaded: number, total: number) => void) | undefined
+  }
+
+  /** A package's declarations, keyed by path relative to its root. */
+  type Package = {
+    files: Record<string, string>
+    name: string
+  }
+}
+
+/**
+ * The packages a source file imports. Relative paths are already on disk once
+ * their package arrives, and the compiler resolves its own lib references.
+ * A `node:` specifier names a runtime builtin, which npm has no package for.
+ */
+function references(compiler: typeof ts, code: string) {
+  const info = compiler.preProcessFile(code, true, true)
+  return info.importedFiles
+    .concat(info.referencedFiles)
+    .map((file) => file.fileName)
+    .filter((name) => !name.startsWith('.') && !name.startsWith('/') && !name.startsWith('node:'))
+    .map(bare)
+}
+
+/** `shiki/core` lives in the `shiki` package; a scope keeps two segments. */
+function bare(specifier: string) {
+  const parts = specifier.split('/')
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier)
+}
+
+/** DefinitelyTyped flattens a scope: `@shikijs/core` is `shikijs__core`. */
+function mangle(name: string) {
+  return name.startsWith('@') ? name.slice(1).replace('/', '__') : name
+}
