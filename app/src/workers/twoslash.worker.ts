@@ -1,14 +1,17 @@
 import * as Twoslash from 'monoshot/twoslash'
+import ts from 'typescript'
 import { createTwoslashFromCDN } from 'twoslash-cdn'
 import { createStorage } from 'unstorage'
 import indexedDb from 'unstorage/drivers/indexedb'
 
+import { acquire } from '#/lib/twoslash/acquire.js'
 import type { Request, Response } from '#/lib/twoslash/protocol.js'
 
 /**
- * Acquired type packages survive the tab: they are fetched from a CDN, and
- * paying that on every reload would make the first annotation of a session
- * cost seconds.
+ * The compiler's own lib files survive the tab: they are over a hundred
+ * requests to a CDN, and paying that on every reload would make the first
+ * annotation of a session cost seconds. Package types are cached by the route
+ * that serves them instead.
  */
 const storage = createStorage({ driver: indexedDb({ base: 'monoshot:twoslash' }) })
 
@@ -18,7 +21,14 @@ const storage = createStorage({ driver: indexedDb({ base: 'monoshot:twoslash' })
  */
 const compilerOptions = { lib: ['esnext', 'dom'], module: 99, target: 99 }
 
+/**
+ * The compiler's file system, held here so acquired packages can be written
+ * into it directly rather than through the CDN acquisition this replaces.
+ */
+const files = new Map<string, string>()
+
 const twoslash = createTwoslashFromCDN({
+  fsMap: files,
   // This copy only decides which lib files are fetched, and defaults to ES5
   // when it has no target. `lib` has to be spelled out so the set fetched is
   // the set the compiler then asks for: a mismatch leaves it with no `Promise`
@@ -71,7 +81,7 @@ async function resolve(request: Request) {
     await twoslash.init()
     const first = annotate(request)
     reply(first)
-    void acquire(request, first)
+    void upgrade(request, first)
   } catch (cause) {
     reply(failure(request, cause))
   }
@@ -80,15 +90,14 @@ async function resolve(request: Request) {
 /**
  * Fetches the types for a document's imports, then answers again with them.
  *
- * Acquisition walks a package's declaration files one request at a time, which
- * is hundreds of round trips for a package like `shiki`, so it never gates the
- * first answer: that one lands with the document's own types, and this one
- * replaces it. Deliberately not awaited by the queue, which stays free to
- * answer the next keystroke while this runs.
+ * Still a second stage rather than a precondition: even one request per
+ * package is slower than drawing the document, so the first answer never waits
+ * on it. Deliberately not awaited by the queue, which stays free to answer the
+ * next keystroke while this runs.
  */
-async function acquire(request: Request, first: Response) {
+async function upgrade(request: Request, first: Response) {
   try {
-    await twoslash.prepareTypes(request.code)
+    await acquire({ code: request.code, compiler: ts, files })
     // A newer document is already being answered, and brings its own upgrade.
     if (request.version !== version) return
     const upgraded = annotate(request)
