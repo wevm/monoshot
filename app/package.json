@@ -27,10 +27,14 @@
     "@zumer/snapdom": "catalog:",
     "highlight.js": "catalog:",
     "hono": "catalog:",
+    "idb-keyval": "catalog:",
     "monoshot": "workspace:*",
     "motion": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "twoslash-cdn": "catalog:",
+    "typescript": "catalog:",
+    "unstorage": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",

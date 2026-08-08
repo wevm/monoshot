@@ -1,58 +1,58 @@
-import { StateEffect, StateField } from '@codemirror/state'
-import type { EditorState, Text } from '@codemirror/state'
+import { StateField } from '@codemirror/state'
+import type { EditorState, Extension } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import { type as lookup } from './hover.js'
-import type { Types } from './hover.js'
+import * as Types from './types.js'
 
-/** Sets the types a `^?` caret can resolve to, keyed by identifier. */
-export const setQuery = StateEffect.define<Types>()
+const field = StateField.define<Value>({
+  create: () => ({ decorations: Decoration.none, lines: [] }),
+  update(value, transaction) {
+    // A caret line can appear or move with any edit, so the set is rebuilt
+    // rather than mapped. The types are read from the shared field rather than
+    // a copy taken when they arrived, so an edit reaches them too.
+    if (
+      !transaction.docChanged &&
+      transaction.state.field(Types.types) === transaction.startState.field(Types.types)
+    )
+      return value
+    return build(transaction.state)
+  },
+  provide: (self) => [
+    EditorView.decorations.from(self, (value) => value.decorations),
+    // A replaced line still holds its characters, so without this the caret
+    // walks into the hidden `^?` and Backspace corrupts it unseen.
+    EditorView.atomicRanges.of((view) => view.state.field(self).decorations),
+  ],
+})
 
 /**
  * Replaces a `^?` comment line with the type it asks about. The line is not
  * code, so it is replaced rather than decorated, and the block sits in flow so
  * an export carries it the same way the editor shows it.
  */
-export const query = StateField.define<Value>({
-  create: () => ({ decorations: Decoration.none, lines: [], types: {} }),
-  update(value, transaction) {
-    for (const effect of transaction.effects)
-      if (effect.is(setQuery)) return build(transaction.state.doc, effect.value)
-    if (!transaction.docChanged) return value
-    // A caret line can appear or move with any edit, so the set is rebuilt
-    // rather than mapped; only the types arrive out of band.
-    return build(transaction.state.doc, value.types)
-  },
-  provide: (field) => [
-    EditorView.decorations.from(field, (value) => value.decorations),
-    // A replaced line still holds its characters, so without this the caret
-    // walks into the hidden `^?` and Backspace corrupts it unseen.
-    EditorView.atomicRanges.of((view) => view.state.field(field).decorations),
-  ],
-})
+export const query: Extension = [Types.types, field]
 
 /**
  * The number a line shows in the gutter. A pinned type stands in for its `^?`
  * line, so that line takes no number and the code after it keeps counting.
  */
 export function number(line: number, state: EditorState): string {
-  const { lines } = state.field(query)
+  const { lines } = state.field(field)
   if (lines.includes(line)) return ''
   return String(line - lines.filter((pinned) => pinned < line).length)
 }
 
-/** The types ride with the decorations, so an edit can rebuild them. */
 type Value = {
   decorations: DecorationSet
   /** Document lines a pinned type replaced, in order. */
   lines: readonly number[]
-  types: Types
 }
 
-function build(doc: Text, types: Types): Value {
+function build(state: EditorState): Value {
+  const { doc } = state
   const ranges = []
   const lines = []
   for (let line = 1; line <= doc.lines; line++) {
@@ -61,8 +61,12 @@ function build(doc: Text, types: Types): Value {
     if (column === undefined) continue
     // A caret pointing at nothing stays the comment it is, rather than
     // collapsing into an empty box.
-    const type = lookup(types, Identifier.queried(doc, line, column)?.name ?? '')
-    if (!type) continue
+    // The caret addresses the line above, which is where the type belongs.
+    const above = line > 1 ? doc.line(line - 1) : undefined
+    const target = above && above.from + Math.min(column, above.length)
+    const found = target === undefined ? undefined : Types.at(state, target)
+    if (!found) continue
+    const type = found.annotation
     lines.push(line)
     ranges.push(
       Decoration.replace({ block: true, widget: new Block(type, column) }).range(
@@ -71,7 +75,7 @@ function build(doc: Text, types: Types): Value {
       ),
     )
   }
-  return { decorations: Decoration.set(ranges, true), lines, types }
+  return { decorations: Decoration.set(ranges, true), lines }
 }
 
 class Block extends WidgetType {

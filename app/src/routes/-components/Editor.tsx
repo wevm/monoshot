@@ -8,9 +8,10 @@ import { useEffect, useRef } from 'react'
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
-import type { Types } from '#/lib/editor/hover.js'
-import { number, query as queries, setQuery } from '#/lib/editor/query.js'
+import { number, query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
+import { setTypes } from '#/lib/editor/types.js'
+import type { Types } from '#/lib/editor/types.js'
 
 const styles = stylex.create({
   root: {
@@ -30,7 +31,6 @@ export function Editor(props: Editor.Props) {
   onChange.current = onCodeChange
   const palettes = useRef(new Compartment()).current
   const gutters = useRef(new Compartment()).current
-  const hovers = useRef(new Compartment()).current
 
   useEffect(() => {
     const parent = host.current
@@ -47,7 +47,7 @@ export function Editor(props: Editor.Props) {
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           queries,
-          hovers.of(hover(types)),
+          hover,
           gutters.of(lineNumbers ? gutter({ formatNumber: number }) : []),
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
@@ -76,10 +76,8 @@ export function Editor(props: Editor.Props) {
   }, [gutters, lineNumbers])
 
   useEffect(() => {
-    view.current?.dispatch({
-      effects: [hovers.reconfigure(hover(types)), setQuery.of(types)],
-    })
-  }, [hovers, types])
+    view.current?.dispatch({ effects: setTypes.of(types) })
+  }, [types])
 
   // A code change from outside, such as restoring a shared snippet.
   useEffect(() => {

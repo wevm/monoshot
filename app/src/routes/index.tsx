@@ -5,9 +5,9 @@ import type { BundledLanguage } from 'shiki'
 import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { types } from '#/lib/annotations.js'
-import { detect, languages, typed } from '#/lib/detect.js'
+import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
+import * as Twoslash from '#/lib/twoslash/client.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -168,9 +168,11 @@ const styles = stylex.create({
   controlsInner: { pointerEvents: 'auto' },
 })
 
-/** No types outside the TypeScript family, held still so the editor is not
- * reconfigured with a fresh object on every render. */
-const empty = {}
+/** Held still so the editor is not reconfigured with a fresh array each render. */
+const empty: Editor.Props['types'] = []
+
+/** The dialect the language service should read a document as. */
+const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } as const
 
 /** Everything on screen that a shared link carries, less the code and title. */
 type Settings = Toolbar.State & { padding: number; radius: number; width: number }
@@ -186,7 +188,7 @@ type Artwork = {
   palette: Theme.derive.Result
   settings: Settings
   title: string
-  types: Editor.Props['types']
+  types: Frame.Code.Props['types']
 }
 
 /**
@@ -196,6 +198,8 @@ type Artwork = {
  */
 type Capture = {
   code: string
+  /** The types `code` asked for with `^?`, still unpainted. */
+  queries: Twoslash.Result['queries']
   language: BundledLanguage
   options: Export.capture.Options
   settings: Settings
@@ -266,18 +270,35 @@ const themes = Theme.list()
 const names = themes.map((entry) => entry.name)
 
 /**
- * The pinned types, tokenized in one theme so they are painted in its colors
- * rather than a flat foreground. Their text does not change with the document,
- * so a theme is all this needs.
+ * The resolved types, tokenized so they are painted in the theme's colors
+ * rather than a flat foreground. Distinct texts only: a type repeated across
+ * the document is one signature to tokenize.
  */
-async function paint(theme: Settings['theme']): Promise<Editor.Props['types']> {
+async function paint(
+  theme: Settings['theme'],
+  annotations: Twoslash.Result['hovers'],
+): Promise<Editor.Props['types']> {
   const entries = await Promise.all(
-    Object.entries(types).map(async ([name, type]) => {
-      const result = await renderer.tokens({ code: type, lang: 'ts', theme })
-      return [name, result.tokens] as const
+    [...new Set(annotations.map((annotation) => annotation.text))].map(async (text) => {
+      const result = await renderer.tokens({ code: text, lang: 'ts', theme })
+      return [text, result.tokens] as const
     }),
   )
-  return Object.fromEntries(entries)
+  const painted = new Map(entries)
+  return annotations.map((annotation) => ({
+    annotation: painted.get(annotation.text) ?? [],
+    from: annotation.from,
+    to: annotation.to,
+  }))
+}
+
+/**
+ * The same types keyed by the identifier they describe, which is what the
+ * exported markup resolves a `^?` query against: it walks shiki's lines and
+ * has no document offsets to match on.
+ */
+function named(code: string, types: Editor.Props['types']): Frame.Code.Props['types'] {
+  return Object.fromEntries(types.map((span) => [code.slice(span.from, span.to), span.annotation]))
 }
 
 function Page() {
@@ -299,7 +320,9 @@ function Page() {
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
   }>()
-  const [annotations, setAnnotations] = useState<Editor.Props['types']>({})
+  const [annotations, setAnnotations] = useState<Editor.Props['types']>(empty)
+  const [resolved, setResolved] = useState<Twoslash.Resolved>()
+  const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
   // Export failures speak for themselves: sharing `error` would swap the
   // artwork for the highlighter's fallback and leave it there.
@@ -351,31 +374,66 @@ function Page() {
     }
   }, [code, language, settings.theme])
 
-  // Once per theme rather than on every keystroke: the types the editor shows
-  // do not change with the document.
+  // The language service runs in a worker: it carries the TypeScript compiler,
+  // which would block typing on this thread. Debounced, because resolving a
+  // document costs more than drawing one.
   useEffect(() => {
+    // Anything still in flight was asked about the previous document, so it is
+    // dropped here rather than when its replacement goes out: the debounce is
+    // long enough for a stale answer to land inside it.
+    resolver.current?.invalidate()
+    const dialect = dialects[language as keyof typeof dialects]
+    if (!dialect) {
+      setResolved(undefined)
+      return
+    }
+    // A failure leaves the types belonging to a document that is no longer on
+    // screen, so they go rather than stand in for the current one.
+    resolver.current ??= Twoslash.create({
+      onError: () => setResolved(undefined),
+      onResult: setResolved,
+    })
+    const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
+    return () => clearTimeout(timer)
+  }, [code, language])
+
+  useEffect(() => () => resolver.current?.dispose(), [])
+
+  // Types are painted in the theme's own colors rather than a flat foreground.
+  // Tokenized per distinct type rather than per span, since a document repeats
+  // the same handful of types across many identifiers.
+  useEffect(() => {
+    if (!resolved) {
+      setAnnotations(empty)
+      return
+    }
+    // Painting is a second asynchronous stage: a theme's TypeScript grammar
+    // can still be loading. The spans are offsets into the document that was
+    // resolved, so an edit reruns this and drops them rather than marking the
+    // wrong words. The editor keeps mapping the spans it already holds.
+    if (resolved.document !== code) return
     let active = true
-    void paint(settings.theme).then((painted) => {
+    void paint(settings.theme, resolved.result.hovers).then((painted) => {
       if (active) setAnnotations(painted)
     })
     return () => {
       active = false
     }
-  }, [settings.theme])
+  }, [code, resolved, settings.theme])
 
   /**
    * Renders the frame away from the page and captures that, so an export
    * carries the artwork rather than the editor's caret, selection, and handles.
    */
   async function draw(capture: Capture) {
-    const { code, language, options, settings, title } = capture
+    const { code, language, options, queries, settings, title } = capture
     const { theme } = settings
     // The effects that fill `frame` and `annotations` trail a theme change, so
     // an export started right after one would pair new code colors with the
     // previous theme's backdrop and pinned types. Both come from this theme.
     const [rendered, pinned] = await Promise.all([
       renderer.render({ code, lang: language, theme }),
-      typed(language) ? paint(theme) : empty,
+      paint(theme, queries),
     ])
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
@@ -384,7 +442,7 @@ function Page() {
         palette: Theme.derive(rendered.theme),
         settings,
         title,
-        types: pinned,
+        types: named(code, pinned),
       }),
     )
     try {
@@ -420,7 +478,11 @@ function Page() {
     // Read now rather than when the queue reaches this export: the page stays
     // editable while an earlier one runs, and this one is of the moment it was
     // asked for.
-    const capture: Capture = { code, language, options, settings, title }
+    // The exported markup turns `^?` lines into blocks, so it wants the
+    // queries rather than every identifier's type. Only ones resolved against
+    // this document: an older answer's offsets would mark the wrong words.
+    const queries = resolved?.document === code ? resolved.result.queries : []
+    const capture: Capture = { code, language, options, queries, settings, title }
     const run = Promise.resolve(pending.current)
       .catch(() => {})
       .then(() => draw(capture))
@@ -732,7 +794,7 @@ function Page() {
                   onCodeChange={setCode}
                   palette={frame.palette}
                   tokens={frame.tokens}
-                  types={typed(language) ? annotations : empty}
+                  types={annotations}
                 />
               </Frame>
             </div>

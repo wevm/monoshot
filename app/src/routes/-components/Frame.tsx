@@ -9,7 +9,6 @@ import type {
 import { useEffect, useRef, useState } from 'react'
 
 import * as Annotation from '#/lib/editor/annotation.js'
-import { type as lookup } from '#/lib/editor/hover.js'
 import * as Identifier from '#/lib/editor/identifier.js'
 import { ignore } from '#/lib/export.js'
 import { text } from '#/theme/text.js'
@@ -526,7 +525,7 @@ export namespace Frame {
           column === undefined
             ? undefined
             : Identifier.atColumn(above, Math.min(column, above.length))
-        const annotation = identifier && types && lookup(types, identifier.name)
+        const annotation = identifier && types?.[identifier.name]
         if (column === undefined || !annotation) {
           // Every consumed query line shifts the numbering of the rest up. A
           // converted line has no number left to read, and the effect runs
