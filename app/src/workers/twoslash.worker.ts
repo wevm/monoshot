@@ -41,9 +41,12 @@ const twoslash = createTwoslashFromCDN({
  */
 let pending: Request | undefined
 let running = false
+/** The newest document asked about, so a late upgrade knows it is stale. */
+let version = 0
 
 self.addEventListener('message', (event: MessageEvent<Request>) => {
   pending = event.data
+  version = event.data.version
   void drain()
 })
 
@@ -63,13 +66,52 @@ async function drain() {
 
 async function resolve(request: Request) {
   try {
-    const result = await twoslash.run(request.code, request.lang)
-    reply({ result: Twoslash.annotate(result), version: request.version })
+    // Only the lib files, which the compiler needs before it can resolve
+    // anything at all. Acquiring a package's types is a separate stage.
+    await twoslash.init()
+    const first = annotate(request)
+    reply(first)
+    void acquire(request, first)
   } catch (cause) {
-    reply({
-      error: cause instanceof Error ? cause.message : String(cause),
-      version: request.version,
-    })
+    reply(failure(request, cause))
+  }
+}
+
+/**
+ * Fetches the types for a document's imports, then answers again with them.
+ *
+ * Acquisition walks a package's declaration files one request at a time, which
+ * is hundreds of round trips for a package like `shiki`, so it never gates the
+ * first answer: that one lands with the document's own types, and this one
+ * replaces it. Deliberately not awaited by the queue, which stays free to
+ * answer the next keystroke while this runs.
+ */
+async function acquire(request: Request, first: Response) {
+  try {
+    await twoslash.prepareTypes(request.code)
+    // A newer document is already being answered, and brings its own upgrade.
+    if (request.version !== version) return
+    const upgraded = annotate(request)
+    // A document that imports nothing acquires nothing, so this answer repeats
+    // the one already sent. Sending it again would repaint every keystroke.
+    if (JSON.stringify(upgraded) === JSON.stringify(first)) return
+    reply(upgraded)
+  } catch (cause) {
+    if (request.version === version) reply(failure(request, cause))
+  }
+}
+
+function annotate(request: Request): Response {
+  return {
+    result: Twoslash.annotate(twoslash.runSync(request.code, request.lang)),
+    version: request.version,
+  }
+}
+
+function failure(request: Request, cause: unknown): Response {
+  return {
+    error: cause instanceof Error ? cause.message : String(cause),
+    version: request.version,
   }
 }
 

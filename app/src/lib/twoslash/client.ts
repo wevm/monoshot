@@ -73,14 +73,6 @@ export function create(options: create.Options): create.ReturnType {
       if ('error' in event.data) onError?.(event.data.error)
       else onResult({ document: latest, result: event.data.result })
     })
-    // A worker that fails to start never sends a protocol message, so it is
-    // dropped here instead. Holding on to it would post every later document
-    // into a dead instance; cleared, the next edit spawns a replacement.
-    instance.addEventListener('error', (event) => {
-      instance.terminate()
-      if (worker === instance) worker = undefined
-      onError?.(event.message)
-    })
     // A worker that fails before its own handler runs, because its chunk will
     // not load or its module scope throws, reports here rather than in a reply.
     // Without this a caller waiting on the current document waits forever.
