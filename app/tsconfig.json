@@ -8,7 +8,8 @@
     "types": ["@types/node", "vite-plus/test/globals"],
     "paths": {
       "#/*": ["./src/*"],
-      "monoshot": ["../src/index.ts"]
+      "monoshot": ["../src/index.ts"],
+      "monoshot/twoslash": ["../src/Twoslash.ts"]
     },
 
     "noUncheckedIndexedAccess": true,

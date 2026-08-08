@@ -51,6 +51,11 @@
       "src": "./src/Headless.ts",
       "types": "./dist/Headless.d.ts",
       "default": "./dist/Headless.js"
+    },
+    "./twoslash": {
+      "src": "./src/Twoslash.ts",
+      "types": "./dist/Twoslash.d.ts",
+      "default": "./dist/Twoslash.js"
     }
   },
   "sideEffects": false,
@@ -64,13 +69,18 @@
     "culori": "catalog:",
     "lz-string": "catalog:",
     "shiki": "catalog:",
+    "twoslash": "catalog:",
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "puppeteer-core": "^25.0.0"
+    "puppeteer-core": "^25.0.0",
+    "typescript": "^5.5.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
     "puppeteer-core": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   }
