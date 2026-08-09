@@ -85,6 +85,16 @@
 - Keep examples small and focused on the exported behavior.
 - Update the owning entrypoint documentation when adding or changing a public module.
 
+## Prose Conventions
+
+Applies to comments, TSDoc, commit messages, and pull requests.
+
+- Write about the code, not about the person using it. Avoid second person.
+- Describe behavior in technical terms rather than by the experience it produces. Prefer `answers before acquisition finishes` over `keeps the editor feeling fast`.
+- State an invariant or a reason the code cannot show on its own. Leave out justification the code already makes plain.
+- Vary sentence construction. One shape repeated across a file, such as an assertion followed by a colon and its reason, reads as a writing style rather than as information.
+- Keep pull request titles and descriptions to the change and its technical reason. Omit product framing.
+
 ## Testing Conventions
 
 - Colocate unit and type tests with the module they cover.
