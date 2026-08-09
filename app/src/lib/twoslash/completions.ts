@@ -4,16 +4,13 @@ import type ts from 'typescript'
 import type { Completion, Lang } from './protocol.js'
 
 /**
- * The highest priority the language service gives something reachable from
- * the caret: `10` is declared locally and `11` is otherwise in scope, which
- * covers a document's own values and what it imports. From `15` up are
- * globals, keywords, and auto-imports, and on an empty line that is some nine
- * hundred names nobody is reaching for.
+ * Where the language service stops offering things reachable from the caret.
+ * Below this are the priorities specific to a position: locally declared,
+ * otherwise in scope, optional members, members from a spread, and suggested
+ * class members. From here up are globals, keywords, and auto-imports, which
+ * on an empty line is some nine hundred names nobody is reaching for.
  */
-const inScope = '11'
-
-/** Enough entries for any real member list, and a bound on a pathological one. */
-const limit = 100
+const global = '15'
 
 /**
  * Opens a language service over a virtual file system.
@@ -57,10 +54,22 @@ export function create(options: create.Options): create.ReturnType {
       if (service.getSourceFile(path)?.text !== code) service.updateFile(path, code)
       const found = service.languageService.getCompletionsAtPosition(path, position, {})
       if (!found) return []
+      // Uncapped: the editor filters by what has been typed and windows the
+      // list itself, and a cap here would hide the one entry a prefix matches.
       return found.entries
-        .filter((entry) => entry.sortText <= inScope)
-        .slice(0, limit)
-        .map((entry): Completion => ({ kind: entry.kind, label: entry.name }))
+        .filter((entry) => entry.sortText < global)
+        .map((entry): Completion => {
+          // What the service would insert can differ from what it displays, as
+          // it does for a private `#field` or a quoted member, and the span it
+          // replaces can start before the caret's own word.
+          const span = entry.replacementSpan
+          return {
+            kind: entry.kind,
+            label: entry.name,
+            ...(entry.insertText === undefined ? {} : { insert: entry.insertText }),
+            ...(span ? { from: span.start, to: span.start + span.length } : {}),
+          }
+        })
     },
     forget() {
       environment = undefined

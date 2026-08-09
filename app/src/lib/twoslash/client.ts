@@ -38,6 +38,7 @@ export function create(options: create.Options): create.ReturnType {
     dispose() {
       worker?.terminate()
       worker = undefined
+      settle()
     },
     complete(code, lang, position) {
       const instance = start()
@@ -58,6 +59,12 @@ export function create(options: create.Options): create.ReturnType {
       if (!instance) return
       instance.postMessage({ code, kind: 'resolve', lang, version } satisfies Request)
     },
+  }
+
+  /** Answers every completion still waiting, so none is left pending. */
+  function settle() {
+    for (const resolve of waiting.values()) resolve([])
+    waiting.clear()
   }
 
   function start() {
@@ -102,9 +109,14 @@ export function create(options: create.Options): create.ReturnType {
         worker = undefined
         instance.terminate()
       }
+      // Nothing is coming for what was already asked. A completion left
+      // pending would keep its menu open on a promise that never settles, and
+      // the hover stays suppressed for as long as one is in flight.
+      settle()
       onError?.(event.message || 'The type resolver could not start.')
     })
     instance.addEventListener('messageerror', () => {
+      settle()
       onError?.('The type resolver sent a reply that could not be read.')
     })
     return instance

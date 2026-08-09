@@ -10,9 +10,12 @@ const unit = '  '
  * The code is colored from shiki tokens rather than parsed, so there is no
  * syntax tree to ask where a line belongs. This reads the shape instead: carry
  * the previous line's indentation, one level deeper after a line that opens a
- * bracket and one shallower on a line that closes one. That is what a plain
+ * block and one shallower on a line that closes one. That is what a plain
  * editor does, and it holds for every language the picker offers rather than
  * the few a parser would cover.
+ *
+ * It only ever adds a level. Leaving one is the editor's own outdent, since
+ * nothing here knows where a Python block ends.
  */
 export const indent: Extension = [
   indentUnit.of(unit),
@@ -32,8 +35,13 @@ export const indent: Extension = [
     while (line.text.trim() === '' && line.from > 0) line = context.lineAt(line.from - 1, -1)
     if (line.text.trim() === '') return 0
 
-    const indentation = /^\s*/.exec(line.text)?.[0].length ?? 0
-    const opens = /[([{]\s*$/.test(line.text)
+    // Counted in columns rather than characters: a shared snippet can be
+    // indented with tabs, and one tab is several columns wide.
+    const indentation = context.lineIndent(line.from, -1)
+    // A trailing colon opens a block in Python, YAML, and the rest of the
+    // indentation-delimited languages the picker offers, and it is what a
+    // `case` or a label opens in a bracketed one.
+    const opens = /[([{:]\s*$/.test(line.text)
     // A closer already sitting at the caret belongs one level out, which is
     // what puts `}` under its opener when a pair is split across lines.
     const closes = !between && /^\s*[)\]}]/.test(context.state.doc.sliceString(pos, pos + 2))

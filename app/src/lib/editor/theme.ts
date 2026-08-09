@@ -50,8 +50,15 @@ export function theme(palette: Theme.derive.Result): Extension {
         backgroundColor: 'transparent',
         borderRight: 'none',
         color: palette.window.foreground,
+        // The editor reaches past the window's inset so a pin has room to
+        // paint; the gutter takes the inset back, so its numbers sit where the
+        // exported frame draws them rather than against the window's edge.
+        marginLeft: 'var(--editor-inset)',
         opacity: 0.4,
       },
+      // With a gutter the code is already inset by it, and the room a pin
+      // needs is the gutter's own width.
+      '&:has(.cm-gutters) .cm-content': { paddingLeft: 0 },
       '.cm-lineNumbers .cm-gutterElement': { minWidth: '2ch', paddingInline: '0 20px' },
       // A selection has to read against every bundled theme, so it tints the
       // theme's own border color rather than picking a color of its own.

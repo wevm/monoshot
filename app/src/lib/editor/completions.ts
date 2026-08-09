@@ -1,6 +1,7 @@
 import { autocompletion } from '@codemirror/autocomplete'
 import type { CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import type { Extension } from '@codemirror/state'
+import type { EditorView } from '@codemirror/view'
 
 import type { Completion } from '#/lib/twoslash/protocol.js'
 
@@ -27,6 +28,21 @@ export function completions(ask: completions.Ask): Extension {
           options: found.map((entry) => ({
             label: entry.label,
             ...(kinds[entry.kind] ? { type: kinds[entry.kind] } : {}),
+            // The service decides both what to insert and what it replaces,
+            // which for a private `#field` or a quoted member is neither the
+            // label nor the word the editor matched on.
+            ...(entry.insert === undefined && entry.from === undefined
+              ? {}
+              : {
+                  apply: (view: EditorView, _completion: unknown, from: number, to: number) =>
+                    view.dispatch({
+                      changes: {
+                        from: entry.from ?? from,
+                        insert: entry.insert ?? entry.label,
+                        to: entry.to ?? to,
+                      },
+                    }),
+                }),
           })),
         }
       },
