@@ -14,17 +14,23 @@ export function problems(
   diagnostics: readonly Twoslash.Diagnostic[],
 ): TransactionSpec {
   const end = state.doc.length
+  // An empty document has no character to mark, so there is nothing to draw on.
+  if (end === 0) return setDiagnostics(state, [])
   return setDiagnostics(
     state,
-    diagnostics
-      .filter((diagnostic) => diagnostic.from < end)
-      .map((diagnostic) => ({
-        from: Math.max(0, Math.min(diagnostic.from, end)),
+    diagnostics.map((diagnostic) => {
+      // At least one character wide, so a zero-length range still shows. An
+      // unfinished snippet puts its complaint at the very end, past the last
+      // character, and that marker takes the character before it rather than
+      // being dropped for having nowhere to sit.
+      const to = Math.min(Math.max(diagnostic.to, diagnostic.from + 1), end)
+      return {
+        from: Math.max(0, Math.min(diagnostic.from, to - 1)),
         message: diagnostic.text,
         severity: severity[diagnostic.level],
-        // At least one character wide, so a zero-length range still shows.
-        to: Math.min(Math.max(diagnostic.to, diagnostic.from + 1), end),
-      })),
+        to,
+      }
+    }),
   )
 }
 

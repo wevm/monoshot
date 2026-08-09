@@ -14,8 +14,8 @@ export type Annotation = {
 
 /** Something the compiler objected to, against the source as written. */
 export type Diagnostic = {
-  /** The TypeScript error number, such as 2322. */
-  code: number | string
+  /** The TypeScript error number, such as 2322. Absent when the compiler gave none. */
+  code?: number | string | undefined
   /** Offset into the source as written, notations included. */
   from: number
   /** How loudly the compiler complained. */
@@ -130,11 +130,14 @@ export function annotate(result: annotate.Input): Result {
     const from = raw(node.start, removals)
     if (node.type === 'error') {
       diagnostics.push({
-        code: node.code ?? 0,
+        ...(node.code === undefined ? {} : { code: node.code }),
         from,
         level: node.level ?? 'error',
         text: node.text,
-        to: from + node.length,
+        // Mapped on its own rather than added to `from`: a message can span a
+        // notation line, and the length twoslash reports is measured in the
+        // source it compiled, which no longer holds that line.
+        to: raw(node.start + node.length, removals),
       })
       continue
     }
@@ -148,6 +151,9 @@ export function annotate(result: annotate.Input): Result {
     if (node.type === 'hover') hovers.push(annotation)
     else queries.push(annotation)
   }
+  // The contract says source order, and twoslash reports nodes in the order it
+  // found them, which for errors is the compiler's.
+  diagnostics.sort((a, b) => a.from - b.from)
   return { diagnostics, hovers, queries }
 }
 

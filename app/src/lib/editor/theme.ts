@@ -2,11 +2,7 @@ import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import type { Theme } from 'monoshot'
 
-/**
- * The squiggle color, one per surface type. A single red is either invisible
- * on a dark theme or shouting on a light one.
- */
-const squiggle = { dark: '#ff6b6b', light: '#c92a2a' } as const
+import { color } from '../../theme/tokens.stylex.js'
 
 /**
  * Dresses the editor as the window it sits in: the frame already paints the
@@ -55,8 +51,14 @@ export function theme(palette: Theme.derive.Result): Extension {
       },
       // Underline only: the default lint styling paints a background that
       // fights whatever the theme colors the token underneath.
-      '.cm-lintRange': { backgroundImage: 'none', paddingBottom: '2px' },
-      '.cm-lintRange-error': { textDecoration: `underline wavy ${squiggle[palette.type]}` },
+      '.cm-lintRange': { paddingBottom: '2px' },
+      // Only the error class trades CodeMirror's painted squiggle for an
+      // underline. A warning, a suggestion, and a message keep the default,
+      // which is the marker they would otherwise lose.
+      '.cm-lintRange-error': {
+        backgroundImage: 'none',
+        textDecoration: `underline wavy ${palette.type === 'dark' ? color.squiggleOnDark : color.squiggleOnLight}`,
+      },
       // The same surface a type gets: a message merges into the type's own
       // hover tooltip, and the two read as one popover or as neither. Matched
       // here rather than in the stylesheet, which the export shares and which

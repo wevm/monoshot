@@ -324,6 +324,11 @@ function Page() {
     tokens: Editor.Props['tokens']
   }>()
   const [annotations, setAnnotations] = useState<Editor.Props['types']>(empty)
+  // Kept rather than derived: a reply for a document that has been edited past
+  // carries offsets into text that is no longer on screen, so the last set
+  // that did match stays until one for this document arrives. The editor maps
+  // what it already holds through the edits between.
+  const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
   const [resolved, setResolved] = useState<Twoslash.Resolved>()
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
@@ -408,6 +413,7 @@ function Page() {
   useEffect(() => {
     if (!resolved) {
       setAnnotations(empty)
+      setDiagnostics(quiet)
       return
     }
     // Painting is a second asynchronous stage: a theme's TypeScript grammar
@@ -415,6 +421,7 @@ function Page() {
     // resolved, so an edit reruns this and drops them rather than marking the
     // wrong words. The editor keeps mapping the spans it already holds.
     if (resolved.document !== code) return
+    setDiagnostics(resolved.result.diagnostics)
     let active = true
     void paint(settings.theme, resolved.result.hovers).then((painted) => {
       if (active) setAnnotations(painted)
@@ -793,10 +800,7 @@ function Page() {
               >
                 <Editor
                   code={code}
-                  // Not gated on the document matching: the editor maps these
-                  // through later edits, so they follow the words they are
-                  // about rather than blinking out on every keystroke.
-                  diagnostics={resolved?.result.diagnostics ?? quiet}
+                  diagnostics={diagnostics}
                   lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
                   palette={frame.palette}

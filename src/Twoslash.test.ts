@@ -189,6 +189,7 @@ describe('annotate', () => {
 
   test('reads an error onto the source as written', () => {
     const nodes = [
+      // Spans one of the cuts, so its end shifts further than its start.
       {
         code: 2322,
         length: 6,
@@ -199,23 +200,31 @@ describe('annotate', () => {
       },
       // Severity is optional, and an absent one is an error.
       { code: 6133, length: 1, start: 0, text: 'Declared but never read.', type: 'error' },
+      // So is the code, and an absent one is left absent rather than made up.
+      { length: 1, start: 1, text: 'Unnumbered.', type: 'error' },
     ]
-    // Offsets shift past the notation cuts `input` carries, exactly as hovers do.
+    // In source order, whatever order the compiler reported them in.
     expect(Twoslash.annotate({ ...input, nodes }).diagnostics).toMatchInlineSnapshot(`
       [
-        {
-          "code": 2322,
-          "from": 3,
-          "level": "error",
-          "text": "Not assignable.",
-          "to": 9,
-        },
         {
           "code": 6133,
           "from": 0,
           "level": "error",
           "text": "Declared but never read.",
           "to": 1,
+        },
+        {
+          "from": 1,
+          "level": "error",
+          "text": "Unnumbered.",
+          "to": 2,
+        },
+        {
+          "code": 2322,
+          "from": 3,
+          "level": "error",
+          "text": "Not assignable.",
+          "to": 14,
         },
       ]
     `)
