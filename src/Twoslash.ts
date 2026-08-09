@@ -137,7 +137,7 @@ export function annotate(result: annotate.Input): Result {
         // Mapped on its own rather than added to `from`: a message can span a
         // notation line, and the length twoslash reports is measured in the
         // source it compiled, which no longer holds that line.
-        to: raw(node.start + node.length, removals),
+        to: rawEnd(node.start + node.length, removals),
       })
       continue
     }
@@ -200,5 +200,16 @@ export declare namespace annotate {
 function raw(offset: number, removals: readonly (readonly [number, number])[]): number {
   let mapped = offset
   for (const [start, end] of removals) if (start <= mapped) mapped += end - start
+  return mapped
+}
+
+/**
+ * The same for the exclusive end of a range. A cut beginning exactly where the
+ * range ends lies outside it, so the end stays before the cut instead of
+ * jumping over it and covering a notation the message never mentioned.
+ */
+function rawEnd(offset: number, removals: readonly (readonly [number, number])[]): number {
+  let mapped = offset
+  for (const [start, end] of removals) if (start < mapped) mapped += end - start
   return mapped
 }

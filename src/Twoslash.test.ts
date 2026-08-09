@@ -187,6 +187,24 @@ describe('annotate', () => {
     `)
   })
 
+  test('leaves an endpoint before a cut that begins where it ends', () => {
+    // Compiled span [3, 5) against a cut at [5, 10): the message stops where
+    // the notation starts, so it must not be stretched over it.
+    const nodes = [{ code: 2322, length: 2, start: 3, text: 'Not assignable.', type: 'error' }]
+    expect(Twoslash.annotate({ ...input, meta: { removals: [[5, 10]] }, nodes }).diagnostics)
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "code": 2322,
+          "from": 3,
+          "level": "error",
+          "text": "Not assignable.",
+          "to": 5,
+        },
+      ]
+    `)
+  })
+
   test('reads an error onto the source as written', () => {
     const nodes = [
       // Spans one of the cuts, so its end shifts further than its start.

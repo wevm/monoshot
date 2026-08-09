@@ -420,7 +420,11 @@ function Page() {
     // can still be loading. The spans are offsets into the document that was
     // resolved, so an edit reruns this and drops them rather than marking the
     // wrong words. The editor keeps mapping the spans it already holds.
-    if (resolved.document !== code) return
+    // The dialect too, not just the text: the same source is valid in one and
+    // an error in another, so a reply from before a language change describes
+    // a document this one no longer is.
+    if (resolved.document !== code || resolved.lang !== dialects[language as keyof typeof dialects])
+      return
     setDiagnostics(resolved.result.diagnostics)
     let active = true
     void paint(settings.theme, resolved.result.hovers).then((painted) => {
