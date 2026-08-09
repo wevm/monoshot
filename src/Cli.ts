@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { text } from 'node:stream/consumers'
 import { Cli } from 'incur'
-import type { BundledLanguage } from 'shiki'
+import type { BundledLanguage, BundledTheme } from 'shiki'
 import { bundledLanguagesInfo } from 'shiki'
 import * as z from 'zod'
 
@@ -99,6 +99,10 @@ export function create() {
       ],
       options: settings.extend({
         ...inline.shape,
+        browserArg: z
+          .array(z.string())
+          .optional()
+          .describe('Extra flag for the browser, such as `--no-sandbox`. Repeatable.'),
         executable: z.string().optional().describe('Path to a Chrome to render in.'),
         out: z
           .string()
@@ -113,26 +117,23 @@ export function create() {
       async run({ args, error, options }) {
         const code = await read(args.file, options.code)
         if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
-        const state = frame(args.file, code, options)
-        if (!state)
+        const resolved = frame(args.file, code, options)
+        if ('message' in resolved) return error(resolved)
+        const out = options.out ?? destination(args.file)
+        // Reading a file and then writing the image over it would leave the
+        // caller with neither.
+        if (args.file !== undefined && path.resolve(out) === path.resolve(args.file))
           return error({
-            code: 'unknown_language',
-            message: `\`${options.lang}\` is not a bundled language.`,
-          })
-        const theme = Theme.info(state.theme)
-        if (!theme)
-          return error({
-            code: 'unknown_theme',
-            message: `\`${state.theme}\` is not a bundled theme. \`monoshot themes\` lists every name.`,
+            code: 'output_collision',
+            message: 'The image would overwrite the snippet it was made from. Name an `--out`.',
           })
         // `error` returns its result rather than throwing, so a failed render
         // has to come back as a value the handler can return through.
         const image = await (async () => {
           try {
             return await Headless.render({
-              ...state,
-              lang: state.lang,
-              theme: theme.name,
+              ...resolved.state,
+              ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
               ...(options.executable === undefined ? {} : { executable: options.executable }),
               ...(options.scale === undefined ? {} : { scale: options.scale }),
             })
@@ -141,7 +142,6 @@ export function create() {
           }
         })()
         if (image instanceof Error) return error({ code: 'render_failed', message: image.message })
-        const out = options.out ?? destination(args.file)
         await fs.writeFile(out, image)
         return { bytes: image.length, path: out }
       },
@@ -191,19 +191,52 @@ export function create() {
     })
 }
 
+/** What stopped a command, in the shape `error` takes. */
+type Failure = { code: string; message: string }
+
 /**
- * Frame settings for a file, or nothing when the language is not one shiki
- * bundles. Both commands resolve `auto` here so a link and an image made from
- * the same file are tokenized the same way.
+ * Frame settings for a snippet, or what stopped them from resolving. Every
+ * command resolves here, so a link and an image made from the same file are
+ * described the same way.
  */
 function frame(
   file: string | undefined,
   code: string,
   options: z.output<typeof settings>,
-): (Codec.State & { lang: BundledLanguage }) | undefined {
+): { state: Codec.State & { lang: BundledLanguage; theme: BundledTheme } } | Failure {
   const state = Codec.schema.parse({ ...options, code })
+  // The codec falls back rather than failing, which a half-edited URL needs
+  // and a command does not: a flag that was replaced was never understood.
+  const replaced = ignored(options, state)
+  if (replaced.length > 0)
+    return {
+      code: 'invalid_settings',
+      message: `${replaced.map((flag) => `\`--${flag}\``).join(', ')} ${replaced.length === 1 ? 'is not a value' : 'are not values'} the frame accepts.`,
+    }
   const lang = language(state.lang, file)
-  return lang === undefined ? undefined : { ...state, lang }
+  if (lang === undefined)
+    return { code: 'unknown_language', message: `\`${state.lang}\` is not a bundled language.` }
+  const theme = Theme.info(state.theme)
+  if (theme === undefined)
+    return {
+      code: 'unknown_theme',
+      message: `\`${state.theme}\` is not a bundled theme. \`monoshot themes\` lists every name.`,
+    }
+  return { state: { ...state, lang, theme: theme.name } }
+}
+
+/**
+ * The flags the codec replaced with its own defaults, named as they were
+ * typed. `lang` is left out: resolving an alias to shiki's own id is a
+ * substitution the command makes on purpose.
+ */
+function ignored(options: z.output<typeof settings>, state: Codec.State): readonly string[] {
+  const asked = options as Record<string, unknown>
+  const kept = state as unknown as Record<string, unknown>
+  return Object.keys(state)
+    .filter((key) => key !== 'code' && key !== 'lang')
+    .filter((key) => asked[key] !== undefined && asked[key] !== kept[key])
+    .map((key) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`))
 }
 
 /**
@@ -214,13 +247,23 @@ function frame(
 async function link(
   file: string | undefined,
   options: z.output<typeof linked>,
-): Promise<{ url: string } | { code: string; message: string }> {
+): Promise<{ url: string } | Failure> {
   const code = await read(file, options.code)
   if (code instanceof Error) return { code: 'no_snippet', message: code.message }
-  const state = frame(file, code, options)
-  if (!state)
-    return { code: 'unknown_language', message: `\`${options.lang}\` is not a bundled language.` }
-  return { url: `${options.base ?? site}#${Codec.serialize(state)}` }
+  // A link carrying nothing opens the app's own sample, which is not what the
+  // caller asked to share.
+  if (code.trim() === '') return { code: 'empty_snippet', message: 'The snippet is empty.' }
+  const resolved = frame(file, code, options)
+  if ('message' in resolved) return resolved
+  const fragment = Codec.serialize(resolved.state)
+  // The decoder drops a fragment it considers oversized and restores defaults,
+  // so a link that does not survive a round trip is not worth handing over.
+  if (Codec.deserialize(fragment).code !== resolved.state.code)
+    return {
+      code: 'snippet_too_large',
+      message: 'The snippet is too large to carry in a link. Render it to an image instead.',
+    }
+  return { url: `${options.base ?? site}#${fragment}` }
 }
 
 /**
@@ -253,7 +296,7 @@ function destination(file: string | undefined): string {
 function language(name: string, file: string | undefined): BundledLanguage | undefined {
   if (name !== 'auto') return languages.get(name)
   if (file === undefined) return fallback
-  return languages.get(path.extname(file).slice(1)) ?? fallback
+  return languages.get(path.extname(file).slice(1).toLowerCase()) ?? fallback
 }
 
 /**
@@ -267,7 +310,13 @@ async function read(file: string | undefined, code: string | undefined): Promise
   if (file === undefined)
     return new Error('Name a file, pass `--code`, or pass `-` to read standard input.')
   try {
-    if (file === '-') return await text(process.stdin)
+    if (file === '-') {
+      // Serving MCP, standard input carries the protocol, and reading it here
+      // would take bytes the transport is waiting for.
+      if (process.argv.includes('--mcp'))
+        return new Error('Standard input is the MCP transport. Pass `--code` or name a file.')
+      return await text(process.stdin)
+    }
     return await fs.readFile(file, 'utf8')
   } catch (cause) {
     return cause instanceof Error ? cause : new Error(String(cause))

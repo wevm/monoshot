@@ -125,6 +125,61 @@ describe('create', () => {
       expect((output as { code: string }).code).toMatchInlineSnapshot(`"no_snippet"`)
     })
 
+    test('refuses a theme that is not bundled, rather than encoding it', async () => {
+      // The app replaces an unknown theme on restore, so the link would open
+      // something other than what was asked for.
+      const source = await file('demo.ts')
+      const { exit, output } = await run(['share', source, '--theme', 'nope'])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"unknown_theme"`)
+    })
+
+    test('refuses a setting the codec would silently replace', async () => {
+      const source = await file('demo.ts')
+      const { exit, output } = await run(['share', source, '--width', '200'])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "invalid_settings",
+          "message": "\`--width\` is not a value the frame accepts.",
+        }
+      `)
+    })
+
+    test('names every setting it could not accept', async () => {
+      const source = await file('demo.ts')
+      const { output } = await run(['share', source, '--width', '200', '--background', 'red'])
+      expect((output as { message: string }).message).toMatchInlineSnapshot(
+        `"\`--background\`, \`--width\` are not values the frame accepts."`,
+      )
+    })
+
+    test('refuses an empty snippet, which would open the sample', async () => {
+      const { exit, output } = await run(['share', '--code', '   '])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "empty_snippet",
+          "message": "The snippet is empty.",
+        }
+      `)
+    })
+
+    test('refuses a snippet the decoder would discard', async () => {
+      // Past the codec's fragment limit the whole payload is dropped on
+      // restore, so the link would open the app's defaults.
+      const long = Array.from({ length: 40_000 }, (_, index) => `id${index}`).join(' ')
+      const { exit, output } = await run(['share', '--code', long])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"snippet_too_large"`)
+    })
+
+    test('reads an extension whatever its case', async () => {
+      const source = await file('demo.PY', 'greeting = "hello"\n')
+      const { output } = await run(['share', source])
+      expect(settings((output as { url: string }).url).lang).toMatchInlineSnapshot(`"python"`)
+    })
+
     test('refuses a language shiki does not bundle', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['share', source, '--lang', 'klingon'])
@@ -168,6 +223,18 @@ describe('create', () => {
         {
           "code": "unknown_theme",
           "message": "\`nope\` is not a bundled theme. \`monoshot themes\` lists every name.",
+        }
+      `)
+    })
+
+    test('refuses to write the image over the snippet it came from', async () => {
+      const source = await file('demo.png', 'const a = 1\n')
+      const { exit, output } = await run(['render', source])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "output_collision",
+          "message": "The image would overwrite the snippet it was made from. Name an \`--out\`.",
         }
       `)
     })
