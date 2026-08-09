@@ -5,6 +5,7 @@ import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
+import { objection } from './problems.js'
 import * as Types from './types.js'
 
 /**
@@ -56,6 +57,9 @@ export const hover: Extension = [
       const found = Types.at(view.state, pos)
       const identifier = found && { from: found.from, to: found.to }
       if (!identifier || !found) return null
+      // Same rule against the compiler: a marked token already opens the
+      // message, and what is wrong with it is why it is worth hovering.
+      if (objection(view.state, identifier)) return null
       // A pinned type is already on screen, so hovering it would only cover
       // the block it is asking about.
       if (pinned(view, identifier)) return null
