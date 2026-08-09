@@ -82,7 +82,47 @@ describe('create', () => {
     test('falls back for a name that implies no language', async () => {
       const source = await file('demo')
       const { output } = await run(['share', source])
-      expect(settings((output as { url: string }).url).lang).toMatchInlineSnapshot(`"ts"`)
+      expect(settings((output as { url: string }).url).lang).toMatchInlineSnapshot(`"typescript"`)
+    })
+
+    test('takes the snippet inline, without a file', async () => {
+      const { output } = await run(['share', '--code', 'const a = 1', '--lang', 'ts'])
+      const state = settings((output as { url: string }).url)
+      expect({ code: state.code, lang: state.lang }).toMatchInlineSnapshot(`
+        {
+          "code": "const a = 1",
+          "lang": "typescript",
+        }
+      `)
+    })
+
+    test('refuses a file and a snippet together', async () => {
+      const source = await file('demo.ts')
+      const { exit, output } = await run(['share', source, '--code', 'const a = 1'])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "no_snippet",
+          "message": "Name a file or pass \`--code\`, not both.",
+        }
+      `)
+    })
+
+    test('refuses a run with no snippet at all', async () => {
+      const { exit, output } = await run(['share'])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "no_snippet",
+          "message": "Name a file, pass \`--code\`, or pass \`-\` to read standard input.",
+        }
+      `)
+    })
+
+    test('reports a file it cannot read', async () => {
+      const { exit, output } = await run(['share', '/monoshot/no/such/file.ts'])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"no_snippet"`)
     })
 
     test('refuses a language shiki does not bundle', async () => {

@@ -14,8 +14,12 @@ import { version } from './version.js'
 /** Where a share link points when the caller names no other deployment. */
 const site = 'https://monoshot.broken-thunder-fb8b.workers.dev'
 
-/** The language a snippet is tokenized as when nothing names or implies one. */
-const fallback = 'ts' satisfies BundledLanguage
+/**
+ * The language a snippet is tokenized as when nothing names or implies one.
+ * Shiki's own id rather than the `ts` alias, so every resolved language is
+ * recorded under one name.
+ */
+const fallback = 'typescript' satisfies BundledLanguage
 
 /**
  * Every bundled language against the names shiki accepts for it, including
@@ -47,9 +51,14 @@ const settings = z.object({
   width: z.number().optional().describe('Width of the window, in pixels.'),
 })
 
-/** The file to read a snippet from, where `-` is standard input. */
+/** Where a snippet comes from, when it does not arrive as `--code`. */
 const source = z.object({
-  file: z.string().describe('Path to a source file, or `-` to read standard input.'),
+  file: z.string().optional().describe('Path to a source file, or `-` to read standard input.'),
+})
+
+/** The snippet itself, for a caller holding the code rather than a path. */
+const inline = z.object({
+  code: z.string().optional().describe('The snippet itself, in place of a file.'),
 })
 
 /**
@@ -64,7 +73,7 @@ export function create() {
     description: 'Render code to images with type annotations.',
     mcp: {
       instructions:
-        'Renders a source file to a PNG, or to a link that opens the same frame in a browser. `themes` lists the names `--theme` accepts.',
+        'Renders a source file or an inline snippet to a PNG, or to a link that opens the same frame in a browser. `themes` lists the names `--theme` accepts.',
     },
     version,
   })
@@ -74,6 +83,7 @@ export function create() {
       description: 'Render a snippet to a PNG.',
       examples: [
         { args: { file: 'app.ts' }, options: { out: 'app.png' } },
+        { description: 'From a snippet rather than a file.', options: { code: 'const a = 1' } },
         {
           args: { file: 'app.ts' },
           description: 'A light theme at print size.',
@@ -81,6 +91,7 @@ export function create() {
         },
       ],
       options: settings.extend({
+        ...inline.shape,
         executable: z.string().optional().describe('Path to a Chrome to render in.'),
         out: z
           .string()
@@ -93,7 +104,9 @@ export function create() {
         path: z.string().describe('Where the image was written.'),
       }),
       async run({ args, error, options }) {
-        const state = frame(args.file, await read(args.file), options)
+        const code = await read(args.file, options.code)
+        if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
+        const state = frame(args.file, code, options)
         if (!state)
           return error({
             code: 'unknown_language',
@@ -134,11 +147,14 @@ export function create() {
       mcp: { annotations: { readOnlyHint: true } },
       examples: [{ args: { file: 'app.ts' }, options: { theme: 'vitesse-light' } }],
       options: settings.extend({
+        ...inline.shape,
         base: z.string().optional().describe(`Deployment the link points at. Defaults to ${site}.`),
       }),
       output: z.object({ url: z.string().describe('The link.') }),
       async run({ args, error, options }) {
-        const state = frame(args.file, await read(args.file), options)
+        const code = await read(args.file, options.code)
+        if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
+        const state = frame(args.file, code, options)
         if (!state)
           return error({
             code: 'unknown_language',
@@ -169,7 +185,7 @@ export function create() {
  * the same file are tokenized the same way.
  */
 function frame(
-  file: string,
+  file: string | undefined,
   code: string,
   options: z.output<typeof settings>,
 ): (Codec.State & { lang: BundledLanguage }) | undefined {
@@ -179,8 +195,8 @@ function frame(
 }
 
 /** Where an image lands when the caller names no path. */
-function destination(file: string): string {
-  if (file === '-') return 'monoshot.png'
+function destination(file: string | undefined): string {
+  if (file === undefined || file === '-') return 'monoshot.png'
   return `${file.slice(0, file.length - path.extname(file).length)}.png`
 }
 
@@ -188,13 +204,26 @@ function destination(file: string): string {
  * The language to tokenize with. `auto` reads the file extension, which is a
  * language name often enough to be worth trying before falling back.
  */
-function language(name: string, file: string): BundledLanguage | undefined {
+function language(name: string, file: string | undefined): BundledLanguage | undefined {
   if (name !== 'auto') return languages.get(name)
+  if (file === undefined) return fallback
   return languages.get(path.extname(file).slice(1)) ?? fallback
 }
 
-/** The snippet, from a path or from standard input. */
-async function read(file: string): Promise<string> {
-  if (file === '-') return await text(process.stdin)
-  return await fs.readFile(file, 'utf8')
+/**
+ * The snippet, or why there is none to draw. Named sources are exclusive:
+ * taking one over the other would quietly ignore what the caller passed.
+ */
+async function read(file: string | undefined, code: string | undefined): Promise<string | Error> {
+  if (code !== undefined && file !== undefined)
+    return new Error('Name a file or pass `--code`, not both.')
+  if (code !== undefined) return code
+  if (file === undefined)
+    return new Error('Name a file, pass `--code`, or pass `-` to read standard input.')
+  try {
+    if (file === '-') return await text(process.stdin)
+    return await fs.readFile(file, 'utf8')
+  } catch (cause) {
+    return cause instanceof Error ? cause : new Error(String(cause))
+  }
 }
