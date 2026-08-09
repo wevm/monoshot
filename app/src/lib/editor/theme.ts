@@ -2,7 +2,7 @@ import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import type { Theme } from 'monoshot'
 
-import { motion } from '../../theme/tokens.stylex.js'
+import { color, motion } from '../../theme/tokens.stylex.js'
 
 /** Depth under the completion menu, which floats above the code. */
 const shadow = { dark: 'rgb(0 0 0 / 0.6)', light: 'rgb(0 0 0 / 0.18)' } as const
@@ -114,6 +114,33 @@ export function theme(palette: Theme.derive.Result): Extension {
       // Names only: a glyph is a guess at this size and a hue reads as syntax
       // coloring that means something else.
       '.cm-completionIcon': { display: 'none' },
+      // Underline only: the default lint styling paints a background that
+      // fights whatever the theme colors the token underneath.
+      '.cm-lintRange': { paddingBottom: '2px' },
+      // Only the error class trades CodeMirror's painted squiggle for an
+      // underline. A warning, a suggestion, and a message keep the default,
+      // which is the marker they would otherwise lose.
+      '.cm-lintRange-error': {
+        backgroundImage: 'none',
+        textDecoration: `underline wavy ${palette.type === 'dark' ? color.squiggleOnDark : color.squiggleOnLight}`,
+      },
+      // The same surface a type gets: a message merges into the type's own
+      // hover tooltip, and the two read as one popover or as neither. Matched
+      // here rather than in the stylesheet, which the export shares and which
+      // must never carry editor-only chrome.
+      '.cm-tooltip-lint': {
+        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`,
+        boxShadow: `inset 0 0 0 1px ${palette.window.border}`,
+        color: palette.window.foreground,
+        fontFamily: 'var(--code-font-family)',
+        fontSize: 'var(--code-annotation-size)',
+        lineHeight: 1.5,
+        listStyle: 'none',
+        margin: 0,
+        maxWidth: '64ch',
+        padding: 0,
+      },
+      '.cm-diagnostic': { borderLeft: 'none', padding: '6px 10px' },
     },
     { dark: palette.type === 'dark' },
   )

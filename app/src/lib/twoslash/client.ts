@@ -10,6 +10,8 @@ export type Result = Twoslash.Result
 export type Resolved = {
   /** The document the types were resolved against. */
   document: string
+  /** The dialect it was read as. The same text means different things in each. */
+  lang: Lang
   /** The types the language service found in it. */
   result: Result
 }
@@ -33,6 +35,7 @@ export function create(options: create.Options): create.ReturnType {
   // The document the accepted reply will be about: a reply only passes the
   // version check when nothing has been asked since.
   let latest = ''
+  let dialect: Lang = 'ts'
 
   return {
     dispose() {
@@ -55,6 +58,7 @@ export function create(options: create.Options): create.ReturnType {
     resolve(code, lang) {
       version += 1
       latest = code
+      dialect = lang
       const instance = start()
       if (!instance) return
       instance.postMessage({ code, kind: 'resolve', lang, version } satisfies Request)
@@ -96,7 +100,7 @@ export function create(options: create.Options): create.ReturnType {
       // resolving is slow enough that answers can arrive out of order.
       if (event.data.version !== version) return
       if ('error' in event.data) onError?.(event.data.error)
-      else onResult({ document: latest, result: event.data.result })
+      else onResult({ document: latest, lang: dialect, result: event.data.result })
     })
     // A worker that fails before its own handler runs, because its chunk will
     // not load or its module scope throws, reports here rather than in a reply.

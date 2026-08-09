@@ -171,6 +171,9 @@ const styles = stylex.create({
 /** Held still so the editor is not reconfigured with a fresh array each render. */
 const empty: Editor.Props['types'] = []
 
+/** The same, for a document the compiler has said nothing about yet. */
+const quiet: Editor.Props['diagnostics'] = []
+
 /** The dialect the language service should read a document as. */
 const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } as const
 
@@ -321,6 +324,11 @@ function Page() {
     tokens: Editor.Props['tokens']
   }>()
   const [annotations, setAnnotations] = useState<Editor.Props['types']>(empty)
+  // Kept rather than derived: a reply for a document that has been edited past
+  // carries offsets into text that is no longer on screen, so the last set
+  // that did match stays until one for this document arrives. The editor maps
+  // what it already holds through the edits between.
+  const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
   const [resolved, setResolved] = useState<Twoslash.Resolved>()
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
@@ -405,13 +413,19 @@ function Page() {
   useEffect(() => {
     if (!resolved) {
       setAnnotations(empty)
+      setDiagnostics(quiet)
       return
     }
     // Painting is a second asynchronous stage: a theme's TypeScript grammar
     // can still be loading. The spans are offsets into the document that was
     // resolved, so an edit reruns this and drops them rather than marking the
     // wrong words. The editor keeps mapping the spans it already holds.
-    if (resolved.document !== code) return
+    // The dialect too, not just the text: the same source is valid in one and
+    // an error in another, so a reply from before a language change describes
+    // a document this one no longer is.
+    if (resolved.document !== code || resolved.lang !== dialects[language as keyof typeof dialects])
+      return
+    setDiagnostics(resolved.result.diagnostics)
     let active = true
     void paint(settings.theme, resolved.result.hovers).then((painted) => {
       if (active) setAnnotations(painted)
@@ -790,6 +804,7 @@ function Page() {
               >
                 <Editor
                   code={code}
+                  diagnostics={diagnostics}
                   lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
                   // A language the service cannot read has nothing to offer,

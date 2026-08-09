@@ -12,8 +12,24 @@ export type Annotation = {
   to: number
 }
 
+/** Something the compiler objected to, against the source as written. */
+export type Diagnostic = {
+  /** The TypeScript error number, such as 2322. Absent when the compiler gave none. */
+  code?: number | string | undefined
+  /** Offset into the source as written, notations included. */
+  from: number
+  /** How loudly the compiler complained. */
+  level: 'error' | 'message' | 'suggestion' | 'warning'
+  /** The message, as the compiler phrased it. */
+  text: string
+  /** Offset just past the span the message is about. */
+  to: number
+}
+
 /** What a snippet's types look like once notations are out of the way. */
 export type Result = {
+  /** What the compiler objected to, in source order. */
+  diagnostics: readonly Diagnostic[]
   /** Every identifier the language service knows a type for. */
   hovers: readonly Annotation[]
   /** The types a snippet asked for with `^?`, in source order. */
@@ -105,13 +121,27 @@ export function annotate(result: annotate.Input): Result {
   // Ascending, because each removal shifts the ones after it. Twoslash reports
   // them in the order it found them, which is not that order.
   const removals = [...result.meta.removals].sort((a, b) => a[0] - b[0])
+  const diagnostics: Diagnostic[] = []
   const hovers: Annotation[] = []
   const queries: Annotation[] = []
   for (const node of result.nodes) {
-    if (node.type !== 'hover' && node.type !== 'query') continue
-    // A node the language service found no type for has nothing to annotate.
+    // A node the language service found no type or message for says nothing.
     if (node.text === undefined) continue
     const from = raw(node.start, removals)
+    if (node.type === 'error') {
+      diagnostics.push({
+        ...(node.code === undefined ? {} : { code: node.code }),
+        from,
+        level: node.level ?? 'error',
+        text: node.text,
+        // Mapped on its own rather than added to `from`: a message can span a
+        // notation line, and the length twoslash reports is measured in the
+        // source it compiled, which no longer holds that line.
+        to: rawEnd(node.start + node.length, removals),
+      })
+      continue
+    }
+    if (node.type !== 'hover' && node.type !== 'query') continue
     const annotation = {
       from,
       name: result.code.slice(node.start, node.start + node.length),
@@ -121,7 +151,10 @@ export function annotate(result: annotate.Input): Result {
     if (node.type === 'hover') hovers.push(annotation)
     else queries.push(annotation)
   }
-  return { hovers, queries }
+  // The contract says source order, and twoslash reports nodes in the order it
+  // found them, which for errors is the compiler's.
+  diagnostics.sort((a, b) => a.from - b.from)
+  return { diagnostics, hovers, queries }
 }
 
 export declare namespace annotate {
@@ -140,15 +173,19 @@ export declare namespace annotate {
       /** Ranges cut from the source as written, in the order twoslash found them. */
       removals: readonly (readonly [number, number])[]
     }
-    /** Everything the run produced. Anything that is not a hover or a query is ignored. */
+    /** Everything the run produced. Anything but a hover, query, or error is ignored. */
     nodes: readonly {
+      /** The TypeScript error number, on an error node. */
+      code?: number | string | undefined
       /** How much of `code` the node covers. */
       length: number
+      /** Severity, on an error node. Defaults to `error`. */
+      level?: Diagnostic['level'] | undefined
       /** Offset into `code`. */
       start: number
-      /** The formatted type, absent on the node kinds this ignores. */
+      /** The formatted type or message, absent on the node kinds this ignores. */
       text?: string | undefined
-      /** Only `hover` and `query` are read. */
+      /** Only `hover`, `query`, and `error` are read. */
       type: string
     }[]
   }
@@ -163,5 +200,16 @@ export declare namespace annotate {
 function raw(offset: number, removals: readonly (readonly [number, number])[]): number {
   let mapped = offset
   for (const [start, end] of removals) if (start <= mapped) mapped += end - start
+  return mapped
+}
+
+/**
+ * The same for the exclusive end of a range. A cut beginning exactly where the
+ * range ends lies outside it, so the end stays before the cut instead of
+ * jumping over it and covering a notation the message never mentioned.
+ */
+function rawEnd(offset: number, removals: readonly (readonly [number, number])[]): number {
+  let mapped = offset
+  for (const [start, end] of removals) if (start < mapped) mapped += end - start
   return mapped
 }

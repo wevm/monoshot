@@ -4,6 +4,7 @@ import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers as gutter } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
+import type * as Twoslash from 'monoshot/twoslash'
 import { useEffect, useRef } from 'react'
 
 import { completions } from '#/lib/editor/completions.js'
@@ -11,6 +12,7 @@ import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
+import { problems } from '#/lib/editor/problems.js'
 import { number, query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 import { setTypes } from '#/lib/editor/types.js'
@@ -26,7 +28,8 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const { code, lineNumbers, onCodeChange, onComplete, palette, tokens, types } = props
+  const { code, diagnostics, lineNumbers, onCodeChange, onComplete, palette, tokens, types } =
+    props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
@@ -96,6 +99,13 @@ export function Editor(props: Editor.Props) {
     view.current?.dispatch({ effects: setTypes.of(types) })
   }, [types])
 
+  // After the document below would be wrong: a diagnostic clamped against the
+  // previous text would land on the wrong words for a frame.
+  useEffect(() => {
+    const instance = view.current
+    if (instance) instance.dispatch(problems(instance.state, diagnostics))
+  }, [diagnostics])
+
   // A code change from outside, such as restoring a shared snippet.
   useEffect(() => {
     const instance = view.current
@@ -119,6 +129,8 @@ export declare namespace Editor {
   type Props = {
     /** The document. Changing it from outside replaces the editor's content. */
     code: string
+    /** What the compiler objected to, drawn as squiggles. */
+    diagnostics: readonly Twoslash.Diagnostic[]
     /** Shows the line-number gutter. */
     lineNumbers: boolean
     /** Receives every edit. */
