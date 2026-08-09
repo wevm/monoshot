@@ -203,7 +203,11 @@ async function launch(options: {
 }): Promise<Browser> {
   const { args, executable } = options
   const puppeteer = await import('puppeteer-core').catch(() => {
-    throw new ChromeError('Rendering needs `puppeteer-core` installed alongside monoshot.')
+    // Named with its install: an optional peer is not installed for the
+    // caller, and this is where its absence is first noticed.
+    throw new ChromeError(
+      'Rendering needs `puppeteer-core` alongside monoshot: `npm install puppeteer-core`.',
+    )
   })
   const path = executable ?? process.env['PUPPETEER_EXECUTABLE_PATH']
   try {

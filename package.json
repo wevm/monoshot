@@ -37,6 +37,10 @@
     "twoslash",
     "typescript"
   ],
+  "bin": {
+    "monoshot": "./dist/bin.js",
+    "monoshot.src": "./src/bin.ts"
+  },
   "files": [
     "dist",
     "src"
@@ -67,6 +71,7 @@
   },
   "dependencies": {
     "culori": "catalog:",
+    "incur": "catalog:",
     "lz-string": "catalog:",
     "shiki": "catalog:",
     "twoslash": "catalog:",
