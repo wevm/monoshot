@@ -77,7 +77,7 @@ const linked = settings.extend({
  */
 export function create() {
   return Cli.create('monoshot', {
-    description: 'Render code to images with type annotations.',
+    description: 'Render code to images.',
     mcp: {
       instructions:
         'Renders a source file or an inline snippet to a PNG, to a link, or straight into a browser. `themes` lists the names `--theme` accepts.',
@@ -108,7 +108,12 @@ export function create() {
           .string()
           .optional()
           .describe('Where to write the image. Beside the source by default.'),
-        scale: z.number().optional().describe('Multiplier on the frame’s own size. Defaults to 2.'),
+        scale: z
+          .number()
+          .positive()
+          .finite()
+          .optional()
+          .describe('Multiplier on the frame’s own size. Defaults to 2.'),
       }),
       output: z.object({
         bytes: z.number().describe('Size of the image written.'),
@@ -263,7 +268,19 @@ async function link(
       code: 'snippet_too_large',
       message: 'The snippet is too large to carry in a link. Render it to an image instead.',
     }
-  return { url: `${options.base ?? site}#${fragment}` }
+  const base = (() => {
+    try {
+      return new URL(options.base ?? site)
+    } catch {
+      return undefined
+    }
+  })()
+  if (base === undefined)
+    return { code: 'invalid_base', message: `\`${options.base}\` is not a URL.` }
+  // Assigned rather than appended: a base carrying its own fragment would
+  // otherwise leave two, and a browser reads everything after the first as one.
+  base.hash = fragment
+  return { url: base.toString() }
 }
 
 /**

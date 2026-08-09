@@ -70,7 +70,24 @@ describe('create', () => {
     test('points at the deployment the caller names', async () => {
       const source = await file('demo.ts')
       const { output } = await run(['share', source, '--base', 'https://example.com'])
-      expect((output as { url: string }).url.startsWith('https://example.com#')).toBe(true)
+      expect((output as { url: string }).url.startsWith('https://example.com/#')).toBe(true)
+    })
+
+    test('replaces a fragment the base already carries', async () => {
+      // Appending would leave two, and a browser reads everything after the
+      // first `#` as one fragment, which the decoder then rejects.
+      const source = await file('demo.ts')
+      const { output } = await run(['share', source, '--base', 'https://example.com/#old'])
+      const url = (output as { url: string }).url
+      expect(url.split('#')).toHaveLength(2)
+      expect(settings(url).code).toBe(code)
+    })
+
+    test('refuses a base that is not a URL', async () => {
+      const source = await file('demo.ts')
+      const { exit, output } = await run(['share', source, '--base', 'not a url'])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"invalid_base"`)
     })
 
     test('reads the language from the file name, as shiki names it', async () => {
@@ -237,6 +254,14 @@ describe('create', () => {
           "message": "The image would overwrite the snippet it was made from. Name an \`--out\`.",
         }
       `)
+    })
+
+    test('refuses a scale that cannot produce an image', async () => {
+      // `scale` is not a codec setting, so the frame check never sees it, and
+      // a nonpositive one reaches Chromium's device scale factor.
+      const source = await file('demo.ts')
+      const { exit } = await run(['render', source, '--scale', '0'])
+      expect(exit).toBe(1)
     })
 
     test('reports a browser it cannot start rather than throwing', async () => {
