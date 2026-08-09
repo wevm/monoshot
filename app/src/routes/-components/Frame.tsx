@@ -160,7 +160,7 @@ const styles = stylex.create({
     width: '100%',
     '::placeholder': { color: 'var(--window-title)' },
   },
-  body: { paddingBlock: 4, paddingInline: 16 },
+  body: { paddingBlock: 4, paddingInline: 'var(--editor-inset)' },
   // Without the title bar the code needs its own breathing room at the top.
   bodyBare: { paddingBlock: 8 },
 })

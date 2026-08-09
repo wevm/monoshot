@@ -55,6 +55,10 @@
     /* Annotations sit a step under the code, so a type never competes with the
        source it describes. */
     --code-annotation-size: 12px;
+    /* The window's horizontal inset. The frame reads it for the code's own
+       padding, and the editor moves it inside its scroller so a pin has room
+       to paint left of column 0. One value, so the two cannot disagree. */
+    --editor-inset: 16px;
   }
 
   /* Shiki emits `pre > code`, and both carry UA font defaults that would
@@ -129,6 +133,18 @@
     white-space: pre-wrap;
   }
 
+  /* A hover only, never a pinned block: a pinned type is content, and an
+     export renders it whole rather than cropping it to a scroll box. The
+     tooltip is transient, so a type too tall for the window scrolls in place
+     instead of running off it. */
+  .cm-tooltip .twoslash-body {
+    max-height: 40vh;
+    overflow-y: auto;
+    /* Room for the bar, so it never sits on the last character of a line. */
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
   /* Beside the type's first line, just off the surface: near the word it
      describes, clear of the notch, and out of flow entirely, so nothing
      reflows when it appears. */
@@ -143,9 +159,11 @@
     color: inherit;
     cursor: pointer;
     display: flex;
-    height: 18px;
+    height: 14px;
     justify-content: center;
-    margin-right: 3px;
+    /* Together these are the room the editor's inset leaves to the left of
+       column 0, so the pin fits there whatever column a type is pinned at. */
+    margin-right: 2px;
     /* Out of the picture until reached for. It still takes hits while it is
        invisible, so the pointer passing over it brings it out. */
     opacity: 0;
@@ -156,20 +174,31 @@
     top: 6px;
     /* Comes out of the surface's edge rather than appearing beside it: the
        travel closes the gap exactly, so it never laps the type. */
-    transform: translateX(3px) scale(0.9);
+    transform: translateX(2px) scale(0.9);
     transform-origin: right center;
     transition:
       opacity var(--motion-fast) var(--motion-out),
       transform var(--motion-fast) var(--motion-out);
-    width: 18px;
+    width: 14px;
   }
 
   /* Reaches across the gap to the surface, so crossing it does not read as
      leaving both. */
   .twoslash-pin::after {
     content: '';
-    inset: 0 -3px 0 0;
+    inset: 0 -2px 0 0;
     position: absolute;
+  }
+
+  /* A pinned block sits in the code's own column, so at column 0 there is
+     nothing to its left and the scroller clips whatever hangs off that edge.
+     The window's own inset moves inside the scroller instead: the editor
+     reaches the window's edge and gives the inset back as content padding, so
+     the code does not move and the pin has room to paint at every column.
+     The text box is the same width either way, so lines still wrap where the
+     exported frame wraps them. */
+  .cm-editor {
+    margin-inline: calc(-1 * var(--editor-inset));
   }
 
   /* The hover only exists while you are pointing at the word, so its control
@@ -189,12 +218,12 @@
 
   .twoslash-pin svg {
     fill: none;
-    height: 10px;
+    height: 9px;
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 2;
-    width: 10px;
+    width: 9px;
   }
 
   /* The run between the word and its type. Transparent, and part of the
