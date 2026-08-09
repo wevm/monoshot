@@ -264,6 +264,20 @@ describe('create', () => {
       expect(exit).toBe(1)
     })
 
+    test('leaves twoslash off for a language it cannot resolve types for', async () => {
+      // Reaching the browser at all proves the frame resolved: a python file
+      // must not be handed to the compiler.
+      const source = await file('demo.py', 'greeting = "hello"\n')
+      const { exit, output } = await run([
+        'render',
+        source,
+        '--executable',
+        '/monoshot/no/such/chrome',
+      ])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"render_failed"`)
+    })
+
     test('reports a browser it cannot start rather than throwing', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run([

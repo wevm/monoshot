@@ -21,6 +21,8 @@ export type Options = {
   background: string
   /** The code, already highlighted. */
   html: string
+  /** Whether the html carries twoslash blocks, which need their own styles. */
+  annotated?: boolean | undefined
   /** Whether to draw a line-number gutter beside the code. */
   lineNumbers: boolean
   /** Space in pixels between the backdrop's edge and the window. */
@@ -53,6 +55,7 @@ export type Options = {
 export function build(options: Options): string {
   const { background, html, lineNumbers, padding, palette, radius, title, titleBar, width } =
     options
+  const annotations = options.annotated === true ? annotated(palette) : ''
   const fonts = options.fonts ?? []
   const backdrop =
     background === 'none'
@@ -131,12 +134,13 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .shiki { padding-block: 12px; }
 ${lineNumbers ? gutter(html) : ''}
+${annotations}
 .twoslash-block {
   display: flex;
   padding-block: 8px 4px;
   padding-inline-start: max(0px, calc(var(--twoslash-column) * 1ch - 8px));
 }
-.twoslash {
+.twoslash-block > .twoslash {
   background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
   box-shadow: inset 0 0 0 1px var(--window-border);
   font-family: var(--code-font-family);
@@ -146,7 +150,7 @@ ${lineNumbers ? gutter(html) : ''}
   position: relative;
   white-space: pre-wrap;
 }
-.twoslash::before {
+.twoslash-block > .twoslash::before {
   background-color: inherit;
   border-left: 1px solid var(--window-border);
   border-top: 1px solid var(--window-border);
@@ -199,6 +203,9 @@ function gutter(html: string) {
   padding-left: calc(${width}ch + 20px);
   text-indent: calc(-1ch * ${width} - 20px);
 }
+.shiki .twoslash-meta-line {
+  padding-left: calc(${width}ch + 20px);
+}
 .shiki .line::before {
   content: attr(data-line);
   display: inline-block;
@@ -208,6 +215,63 @@ function gutter(html: string) {
   text-align: right;
   vertical-align: top;
   width: ${width}ch;
+}`
+}
+
+/**
+ * Styles for the blocks twoslash renders in place of a `^?` line. Only the
+ * static shapes: the hover popovers in the upstream stylesheet need a pointer,
+ * and an image has none.
+ */
+function annotated(palette: Theme.derive.Result) {
+  const surface = `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`
+  return `.twoslash-popup-container {
+  /* Every identifier carries one of these for a pointer to open. An image has
+     no pointer, so only the block a \`^?\` asked for is drawn. */
+  display: none;
+}
+.twoslash-meta-line {
+  display: flex;
+  white-space: pre;
+}
+.twoslash-query-line .twoslash-popup-container {
+  /* Composited onto the window rather than left translucent, so the arrow
+     hanging off the surface does not show the code through itself. */
+  background: ${surface};
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px ${palette.window.border};
+  display: block;
+  font-size: var(--code-annotation-size);
+  /* Room for the block, which sits below the line it points at. */
+  margin-bottom: 0.7em;
+  /* Real types run long, so they wrap at a readable measure rather than
+     stretching the window. */
+  max-width: 64ch;
+  position: relative;
+  transform: translateY(0.5em);
+  white-space: pre-wrap;
+}
+.twoslash-query-line .twoslash-popup-arrow {
+  background: ${surface};
+  border-left: 1px solid ${palette.window.border};
+  border-top: 1px solid ${palette.window.border};
+  height: 6px;
+  left: 1em;
+  position: absolute;
+  top: -4px;
+  transform: rotate(45deg);
+  width: 6px;
+}
+.twoslash-query-line .twoslash-popup-code {
+  display: block;
+  padding: 6px 10px;
+}
+.twoslash-error-line {
+  color: ${palette.window.foreground};
+  font-size: var(--code-annotation-size);
+  opacity: 0.75;
+  padding-bottom: 4px;
+  white-space: pre-wrap;
 }`
 }
 

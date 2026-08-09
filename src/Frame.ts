@@ -1,4 +1,6 @@
+import { rendererRich, transformerTwoslash } from '@shikijs/twoslash'
 import { createHighlighter } from 'shiki'
+import { createTwoslasher } from 'twoslash'
 import * as Document from './internal/Document.js'
 import * as Theme from './Theme.js'
 import type {
@@ -28,6 +30,10 @@ import type {
 export function create(options: create.Options = {}): create.ReturnType {
   const { langs = [], themes = [] } = options
 
+  // Holds a TypeScript compiler, so it is built once for the renderer rather
+  // than per render, and only when a render actually asks for types.
+  let twoslasher: ReturnType<typeof createTwoslasher> | undefined
+
   // Kept as a promise so concurrent renders share one creation rather than
   // racing to build a highlighter each.
   let highlighter: Promise<Highlighter> | undefined
@@ -53,7 +59,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   // A closure rather than a sibling method: an operation read off a destructured
   // renderer has no receiver to resolve.
   async function highlight(parameters: render.Options): Promise<render.ReturnType> {
-    const { code, lang, theme } = parameters
+    const { code, lang, theme, twoslash = false } = parameters
     const instance = await resolve({ lang, theme })
     return {
       html: instance.codeToHtml(code, {
@@ -61,10 +67,34 @@ export function create(options: create.Options = {}): create.ReturnType {
         theme,
         transformers: [
           {
-            line(node, line) {
-              node.properties['data-line'] = line
+            // Numbered here rather than in `line`, which runs before twoslash
+            // folds a query into a block and inserts its own lines: only what
+            // survives into the code element is a line of code.
+            code(node) {
+              let number = 0
+              for (const child of node.children) {
+                if (child.type !== 'element') continue
+                if (!classes(child.properties['class']).includes('line')) continue
+                child.properties['data-line'] = ++number
+              }
             },
           },
+          ...(twoslash
+            ? [
+                transformerTwoslash({
+                  // A snippet in an editor is half-typed most of the time, and
+                  // code that does not compile still has types worth drawing.
+                  throws: false,
+                  renderer: rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
+                  twoslasher: (twoslasher ??= createTwoslasher({
+                    // Twoslash otherwise insists every compiler error be
+                    // declared in the source and gives up on the whole
+                    // snippet, annotations included, when one is not.
+                    handbookOptions: { noErrorValidation: true },
+                  })),
+                }),
+              ]
+            : []),
         ],
       }),
       // Detached: the registry entry is shared, so handing it out would let
@@ -84,9 +114,14 @@ export function create(options: create.Options = {}): create.ReturnType {
     },
     render: highlight,
     async toDocument(parameters) {
-      const { code, lang, theme, ...rest } = parameters
-      const result = await highlight({ code, lang, theme })
-      return Document.build({ ...rest, html: result.html, palette: Theme.derive(result.theme) })
+      const { code, lang, theme, twoslash = false, ...rest } = parameters
+      const result = await highlight({ code, lang, theme, twoslash })
+      return Document.build({
+        ...rest,
+        annotated: twoslash,
+        html: result.html,
+        palette: Theme.derive(result.theme),
+      })
     },
     async tokens(parameters) {
       const { code, lang, theme } = parameters
@@ -180,6 +215,12 @@ export declare namespace render {
     lang: BundledLanguage
     /** Theme to color with. */
     theme: BundledTheme
+    /**
+     * Resolve the types a `^?` query asks for and draw them in flow. Needs
+     * `typescript`, and applies to the TypeScript family only. Defaults to
+     * `false`.
+     */
+    twoslash?: boolean | undefined
   }
 
   type ReturnType = {
@@ -188,4 +229,10 @@ export declare namespace render {
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
     theme: ThemeRegistrationResolved
   }
+}
+
+/** A hast node's classes, which arrive as a string or as a list. */
+function classes(value: unknown): readonly string[] {
+  if (Array.isArray(value)) return value.map(String)
+  return typeof value === 'string' ? value.split(/\s+/) : []
 }

@@ -152,6 +152,9 @@ importers:
 
   .:
     dependencies:
+      '@shikijs/twoslash':
+        specifier: 4.4.2
+        version: 4.4.2(typescript@5.9.3)
       culori:
         specifier: 'catalog:'
         version: 4.0.2
@@ -1621,6 +1624,12 @@ packages:
   '@shikijs/themes@4.4.2':
     resolution: {integrity: sha512-H0CFoL07ddDC2Dd6EdrPYNkRhUR6YCkJlnuYFceYYUJJA5TIm2b5B33qqiDYryBExgbKMndFJPb2u1gTuqO37g==}
     engines: {node: '>=20'}
+
+  '@shikijs/twoslash@4.4.2':
+    resolution: {integrity: sha512-JjPKNbYCZn5+DVOxDZJ0ZruFPBM7m2JQBp4WbLh4tU2y3ed93wBCaQhKwMyfTFIsDzHks22szAkUUd2+jIPo/w==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      typescript: '>=5.5.0'
 
   '@shikijs/types@4.4.2':
     resolution: {integrity: sha512-PFYitV4vpDr/iPCIhnHp+Q4ftic5N5VeNJ3KQ1O8gn3h2ar8qgwMAXF7tq4m1CWaMS60fV4VqF6vfnWH4F7vqQ==}
@@ -4653,6 +4662,15 @@ snapshots:
   '@shikijs/themes@4.4.2':
     dependencies:
       '@shikijs/types': 4.4.2
+
+  '@shikijs/twoslash@4.4.2(typescript@5.9.3)':
+    dependencies:
+      '@shikijs/core': 4.4.2
+      '@shikijs/types': 4.4.2
+      twoslash: 0.3.9(typescript@5.9.3)
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - supports-color
 
   '@shikijs/types@4.4.2':
     dependencies:

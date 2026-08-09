@@ -129,3 +129,73 @@ describe('tokens', () => {
     ).toBe(second?.content)
   })
 })
+
+describe('render with twoslash', () => {
+  const query = 'const greeting = "hello"\n//    ^?\n'
+
+  test('draws the type a query asks for, in place of the query line', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: query,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect(result.html).toContain('twoslash-query-line')
+    // The resolved type, not the literal notation. Read as text: the type is
+    // highlighted, so it arrives split across themed spans.
+    expect(text(result.html)).toContain('const greeting: "hello"')
+    expect(text(result.html)).not.toContain('^?')
+  })
+
+  test('leaves the query line alone when it is not asked for', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({ code: query, lang: 'ts', theme: 'vitesse-dark' })
+    await frame.dispose()
+    expect(result.html).not.toContain('twoslash-query-line')
+  })
+
+  test('numbers the lines that survive, so a folded query leaves no gap', async () => {
+    // The query line becomes a block and the compiler's complaint becomes a
+    // line of its own, and neither is a line of code.
+    const frame = Frame.create()
+    const code =
+      'const greeting = "hello"\n//    ^?\nconst count: number = greeting\nexport { count }\n'
+    const result = await frame.render({ code, lang: 'ts', theme: 'vitesse-dark', twoslash: true })
+    await frame.dispose()
+    expect([...result.html.matchAll(/data-line="(\d+)"/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "1",
+        "2",
+        "3",
+        "4",
+      ]
+    `)
+  })
+
+  test('still resolves types for code the compiler objects to', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: 'const count: number = "no"\n//    ^?\n',
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect(result.html).toContain('twoslash-query-line')
+    expect(result.html).toContain('twoslash-error-line')
+  })
+})
+
+/** A document's visible text, with the markup and entities taken back out. */
+function text(html: string) {
+  return html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    )
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+}
