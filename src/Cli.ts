@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { text } from 'node:stream/consumers'
@@ -61,9 +62,15 @@ const inline = z.object({
   code: z.string().optional().describe('The snippet itself, in place of a file.'),
 })
 
+/** What both link commands take, which is the frame plus where it opens. */
+const linked = settings.extend({
+  base: z.string().optional().describe(`Deployment the link points at. Defaults to ${site}.`),
+  code: z.string().optional().describe('The snippet itself, in place of a file.'),
+})
+
 /**
- * Builds the command surface: `render` to an image, `share` to a link, and
- * `themes` for the names the other two accept.
+ * Builds the command surface: `render` to an image, `share` and `open` to a
+ * link, and `themes` for the names the rest accept.
  *
  * Returns the CLI rather than serving it, so `serve` belongs to the bin and a
  * test can drive the same definition through `fetch`.
@@ -73,7 +80,7 @@ export function create() {
     description: 'Render code to images with type annotations.',
     mcp: {
       instructions:
-        'Renders a source file or an inline snippet to a PNG, or to a link that opens the same frame in a browser. `themes` lists the names `--theme` accepts.',
+        'Renders a source file or an inline snippet to a PNG, to a link, or straight into a browser. `themes` lists the names `--theme` accepts.',
     },
     version,
   })
@@ -146,21 +153,26 @@ export function create() {
       // Reads a file and returns a string. An agent may reach for it freely.
       mcp: { annotations: { readOnlyHint: true } },
       examples: [{ args: { file: 'app.ts' }, options: { theme: 'vitesse-light' } }],
-      options: settings.extend({
-        ...inline.shape,
-        base: z.string().optional().describe(`Deployment the link points at. Defaults to ${site}.`),
-      }),
+      options: linked,
       output: z.object({ url: z.string().describe('The link.') }),
       async run({ args, error, options }) {
-        const code = await read(args.file, options.code)
-        if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
-        const state = frame(args.file, code, options)
-        if (!state)
-          return error({
-            code: 'unknown_language',
-            message: `\`${options.lang}\` is not a bundled language.`,
-          })
-        return { url: `${options.base ?? site}#${Codec.serialize(state)}` }
+        const result = await link(args.file, options)
+        if ('message' in result) return error(result)
+        return { url: result.url }
+      },
+    })
+    .command('open', {
+      alias: { code: 'c', theme: 't' },
+      args: source,
+      description: 'Open the snippet in a browser.',
+      examples: [{ args: { file: 'app.ts' } }],
+      options: linked,
+      output: z.object({ url: z.string().describe('The link that was opened.') }),
+      async run({ args, error, options }) {
+        const result = await link(args.file, options)
+        if ('message' in result) return error(result)
+        launch(result.url)
+        return { url: result.url }
       },
     })
     .command('themes', {
@@ -192,6 +204,40 @@ function frame(
   const state = Codec.schema.parse({ ...options, code })
   const lang = language(state.lang, file)
   return lang === undefined ? undefined : { ...state, lang }
+}
+
+/**
+ * The link for a snippet, or what stopped it from being built. Failures come
+ * back as data rather than thrown, so each command reports them through its
+ * own handler.
+ */
+async function link(
+  file: string | undefined,
+  options: z.output<typeof linked>,
+): Promise<{ url: string } | { code: string; message: string }> {
+  const code = await read(file, options.code)
+  if (code instanceof Error) return { code: 'no_snippet', message: code.message }
+  const state = frame(file, code, options)
+  if (!state)
+    return { code: 'unknown_language', message: `\`${options.lang}\` is not a bundled language.` }
+  return { url: `${options.base ?? site}#${Codec.serialize(state)}` }
+}
+
+/**
+ * Hands a link to whatever the platform opens links with. Detached and
+ * unwatched: the command has the URL to report either way, and the browser
+ * outlives the process that asked for it.
+ */
+function launch(url: string): void {
+  const [command, args]: [string, readonly string[]] =
+    process.platform === 'darwin'
+      ? ['open', [url]]
+      : process.platform === 'win32'
+        ? ['cmd', ['/c', 'start', '', url]]
+        : ['xdg-open', [url]]
+  const child = spawn(command, [...args], { detached: true, stdio: 'ignore' })
+  child.on('error', () => {})
+  child.unref()
 }
 
 /** Where an image lands when the caller names no path. */

@@ -138,6 +138,27 @@ describe('create', () => {
     })
   })
 
+  describe('open', () => {
+    // Only the paths that stop before a browser is launched: the suite must
+    // not open windows on the machine running it.
+    test('refuses a run with no snippet, before opening anything', async () => {
+      const { exit, output } = await run(['open'])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "no_snippet",
+          "message": "Name a file, pass \`--code\`, or pass \`-\` to read standard input.",
+        }
+      `)
+    })
+
+    test('refuses a language shiki does not bundle', async () => {
+      const { exit, output } = await run(['open', '--code', 'const a = 1', '--lang', 'klingon'])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"unknown_language"`)
+    })
+  })
+
   describe('render', () => {
     test('refuses a theme that is not bundled, before starting a browser', async () => {
       const source = await file('demo.ts')
