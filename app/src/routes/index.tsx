@@ -807,6 +807,13 @@ function Page() {
                   diagnostics={diagnostics}
                   lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
+                  // A language the service cannot read has nothing to offer,
+                  // and the resolver only exists once a document needed one.
+                  onComplete={async (document, position) => {
+                    const dialect = dialects[language as keyof typeof dialects]
+                    if (!dialect) return []
+                    return (await resolver.current?.complete(document, dialect, position)) ?? []
+                  }}
                   palette={frame.palette}
                   tokens={frame.tokens}
                   types={annotations}

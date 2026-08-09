@@ -16,7 +16,7 @@ export type Resolved = {
   result: Result
 }
 
-import type { Lang, Request, Response } from './protocol.js'
+import type { Completion, Lang, Request, Response } from './protocol.js'
 
 /**
  * Talks to the twoslash worker.
@@ -29,6 +29,9 @@ export function create(options: create.Options): create.ReturnType {
   const { onError, onResult } = options
   let worker: Worker | undefined
   let version = 0
+  let asked = 0
+  /** Completion requests still waiting on the worker, by request id. */
+  const waiting = new Map<number, (completions: readonly Completion[]) => void>()
   // The document the accepted reply will be about: a reply only passes the
   // version check when nothing has been asked since.
   let latest = ''
@@ -38,6 +41,16 @@ export function create(options: create.Options): create.ReturnType {
     dispose() {
       worker?.terminate()
       worker = undefined
+      settle()
+    },
+    complete(code, lang, position) {
+      const instance = start()
+      // With no worker there is nothing to offer, and a menu that never opens
+      // is the same as one with no entries in it.
+      if (!instance) return Promise.resolve([])
+      const id = (asked += 1)
+      instance.postMessage({ code, id, kind: 'complete', lang, position } satisfies Request)
+      return new Promise((resolve) => waiting.set(id, resolve))
     },
     invalidate() {
       version += 1
@@ -46,21 +59,28 @@ export function create(options: create.Options): create.ReturnType {
       version += 1
       latest = code
       dialect = lang
-      const instance = (() => {
-        try {
-          return (worker ??= spawn())
-        } catch (cause) {
-          // A document policy can forbid workers outright, and the constructor
-          // throws before any listener of ours exists to hear it. `worker`
-          // stays unset, so a later edit tries again.
-          onError?.(cause instanceof Error ? cause.message : String(cause))
-          return undefined
-        }
-      })()
+      const instance = start()
       if (!instance) return
-      const request: Request = { code, lang, version }
-      instance.postMessage(request)
+      instance.postMessage({ code, kind: 'resolve', lang, version } satisfies Request)
     },
+  }
+
+  /** Answers every completion still waiting, so none is left pending. */
+  function settle() {
+    for (const resolve of waiting.values()) resolve([])
+    waiting.clear()
+  }
+
+  function start() {
+    try {
+      return (worker ??= spawn())
+    } catch (cause) {
+      // A document policy can forbid workers outright, and the constructor
+      // throws before any listener of ours exists to hear it. `worker` stays
+      // unset, so a later edit tries again.
+      onError?.(cause instanceof Error ? cause.message : String(cause))
+      return undefined
+    }
   }
 
   function spawn() {
@@ -71,6 +91,11 @@ export function create(options: create.Options): create.ReturnType {
       type: 'module',
     })
     instance.addEventListener('message', (event: MessageEvent<Response>) => {
+      if (event.data.kind === 'complete') {
+        waiting.get(event.data.id)?.(event.data.completions)
+        waiting.delete(event.data.id)
+        return
+      }
       // A reply for a document that has already been edited past is dropped:
       // resolving is slow enough that answers can arrive out of order.
       if (event.data.version !== version) return
@@ -88,9 +113,14 @@ export function create(options: create.Options): create.ReturnType {
         worker = undefined
         instance.terminate()
       }
+      // Nothing is coming for what was already asked. A completion left
+      // pending would keep its menu open on a promise that never settles, and
+      // the hover stays suppressed for as long as one is in flight.
+      settle()
       onError?.(event.message || 'The type resolver could not start.')
     })
     instance.addEventListener('messageerror', () => {
+      settle()
       onError?.('The type resolver sent a reply that could not be read.')
     })
     return instance
@@ -114,6 +144,8 @@ export declare namespace create {
      * than no answer at all.
      */
     invalidate: () => void
+    /** Asks what could go at a document offset. Resolves empty when nothing can. */
+    complete: (code: string, lang: Lang, position: number) => Promise<readonly Completion[]>
     /** Asks for a document's types, superseding any request still in flight. */
     resolve: (code: string, lang: Lang) => void
   }

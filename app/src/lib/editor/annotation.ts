@@ -31,11 +31,10 @@ export function element(annotation: Annotation, action?: Action): HTMLElement {
  * type that only changed color arrives without announcing itself again.
  */
 export function paint(root: HTMLElement, annotation: Annotation): void {
-  const existing = root.querySelector('.twoslash-pin')
-  root.replaceChildren()
-  if (existing) root.appendChild(existing)
+  const body = root.querySelector('.twoslash-body') ?? create(root)
+  body.replaceChildren()
   for (const [index, line] of annotation.entries()) {
-    if (index) root.appendChild(document.createTextNode('\n'))
+    if (index) body.appendChild(document.createTextNode('\n'))
     for (const token of line) {
       const span = document.createElement('span')
       span.textContent = token.content
@@ -45,9 +44,23 @@ export function paint(root: HTMLElement, annotation: Annotation): void {
       if (style & 2) span.style.fontWeight = 'bold'
       const decoration = [style & 4 && 'underline', style & 8 && 'line-through'].filter(Boolean)
       if (decoration.length) span.style.textDecoration = decoration.join(' ')
-      root.appendChild(span)
+      body.appendChild(span)
     }
   }
+}
+
+/**
+ * The box holding the type's own text.
+ *
+ * Separate from the surface so a tall type can scroll without taking the pin
+ * with it: the pin hangs off the surface's edge, and anything that scrolls
+ * clips what sits outside it.
+ */
+function create(root: HTMLElement) {
+  const body = document.createElement('div')
+  body.className = 'twoslash-body'
+  root.appendChild(body)
+  return body
 }
 
 function control(action: Action): HTMLElement {

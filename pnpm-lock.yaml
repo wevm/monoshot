@@ -18,9 +18,15 @@ catalogs:
     '@cloudflare/vite-plugin':
       specifier: ^1.51.0
       version: 1.51.0
+    '@codemirror/autocomplete':
+      specifier: ^6.20.3
+      version: 6.20.3
     '@codemirror/commands':
       specifier: ^6.10.4
       version: 6.10.4
+    '@codemirror/language':
+      specifier: ^6.12.4
+      version: 6.12.4
     '@codemirror/lint':
       specifier: ^6.9.7
       version: 6.9.7
@@ -66,6 +72,9 @@ catalogs:
     '@types/react-dom':
       specifier: ^19.2.3
       version: 19.2.4
+    '@typescript/vfs':
+      specifier: ^1.6.4
+      version: 1.6.4
     '@vitejs/plugin-react':
       specifier: ^6.0.1
       version: 6.0.5
@@ -183,9 +192,15 @@ importers:
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@codemirror/autocomplete':
+        specifier: 'catalog:'
+        version: 6.20.3
       '@codemirror/commands':
         specifier: 'catalog:'
         version: 6.10.4
+      '@codemirror/language':
+        specifier: 'catalog:'
+        version: 6.12.4
       '@codemirror/lint':
         specifier: 'catalog:'
         version: 6.9.7
@@ -207,6 +222,9 @@ importers:
       '@tanstack/react-start':
         specifier: 'catalog:'
         version: 1.168.37(esbuild@0.28.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.2)(vite@8.2.0(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0))
+      '@typescript/vfs':
+        specifier: 'catalog:'
+        version: 1.6.4(typescript@5.9.3)
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 2.23.2
@@ -582,6 +600,9 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
+
+  '@codemirror/autocomplete@6.20.3':
+    resolution: {integrity: sha512-tlosUqb+3BbxCxZdu4tKeRghPFC+QM7q4X5YhKV2eCmPG+1r2F3f4AaSz5sCrFqUtX4Jh20VFTKecl16MgiV9g==}
 
   '@codemirror/commands@6.10.4':
     resolution: {integrity: sha512-Ryk9y9T0FFVF0cUGhAknveAyUOl/A1qReTFi+qPKtOh2Z9F4AUBz3XOrYD4ZEgZirdugVzHvd/2/Wcwy5OliTg==}
@@ -3949,6 +3970,13 @@ snapshots:
 
   '@cloudflare/workerd-windows-64@1.20260801.1':
     optional: true
+
+  '@codemirror/autocomplete@6.20.3':
+    dependencies:
+      '@codemirror/language': 6.12.4
+      '@codemirror/state': 6.7.1
+      '@codemirror/view': 6.43.8
+      '@lezer/common': 1.5.2
 
   '@codemirror/commands@6.10.4':
     dependencies:

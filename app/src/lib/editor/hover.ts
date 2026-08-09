@@ -1,4 +1,5 @@
 import type { Extension } from '@codemirror/state'
+import { completionStatus } from '@codemirror/autocomplete'
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import type { Rect } from '@codemirror/view'
 
@@ -49,6 +50,9 @@ export const hover: Extension = [
   marks,
   hoverTooltip(
     (view, pos) => {
+      // One popover at a time: the completion menu is what the caret is
+      // working with, and a type hovering over it would cover the list.
+      if (completionStatus(view.state) !== null) return null
       const found = Types.at(view.state, pos)
       const identifier = found && { from: found.from, to: found.to }
       if (!identifier || !found) return null

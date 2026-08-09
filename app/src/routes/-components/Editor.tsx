@@ -1,3 +1,4 @@
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers as gutter } from '@codemirror/view'
@@ -6,13 +7,16 @@ import type { Theme } from 'monoshot'
 import type * as Twoslash from 'monoshot/twoslash'
 import { useEffect, useRef } from 'react'
 
+import { completions } from '#/lib/editor/completions.js'
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
+import { indent } from '#/lib/editor/indent.js'
 import { problems } from '#/lib/editor/problems.js'
 import { number, query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 import { setTypes } from '#/lib/editor/types.js'
+import type { Completion } from '#/lib/twoslash/protocol.js'
 import type { Types } from '#/lib/editor/types.js'
 
 const styles = stylex.create({
@@ -24,13 +28,15 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const { code, diagnostics, lineNumbers, onCodeChange, palette, tokens, types } = props
+  const { code, diagnostics, lineNumbers, onCodeChange, onComplete, palette, tokens, types } = props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
   // Held in a ref so changing the handler never rebuilds the editor.
   const onChange = useRef(onCodeChange)
   onChange.current = onCodeChange
+  const ask = useRef(onComplete)
+  ask.current = onComplete
   const palettes = useRef(new Compartment()).current
   const gutters = useRef(new Compartment()).current
 
@@ -43,13 +49,24 @@ export function Editor(props: Editor.Props) {
         doc: code,
         extensions: [
           history(),
-          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          indent,
+          // The generic bracket set leaves out the backtick, so a template
+          // literal would open without closing. Supplied as language data
+          // because the editor has no grammar to carry it.
+          EditorState.languageData.of(() => [
+            { closeBrackets: { brackets: ['(', '[', '{', "'", '"', '`'] } },
+          ]),
+          closeBrackets(),
+          // Ahead of the defaults: backspacing between a freshly typed pair
+          // takes both, which the plain delete binding would not.
+          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.lineWrapping,
           // Without a name the code surface reads as an unlabelled edit field.
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           queries,
           hover,
+          completions((document, position) => ask.current(document, position)),
           gutters.of(lineNumbers ? gutter({ formatNumber: number }) : []),
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
@@ -117,6 +134,8 @@ export declare namespace Editor {
     lineNumbers: boolean
     /** Receives every edit. */
     onCodeChange: (code: string) => void
+    /** Asked what could go at the caret, whenever the menu wants entries. */
+    onComplete: (code: string, position: number) => Promise<readonly Completion[]>
     /** Colors the editor to match the frame it sits in. */
     palette: Theme.derive.Result
     /** Types by identifier, shown on hover and under a pinned `^?` caret. */
