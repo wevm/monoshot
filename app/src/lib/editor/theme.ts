@@ -2,6 +2,8 @@ import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
 import type { Theme } from 'monoshot'
 
+import { motion } from '../../theme/tokens.stylex.js'
+
 /** Depth under the completion menu, which floats above the code. */
 const shadow = { dark: 'rgb(0 0 0 / 0.6)', light: 'rgb(0 0 0 / 0.18)' } as const
 
@@ -90,6 +92,13 @@ export function theme(palette: Theme.derive.Result): Extension {
         gap: '8px',
         lineHeight: 1.7,
         paddingInline: '8px',
+      },
+      // A row is a control, and a control acknowledges the press it takes.
+      '.cm-tooltip-autocomplete > ul > li:active': {
+        transform: 'scale(0.97)',
+        transitionDuration: motion.fast,
+        transitionProperty: 'transform',
+        transitionTimingFunction: motion.out,
       },
       '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
         backgroundColor: `color-mix(in oklab, ${palette.backdrop.from} 45%, transparent)`,

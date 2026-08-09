@@ -54,6 +54,8 @@ let pending: Resolve | undefined
 let running = false
 /** The newest document asked about, so a late upgrade knows it is stale. */
 let version = 0
+/** The newest caret asked about, so a completion held up by a cold start does. */
+let asked = 0
 
 const completions = Completions.create({ compiler: ts, compilerOptions, files })
 
@@ -72,9 +74,15 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
 
 async function complete(request: Complete) {
   try {
+    asked = request.id
     // The service reads the compiler's own lib files out of the shared file
     // system, so it cannot answer before they are in it.
     await twoslash.init()
+    // Typing through a cold start queues one of these per keystroke, and the
+    // editor abandoned every document but the last long before the lib files
+    // landed. Answering them all would compile each in turn ahead of the one
+    // still wanted.
+    if (request.id !== asked) return reply({ completions: [], id: request.id, kind: 'complete' })
     reply({
       completions: completions.at({
         code: request.code,

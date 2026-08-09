@@ -16,7 +16,9 @@ export function completions(ask: completions.Ask): Extension {
   return autocompletion({
     override: [
       async (context: CompletionContext): Promise<CompletionResult | null> => {
-        const word = context.matchBefore(/[$\w]*/)
+        // Every character an identifier can start or continue with, which is
+        // more than ASCII, plus the `#` a private member is named with.
+        const word = context.matchBefore(/[#$\p{L}\p{Nd}_]*/u)
         // A caret just after `.` has no word yet but is exactly where a member
         // list belongs, so it opens the menu the same as typing a letter does.
         const member = context.matchBefore(/\.$/)

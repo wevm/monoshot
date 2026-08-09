@@ -88,9 +88,19 @@ export declare namespace create {
     files: Map<string, string>
   }
 
+  /** A caret to offer completions at. */
+  type At = {
+    /** The document the caret sits in. */
+    code: string
+    /** The dialect to read `code` as. */
+    lang: Lang
+    /** Document offset of the caret. */
+    position: number
+  }
+
   type ReturnType = {
     /** What the language service would offer at a document offset. */
-    at: (options: { code: string; lang: Lang; position: number }) => readonly Completion[]
+    at: (options: At) => readonly Completion[]
     /**
      * Drops the service, so the next request builds one over the files as they
      * are now. A program holds its own copy of what it read, so packages

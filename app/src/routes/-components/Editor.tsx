@@ -48,6 +48,12 @@ export function Editor(props: Editor.Props) {
         extensions: [
           history(),
           indent,
+          // The generic bracket set leaves out the backtick, so a template
+          // literal would open without closing. Supplied as language data
+          // because the editor has no grammar to carry it.
+          EditorState.languageData.of(() => [
+            { closeBrackets: { brackets: ['(', '[', '{', "'", '"', '`'] } },
+          ]),
           closeBrackets(),
           // Ahead of the defaults: backspacing between a freshly typed pair
           // takes both, which the plain delete binding would not.
