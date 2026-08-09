@@ -28,8 +28,7 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const { code, diagnostics, lineNumbers, onCodeChange, onComplete, palette, tokens, types } =
-    props
+  const { code, diagnostics, lineNumbers, onCodeChange, onComplete, palette, tokens, types } = props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
