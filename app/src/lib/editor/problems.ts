@@ -1,6 +1,22 @@
-import { setDiagnostics } from '@codemirror/lint'
+import { forEachDiagnostic, setDiagnostics } from '@codemirror/lint'
 import type { EditorState, TransactionSpec } from '@codemirror/state'
 import type * as Twoslash from 'monoshot/twoslash'
+
+/**
+ * Whether the compiler objects to anything a span covers.
+ *
+ * A marked span carries its own hover, and the two would otherwise stack into
+ * one popover: what is wrong with a token outranks what type it holds.
+ */
+export function objection(state: EditorState, span: { from: number; to: number }): boolean {
+  let found = false
+  // Overlap rather than touch: a diagnostic ending where the span starts sits
+  // beside it rather than on it.
+  forEachDiagnostic(state, (_, from, to) => {
+    if (from < span.to && span.from < to) found = true
+  })
+  return found
+}
 
 /**
  * Carries the compiler's complaints into the editor as squiggles.
