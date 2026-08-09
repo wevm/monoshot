@@ -90,6 +90,13 @@ export const color = stylex.defineVars({
   onChromeSecondary: '#98989d',
   chromeHover: '#ffffff1f',
   chromeActive: '#ffffff33',
+
+  // A compiler squiggle is drawn on the artwork, not on the app background, so
+  // it picks by the frame's own surface rather than by `color-scheme`. One red
+  // cannot serve both: it is invisible on a dark theme or shouting on a light
+  // one.
+  squiggleOnDark: '#ff6b6b',
+  squiggleOnLight: '#c92a2a',
 })
 
 export const font = stylex.defineVars({
