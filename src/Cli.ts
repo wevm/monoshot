@@ -1,7 +1,7 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { text } from 'node:stream/consumers'
-import * as Incur from 'incur'
+import { Cli } from 'incur'
 import type { BundledLanguage } from 'shiki'
 import { bundledLanguagesInfo } from 'shiki'
 import * as z from 'zod'
@@ -69,7 +69,7 @@ const inline = z.object({
  * test can drive the same definition through `fetch`.
  */
 export function create() {
-  return Incur.Cli.create('monoshot', {
+  return Cli.create('monoshot', {
     description: 'Render code to images with type annotations.',
     mcp: {
       instructions:
@@ -78,7 +78,7 @@ export function create() {
     version,
   })
     .command('render', {
-      alias: { out: 'o', scale: 's', theme: 't' },
+      alias: { code: 'c', out: 'o', scale: 's', theme: 't' },
       args: source,
       description: 'Render a snippet to a PNG.',
       examples: [
@@ -140,7 +140,7 @@ export function create() {
       },
     })
     .command('share', {
-      alias: { theme: 't' },
+      alias: { code: 'c', theme: 't' },
       args: source,
       description: 'Build a link that opens the snippet in a browser.',
       // Reads a file and returns a string. An agent may reach for it freely.
