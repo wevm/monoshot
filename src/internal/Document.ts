@@ -330,8 +330,9 @@ ${row}
 .shiki .line.highlighted {
 ${mark(palette.window.foreground)}
 }
-/* Focus says which lines matter, so the rest recede rather than being marked. */
-.shiki.has-focused .line:not(.focused) {
+/* Focus says which lines matter, so the rest recede rather than being marked.
+   A line carrying a mark of its own keeps it: the mark is the louder claim. */
+.shiki.has-focused .line:not(.focused):not(.highlighted):not(.diff) {
   opacity: 0.4;
 }
 .shiki .line.diff.add {

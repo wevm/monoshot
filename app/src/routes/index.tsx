@@ -832,6 +832,7 @@ function Page() {
                 <Editor
                   code={code}
                   diagnostics={diagnostics}
+                  language={language}
                   lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
                   // A language the service cannot read has nothing to offer,

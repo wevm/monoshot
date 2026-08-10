@@ -12,7 +12,8 @@ import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
-import { notations } from '#/lib/editor/notations.js'
+import { notations, syntax } from '#/lib/editor/notations.js'
+import { rail } from '#/lib/editor/rail.js'
 import { problems } from '#/lib/editor/problems.js'
 import { number, query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
@@ -29,7 +30,17 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const { code, diagnostics, lineNumbers, onCodeChange, onComplete, palette, tokens, types } = props
+  const {
+    code,
+    diagnostics,
+    language,
+    lineNumbers,
+    onCodeChange,
+    onComplete,
+    palette,
+    tokens,
+    types,
+  } = props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
@@ -40,6 +51,7 @@ export function Editor(props: Editor.Props) {
   ask.current = onComplete
   const palettes = useRef(new Compartment()).current
   const gutters = useRef(new Compartment()).current
+  const rails = useRef(new Compartment()).current
 
   useEffect(() => {
     const parent = host.current
@@ -66,6 +78,7 @@ export function Editor(props: Editor.Props) {
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           notations,
+          rails.of(rail(syntax(language))),
           queries,
           hover,
           completions((document, position) => ask.current(document, position)),
@@ -95,6 +108,10 @@ export function Editor(props: Editor.Props) {
       effects: gutters.reconfigure(lineNumbers ? gutter({ formatNumber: number }) : []),
     })
   }, [gutters, lineNumbers])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: rails.reconfigure(rail(syntax(language))) })
+  }, [language, rails])
 
   useEffect(() => {
     view.current?.dispatch({ effects: setTypes.of(types) })
@@ -132,6 +149,8 @@ export declare namespace Editor {
     code: string
     /** What the compiler objected to, drawn as squiggles. */
     diagnostics: readonly Twoslash.Diagnostic[]
+    /** What the snippet is written in, which decides how a mark is written. */
+    language: string
     /** Shows the line-number gutter. */
     lineNumbers: boolean
     /** Receives every edit. */

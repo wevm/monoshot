@@ -71,6 +71,70 @@ export function theme(palette: Theme.derive.Result): Extension {
       // The comment is the handle on the mark rather than part of the code,
       // and the export takes it back out.
       '.cm-notation': { opacity: 0.4 },
+      // The marks a line can carry, offered at the window's edge. Space for
+      // them is not reserved: the code would then wrap somewhere the exported
+      // image does not.
+      '.cm-rail': {
+        alignItems: 'center',
+        backgroundColor: `color-mix(in oklab, ${palette.window.background} 88%, transparent)`,
+        borderRadius: '8px',
+        display: 'flex',
+        gap: '2px',
+        height: 'var(--code-line-height)',
+        opacity: 0,
+        paddingInline: '3px',
+        pointerEvents: 'none',
+        position: 'absolute',
+        right: '6px',
+        top: 'var(--rail-top, 0px)',
+        transitionDuration: motion.fast,
+        transitionProperty: 'opacity',
+        transitionTimingFunction: motion.out,
+      },
+      // CodeMirror takes a media query as a rule of its own, not as a condition
+      // inside one.
+      '@media (prefers-reduced-motion: reduce)': { '.cm-rail': { transitionDuration: '0s' } },
+      '.cm-rail[data-shown]': { opacity: 1, pointerEvents: 'auto' },
+      '.cm-rail-control': {
+        alignItems: 'center',
+        background: 'none',
+        border: 'none',
+        borderRadius: '6px',
+        color: palette.window.foreground,
+        cursor: 'pointer',
+        display: 'flex',
+        height: '20px',
+        justifyContent: 'center',
+        opacity: 0.4,
+        padding: 0,
+        width: '20px',
+      },
+      '.cm-rail-control:hover': {
+        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 12%, transparent)`,
+        opacity: 1,
+      },
+      '.cm-rail-control:active': {
+        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 20%, transparent)`,
+      },
+      '.cm-rail-control:focus-visible': {
+        opacity: 1,
+        outline: `2px solid ${palette.window.foreground}`,
+        outlineOffset: '1px',
+      },
+      // A control a line already carries reads in that mark's own hue, which is
+      // also how the mark is taken away again.
+      '.cm-rail-control[data-active]': { opacity: 1 },
+      '.cm-rail-control[data-kind="add"][data-active]': { color: Theme.marks.add },
+      '.cm-rail-control[data-kind="remove"][data-active]': { color: Theme.marks.remove },
+      '.cm-rail-control svg': {
+        fill: 'none',
+        height: '14px',
+        stroke: 'currentColor',
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        strokeWidth: 2,
+        width: '14px',
+      },
       '.cm-scroller': {
         fontFamily: 'var(--code-font-family)',
         lineHeight: 'var(--code-line-height)',
