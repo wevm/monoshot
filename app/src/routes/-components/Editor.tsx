@@ -14,7 +14,7 @@ import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
 import { notations, syntax } from '#/lib/editor/notations.js'
 import { rail } from '#/lib/editor/rail.js'
-import { problems } from '#/lib/editor/problems.js'
+import { pins, problems } from '#/lib/editor/problems.js'
 import { number, query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 import { setTypes } from '#/lib/editor/types.js'
@@ -82,6 +82,7 @@ export function Editor(props: Editor.Props) {
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           notations,
+          pins,
           rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries,
           hover,

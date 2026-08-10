@@ -63,7 +63,8 @@ function create(root: HTMLElement) {
   return body
 }
 
-function control(action: Action): HTMLElement {
+/** The pin a surface offers, which is the same control wherever it sits. */
+export function control(action: Action): HTMLElement {
   const button = document.createElement('button')
   button.className = 'twoslash-pin'
   button.type = 'button'

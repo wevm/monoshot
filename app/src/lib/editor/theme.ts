@@ -220,6 +220,20 @@ export function theme(palette: Theme.derive.Result): Extension {
         padding: 0,
       },
       '.cm-diagnostic': { borderLeft: 'none', padding: '6px 10px' },
+      // A pinned complaint reads the way the exported frame draws one: prose a
+      // step under the code, dimmed, in the code's own color.
+      '.cm-objection': {
+        alignItems: 'flex-start',
+        color: palette.window.foreground,
+        display: 'flex',
+        fontSize: 'var(--code-annotation-size)',
+        gap: '6px',
+        lineHeight: 1.5,
+        opacity: 0.75,
+        paddingBottom: '4px',
+        whiteSpace: 'pre-wrap',
+      },
+      '.cm-objection:hover .twoslash-pin': { opacity: 1, transform: 'none' },
     },
     { dark: palette.type === 'dark' },
   )
