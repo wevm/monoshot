@@ -131,6 +131,7 @@ Applies to comments, TSDoc, commit messages, and pull requests.
 
 - `pnpm check` formats and lints (mutating). `pnpm check:types` type-checks the library; the app has its own `check:types`.
 - `pnpm test` runs library tests. `pnpm build` builds the library with zile.
+- `pnpm cli <command>` runs the CLI from source through tsx, which resolves the `.js` specifiers Node cannot. No build step.
 - `pnpm --filter app dev` runs the web app; `gen:types` regenerates `worker-configuration.d.ts` after wrangler config changes.
 
 ## Motion Conventions
