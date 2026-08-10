@@ -45,11 +45,52 @@ describe('create', () => {
     expect(status).toBe(400)
     expect(body).toMatchInlineSnapshot(`
       {
-        "error": "Out of range: width.",
-        "fields": [
-          "width",
-        ],
+        "error": "width: Too big: expected number to be <=1600",
       }
+    `)
+  })
+
+  test('refuses a field it does not know, rather than dropping it', async () => {
+    // A misspelled option would otherwise render at the default and report
+    // success, which reads as the request having been understood.
+    const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts', lineNumber: true })
+    expect(status).toBe(400)
+    expect(body).toMatchInlineSnapshot(`
+      {
+        "error": "Unrecognized key: "lineNumber"",
+      }
+    `)
+  })
+
+  test('refuses a snippet past what one request may weigh', async () => {
+    const { status } = await post({ code: 'x'.repeat(100_001), lang: 'ts' })
+    expect(status).toBe(400)
+  })
+
+  test('refuses a run resolved against other code', async () => {
+    // A client that resolved types, then edited, would otherwise have the
+    // stale offsets drawn onto the new snippet.
+    const { body, status } = await post({
+      code: 'const greeting = "hello"\n',
+      lang: 'ts',
+      twoslash: { code: 'const other = 2\n', nodes: [] },
+    })
+    expect(status).toBe(400)
+    expect(body).toMatchInlineSnapshot(`
+      {
+        "error": "twoslash.code: the resolved types belong to different code.",
+      }
+    `)
+  })
+
+  test('describes itself', async () => {
+    const response = await Api.route.request('/openapi.json')
+    const spec = (await response.json()) as { paths: Record<string, unknown> }
+    expect(response.status).toBe(200)
+    expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
+      [
+        "/document",
+      ]
     `)
   })
 
@@ -58,27 +99,20 @@ describe('create', () => {
     expect(status).toBe(400)
     expect(body).toMatchInlineSnapshot(`
       {
-        "error": "\`nope\` is not a bundled theme.",
+        "error": "theme: \`nope\` is not bundled.",
       }
     `)
   })
 
   test('refuses a request with no code to draw', async () => {
-    expect(await post({ lang: 'ts' })).toMatchInlineSnapshot(`
-      {
-        "body": {
-          "error": "Send the code to render.",
-        },
-        "status": 400,
-      }
-    `)
+    expect((await post({ lang: 'ts' })).status).toBe(400)
   })
 
   test('refuses `auto`, which it cannot resolve without the document', async () => {
-    expect(await post({ code: 'const a = 1\n' })).toMatchInlineSnapshot(`
+    expect(await post({ code: 'const a = 1\n', lang: 'auto' })).toMatchInlineSnapshot(`
       {
         "body": {
-          "error": "Name the language to render.",
+          "error": "lang: name the language to render.",
         },
         "status": 400,
       }
@@ -86,13 +120,11 @@ describe('create', () => {
   })
 
   test('refuses a body that is not JSON', async () => {
-    expect(await post('nope')).toMatchInlineSnapshot(`
-      {
-        "body": {
-          "error": "Send a JSON body.",
-        },
-        "status": 400,
-      }
-    `)
+    expect((await post('nope')).status).toBe(400)
+  })
+
+  test('refuses JSON that is not an object', async () => {
+    // Valid JSON the schema cannot read: it must answer, not throw.
+    for (const body of ['1', '[]', '"text"']) expect((await post(body)).status).toBe(400)
   })
 })
