@@ -116,7 +116,7 @@
 
   /* One surface for a type, wherever it is shown: the hover and the pinned
      block differ in where they sit, not in how they look. */
-  .twoslash {
+  div.twoslash {
     /* Composited onto the window rather than left translucent: the notch
        inherits this fill and hangs off the surface, so a transparent one
        shows the code through the part that sticks out. */
@@ -298,10 +298,12 @@
     animation: twoslash-in var(--motion-medium) var(--motion-out) both;
   }
 
-  /* A notch pointing back at the token the type belongs to. A hover measures
+  /* A notch pointing back at the token the type belongs to. Bound to the
+     element the editor builds: the renderer marks the whole `pre` `twoslash`,
+     and an unqualified rule would hang a notch off the code block. A hover measures
      this back to its word once placed, since CodeMirror shoves a tooltip too
      wide for the room to its right leftwards to keep it on screen. */
-  .twoslash::before {
+  div.twoslash::before {
     background-color: inherit;
     border-left: 1px solid var(--window-border);
     border-top: 1px solid var(--window-border);
