@@ -52,6 +52,9 @@ const settings = z.object({
   width: z.number().optional().describe('Width of the window, in pixels.'),
 })
 
+/** The languages twoslash resolves types for. Shiki's own ids, as resolved. */
+const typed: ReadonlySet<string> = new Set(['javascript', 'jsx', 'tsx', 'typescript'])
+
 /** Where a snippet comes from, when it does not arrive as `--code`. */
 const source = z.object({
   file: z.string().optional().describe('Path to a source file, or `-` to read standard input.'),
@@ -77,10 +80,10 @@ const linked = settings.extend({
  */
 export function create() {
   return Cli.create('monoshot', {
-    description: 'Render code to images with type annotations.',
+    description: 'Render code to images, with the types a `^?` query asks for.',
     mcp: {
       instructions:
-        'Renders a source file or an inline snippet to a PNG, to a link, or straight into a browser. `themes` lists the names `--theme` accepts.',
+        'Renders a source file or an inline snippet to a PNG, to a link, or straight into a browser. A `^?` query in TypeScript is drawn as the type it resolves to. `themes` lists the names `--theme` accepts.',
     },
     version,
   })
@@ -108,7 +111,16 @@ export function create() {
           .string()
           .optional()
           .describe('Where to write the image. Beside the source by default.'),
-        scale: z.number().optional().describe('Multiplier on the frame’s own size. Defaults to 2.'),
+        scale: z
+          .number()
+          .positive()
+          .finite()
+          .optional()
+          .describe('Multiplier on the frame’s own size. Defaults to 2.'),
+        twoslash: z
+          .boolean()
+          .optional()
+          .describe('Draw the types a `^?` query asks for. On for the TypeScript family.'),
       }),
       output: z.object({
         bytes: z.number().describe('Size of the image written.'),
@@ -133,6 +145,7 @@ export function create() {
           try {
             return await Headless.render({
               ...resolved.state,
+              twoslash: options.twoslash ?? typed.has(resolved.state.lang),
               ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
               ...(options.executable === undefined ? {} : { executable: options.executable }),
               ...(options.scale === undefined ? {} : { scale: options.scale }),
@@ -263,7 +276,19 @@ async function link(
       code: 'snippet_too_large',
       message: 'The snippet is too large to carry in a link. Render it to an image instead.',
     }
-  return { url: `${options.base ?? site}#${fragment}` }
+  const base = (() => {
+    try {
+      return new URL(options.base ?? site)
+    } catch {
+      return undefined
+    }
+  })()
+  if (base === undefined)
+    return { code: 'invalid_base', message: `\`${options.base}\` is not a URL.` }
+  // Assigned rather than appended: a base carrying its own fragment would
+  // otherwise leave two, and a browser reads everything after the first as one.
+  base.hash = fragment
+  return { url: base.toString() }
 }
 
 /**

@@ -4,6 +4,7 @@
     "changeset:publish": "zile publish:prepare && changeset publish && zile publish:post",
     "changeset:version": "changeset version && node scripts/update-version.ts",
     "check": "vp check --fix",
+    "cli": "node --import tsx src/bin.ts",
     "check:types": "tsc",
     "dev": "zile dev",
     "test": "vp test"
@@ -13,6 +14,7 @@
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "puppeteer-core": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "zile": "catalog:"
@@ -70,6 +72,7 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@shikijs/twoslash": "4.4.2",
     "culori": "catalog:",
     "incur": "catalog:",
     "lz-string": "catalog:",

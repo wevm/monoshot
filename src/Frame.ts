@@ -5,6 +5,7 @@ import type {
   BundledLanguage,
   BundledTheme,
   Highlighter,
+  ShikiTransformer,
   ThemeRegistrationResolved,
   ThemedToken,
 } from 'shiki'
@@ -27,6 +28,42 @@ import type {
  */
 export function create(options: create.Options = {}): create.ReturnType {
   const { langs = [], themes = [] } = options
+
+  // Holds a TypeScript compiler, so it is built once for the renderer rather
+  // than per render, and only when a render actually asks for types.
+  let annotator: Promise<ShikiTransformer> | undefined
+
+  /**
+   * Imported here rather than at the top of the module: the compiler is
+   * megabytes, `Frame` is what a browser reaches for to highlight, and a
+   * static import would put one in every bundle that holds the other.
+   */
+  function annotate(): Promise<ShikiTransformer> {
+    // A rejection must not be cached, or one failed chunk load would leave the
+    // renderer unable to annotate for the rest of its life.
+    return (annotator ??= build().catch((cause: unknown) => {
+      annotator = undefined
+      throw cause
+    }))
+
+    async function build() {
+      const [{ rendererRich, transformerTwoslash }, { createTwoslasher }] = await Promise.all([
+        import('@shikijs/twoslash'),
+        import('twoslash'),
+      ])
+      return transformerTwoslash({
+        // A snippet in an editor is half-typed most of the time, and code that
+        // does not compile still has types worth drawing.
+        throws: false,
+        renderer: rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
+        twoslasher: createTwoslasher({
+          // Twoslash otherwise insists every compiler error be declared in the
+          // source and gives up on the whole snippet when one is not.
+          handbookOptions: { noErrorValidation: true },
+        }),
+      })
+    }
+  }
 
   // Kept as a promise so concurrent renders share one creation rather than
   // racing to build a highlighter each.
@@ -53,20 +90,33 @@ export function create(options: create.Options = {}): create.ReturnType {
   // A closure rather than a sibling method: an operation read off a destructured
   // renderer has no receiver to resolve.
   async function highlight(parameters: render.Options): Promise<render.ReturnType> {
-    const { code, lang, theme } = parameters
-    const instance = await resolve({ lang, theme })
+    const { code, lang, theme, twoslash = false } = parameters
+    const [instance, annotations] = await Promise.all([
+      resolve({ lang, theme }),
+      twoslash ? annotate() : undefined,
+    ])
     return {
       html: instance.codeToHtml(code, {
         lang,
         theme,
         transformers: [
           {
-            line(node, line) {
-              node.properties['data-line'] = line
+            // Numbered here rather than in `line`, which runs before twoslash
+            // folds a query into a block and inserts its own lines: only what
+            // survives into the code element is a line of code.
+            code(node) {
+              let number = 0
+              for (const child of node.children) {
+                if (child.type !== 'element') continue
+                if (!classes(child.properties['class']).includes('line')) continue
+                child.properties['data-line'] = ++number
+              }
             },
           },
+          ...(annotations ? [annotations] : []),
         ],
       }),
+      ...(annotations ? { css: Document.annotations(Theme.derive(instance.getTheme(theme))) } : {}),
       // Detached: the registry entry is shared, so handing it out would let
       // one caller's edit change what later renders produce.
       theme: structuredClone(instance.getTheme(theme)),
@@ -76,6 +126,9 @@ export function create(options: create.Options = {}): create.ReturnType {
   return {
     async dispose() {
       const instance = await highlighter?.catch(() => undefined)
+      // The compiler and its virtual file system go with it: a renderer kept
+      // after disposal rebuilds both on the next render that wants them.
+      annotator = undefined
       highlighter = undefined
       instance?.dispose()
     },
@@ -84,9 +137,14 @@ export function create(options: create.Options = {}): create.ReturnType {
     },
     render: highlight,
     async toDocument(parameters) {
-      const { code, lang, theme, ...rest } = parameters
-      const result = await highlight({ code, lang, theme })
-      return Document.build({ ...rest, html: result.html, palette: Theme.derive(result.theme) })
+      const { code, lang, theme, twoslash = false, ...rest } = parameters
+      const result = await highlight({ code, lang, theme, twoslash })
+      return Document.build({
+        ...rest,
+        annotated: twoslash,
+        html: result.html,
+        palette: Theme.derive(result.theme),
+      })
     },
     async tokens(parameters) {
       const { code, lang, theme } = parameters
@@ -154,7 +212,8 @@ export declare namespace load {
 }
 
 export declare namespace tokens {
-  type Options = render.Options
+  /** Tokenizing resolves no types, so a query is left as the comment it is. */
+  type Options = Omit<render.Options, 'twoslash'>
 
   type ReturnType = {
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
@@ -166,7 +225,7 @@ export declare namespace tokens {
 
 export declare namespace toDocument {
   /** What to render, and the frame to render it in. */
-  type Options = Omit<Document.Options, 'html' | 'palette'> & render.Options
+  type Options = Omit<Document.Options, 'annotated' | 'html' | 'palette'> & render.Options
 
   /** The frame as one standalone HTML document. */
   type ReturnType = string
@@ -180,12 +239,29 @@ export declare namespace render {
     lang: BundledLanguage
     /** Theme to color with. */
     theme: BundledTheme
+    /**
+     * Resolve the types a `^?` query asks for and draw them in flow. Needs
+     * `typescript`, and applies to the TypeScript family only. Defaults to
+     * `false`.
+     */
+    twoslash?: boolean | undefined
   }
 
   type ReturnType = {
+    /**
+     * Styles the annotated markup needs, which draw the query blocks and keep
+     * the hover popovers out of flow. Absent unless `twoslash` was asked for.
+     */
+    css?: string | undefined
     /** Highlighted markup: a `pre.shiki` whose lines carry `data-line`. */
     html: string
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
     theme: ThemeRegistrationResolved
   }
+}
+
+/** A hast node's classes, which arrive as a string or as a list. */
+function classes(value: unknown): readonly string[] {
+  if (Array.isArray(value)) return value.map(String)
+  return typeof value === 'string' ? value.split(/\s+/) : []
 }
