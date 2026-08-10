@@ -13,9 +13,9 @@ import * as Theme from './Theme.js'
  * @example
  * ```ts twoslash
  * import { Hono } from 'hono'
- * import * as Api from 'monoshot/api'
+ * import { Api } from 'monoshot'
  *
- * const app = new Hono().route('/v1', Api.create())
+ * const app = new Hono().route('/v1', Api.create({ frame }))
  * ```
  */
 export function create(options: create.Options = {}): create.ReturnType {
@@ -68,6 +68,20 @@ export function create(options: create.Options = {}): create.ReturnType {
     })
   })
 }
+
+/**
+ * The routes, ready to mount. Holds a renderer of its own; reach for
+ * {@link create} to share one or to choose the engine.
+ *
+ * @example
+ * ```ts twoslash
+ * import { Hono } from 'hono'
+ * import { Api } from 'monoshot'
+ *
+ * const app = new Hono().route('/v1', Api.route)
+ * ```
+ */
+export const route: create.ReturnType = create()
 
 export declare namespace create {
   type Options = {

@@ -4,7 +4,7 @@ import * as Api from './Api.js'
 
 /** Posts a body to the routes, as a Worker would hand them a request. */
 async function post(body: unknown) {
-  const response = await Api.create().request('/document', {
+  const response = await Api.route.request('/document', {
     body: typeof body === 'string' ? body : JSON.stringify(body),
     headers: { 'content-type': 'application/json' },
     method: 'POST',

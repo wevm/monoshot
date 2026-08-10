@@ -1,6 +1,6 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono } from 'hono'
-import * as Api from 'monoshot/api'
+import { Api } from 'monoshot'
 
 import * as Registry from './registry.js'
 
@@ -9,7 +9,7 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   // Renders a frame to the standalone document a browser screenshots. The
   // library owns the routes, so the CLI, this app, and any other consumer
   // draw from one description of a frame.
-  .route('/', Api.create())
+  .route('/', Api.route)
   // A whole package's declarations in one response. The editor resolves types
   // in the browser, where fetching them file by file from a CDN costs hundreds
   // of round trips for a package like `shiki`.

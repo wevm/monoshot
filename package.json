@@ -54,11 +54,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./api": {
-      "src": "./src/Api.ts",
-      "types": "./dist/Api.d.ts",
-      "default": "./dist/Api.js"
-    },
     "./headless": {
       "src": "./src/Headless.ts",
       "types": "./dist/Headless.d.ts",
