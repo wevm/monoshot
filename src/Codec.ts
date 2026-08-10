@@ -17,7 +17,6 @@ export const schema = z.object({
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
   /** Whether the snippet is numbered down its left edge. */
-  lineNumbers: z.boolean().catch(false),
   /** Space around the window, in pixels. */
   padding: z.number().int().min(0).max(256).catch(64),
   /** Corner radius of the window, in pixels. */
@@ -43,7 +42,6 @@ const keys = {
   background: 'b',
   code: 'c',
   lang: 'g',
-  lineNumbers: 'n',
   padding: 'p',
   radius: 'r',
   theme: 't',

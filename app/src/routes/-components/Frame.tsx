@@ -537,16 +537,12 @@ export namespace Frame {
    * the rules that draw it.
    */
   export function Code(props: Code.Props) {
-    const { css, html, lineNumbers } = props
-    // A fixed two-character gutter clips the leading digit past line 99.
-    const gutter = `${String(Math.max((html.match(/data-line="/g) ?? []).length, 10)).length}ch`
+    const { css, html } = props
 
     return (
       <div
-        data-line-numbers={lineNumbers || undefined}
         ref={(node) => {
           if (!node) return
-          node.style.setProperty('--gutter', gutter)
           // Written as a value rather than left to inherit: an export serializes
           // computed styles, and a custom property standing for another one is
           // copied unresolved, so the marks would reach nothing.
@@ -567,7 +563,6 @@ export namespace Frame {
       /** Styles the annotated markup needs, when the render produced any. */
       css?: string | undefined
       html: string
-      lineNumbers?: boolean | undefined
     }
   }
 }

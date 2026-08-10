@@ -5,7 +5,6 @@ import type { DecorationSet } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import * as Notations from './notations.js'
 import * as Types from './types.js'
 
 const field = StateField.define<Value>({
@@ -35,16 +34,6 @@ const field = StateField.define<Value>({
  * an export carries it the same way the editor shows it.
  */
 export const query: Extension = [Types.types, field]
-
-/**
- * The number a line shows in the gutter. A pinned type stands in for its `^?`
- * line, so that line takes no number and the code after it keeps counting.
- */
-export function number(line: number, state: EditorState): string {
-  const gone = [...state.field(field).lines, ...Notations.removed(state)]
-  if (gone.includes(line)) return ''
-  return String(line - gone.filter((dropped) => dropped < line).length)
-}
 
 type Value = {
   decorations: DecorationSet

@@ -47,7 +47,6 @@ namespace schema {
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
-      lineNumbers: z.boolean().optional(),
       padding: z.number().int().min(0).max(256).optional(),
       radius: z.number().int().min(0).max(24).optional(),
       theme: z.string().optional(),

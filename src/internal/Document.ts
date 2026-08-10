@@ -23,8 +23,6 @@ export type Options = {
   html: string
   /** Whether the html carries twoslash blocks, which need their own styles. */
   annotated?: boolean | undefined
-  /** Whether to draw a line-number gutter beside the code. */
-  lineNumbers: boolean
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
   /** Frame colors, derived from the theme the code was highlighted with. */
@@ -53,8 +51,7 @@ export type Options = {
  * would leave the stylesheet or fetch a resource.
  */
 export function build(options: Options): string {
-  const { background, html, lineNumbers, padding, palette, radius, title, titleBar, width } =
-    options
+  const { background, html, padding, palette, radius, title, titleBar, width } = options
   const styles = options.annotated === true ? annotations(palette) : ''
   const fonts = options.fonts ?? []
   const backdrop =
@@ -135,7 +132,6 @@ body { -webkit-font-smoothing: antialiased; }
   white-space: pre-wrap;
 }
 .shiki { padding-block: 12px; }
-${lineNumbers ? gutter(html) : ''}
 ${marked(html) ? marks(palette) : ''}
 ${styles}
 .twoslash-block {
@@ -187,49 +183,6 @@ const shadow = {
   dark: '0 24px 48px -12px #00000059',
   light: '0 24px 48px -12px #00000026',
 } as const
-
-/**
- * The gutter, sized to the document rather than read from the DOM: there is no
- * script here to measure it. A wrapped line hangs its continuation under the
- * code instead of under the numbers.
- */
-function gutter(html: string) {
-  // The numbering the render already did, rather than a bare `class="line"`:
-  // a marked line carries its mark in the same attribute.
-  const lines = (html.match(/data-line="/g) ?? []).length
-  const width = String(Math.max(lines, 10)).length
-  return `.shiki code {
-  /* Grid, not blocked lines: shiki puts a real newline between them, which a
-     block would render as height on top of the line box. Whitespace between
-     grid items makes no row. */
-  display: grid;
-  /* A row wraps at the window rather than reaching past it: an auto column is
-     as wide as its widest line, and a grid item carries a minimum of its own
-     content. */
-  grid-template-columns: minmax(0, 1fr);
-}
-.shiki {
-  /* Read back by a marked line, which insets its text by the gutter as well. */
-  --gutter-inset: calc(${width}ch + 20px);
-}
-.shiki .line {
-  padding-left: var(--gutter-inset);
-  text-indent: calc(-1ch * ${width} - 20px);
-}
-.shiki .twoslash-meta-line {
-  padding-left: calc(${width}ch + 20px);
-}
-.shiki .line::before {
-  content: attr(data-line);
-  display: inline-block;
-  margin-right: 20px;
-  opacity: 0.4;
-  overflow: hidden;
-  text-align: right;
-  vertical-align: top;
-  width: ${width}ch;
-}`
-}
 
 /**
  * Styles for the blocks twoslash renders in place of a `^?` line. Only the
@@ -308,7 +261,7 @@ export function marks(palette: Theme.derive.Result) {
    * without one the row reaches the code's own edges.
    */
   const row = `  margin-inline: calc(-1 * var(--body-inset, 0px));
-  padding-inline-start: calc(var(--body-inset, 0px) + var(--gutter-inset, 0px));
+  padding-inline-start: var(--body-inset, 0px);
   padding-inline-end: var(--body-inset, 0px);`
   /** A row's bar and wash, from one Theme.marks. */
   const mark = (
@@ -356,13 +309,9 @@ ${mark(Theme.marks.remove)}
   filter: grayscale(1);
   opacity: 0.8;
 }
-/* Its own pseudo-element: the one before it draws a line number, which a diff
-   line has too when the gutter is on. */
 .shiki .line.diff::after {
   left: 6px;
   position: absolute;
-  /* The gutter indents the line's first box, which this is not part of. */
-  text-indent: 0;
 }
 .shiki .line.diff.add::after {
   color: ${Theme.marks.add};
@@ -378,6 +327,9 @@ ${mark(Theme.marks.remove)}
 .twoslash-error-line,
 .twoslash-tag-line {
   align-items: center;
+  /* Set off from the line above, which it is a note on rather than the next
+     thing to read. */
+  margin-top: 6px;
   display: flex;
   font-size: var(--code-annotation-size);
   gap: 6px;

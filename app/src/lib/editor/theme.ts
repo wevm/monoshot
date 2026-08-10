@@ -54,25 +54,6 @@ export function theme(palette: Theme.derive.Result): Extension {
         paddingInline: 'var(--editor-inset)',
         position: 'relative',
       },
-      '.cm-gutterElement[class*="cm-mark-"]': {
-        marginInline: 'calc(-1 * var(--editor-inset))',
-        paddingInline: 'var(--editor-inset)',
-      },
-      // With a gutter the row starts there, so the bar belongs to it rather
-      // than being drawn twice.
-      '&:has(.cm-gutters) .cm-line[class*="cm-mark-"]': { boxShadow: 'none' },
-      '.cm-lineNumbers .cm-gutterElement[class*="cm-mark-"]': {
-        marginRight: 0,
-        paddingInline: 'var(--editor-inset) 20px',
-      },
-      '.cm-gutterElement.cm-mark-add': { ...mark(Theme.marks.add), position: 'relative' },
-      '.cm-gutterElement.cm-mark-blur': { opacity: 0.4 },
-      '.cm-gutterElement.cm-mark-highlight': mark(palette.window.foreground),
-      '.cm-gutterElement.cm-mark-remove': {
-        ...mark(Theme.marks.remove),
-        opacity: 0.7,
-        position: 'relative',
-      },
       '.cm-line.cm-mark-add': mark(Theme.marks.add),
       // The sign a diff line carries, in the inset the window already holds.
       // Its own pseudo-element, since the gutter draws a number in the other.
@@ -82,19 +63,6 @@ export function theme(palette: Theme.derive.Result): Extension {
       },
       '.cm-line.cm-mark-add::after': { color: Theme.marks.add, content: '"+"' },
       '.cm-line.cm-mark-remove::after': { color: Theme.marks.remove, content: '"-"' },
-      // With a gutter the row starts there, so the sign goes with it rather
-      // than landing on a number.
-      '&:has(.cm-gutters) .cm-line.cm-mark-add::after': { content: '""' },
-      '&:has(.cm-gutters) .cm-line.cm-mark-remove::after': { content: '""' },
-      '.cm-gutterElement.cm-mark-add::after, .cm-gutterElement.cm-mark-remove::after': {
-        left: '6px',
-        position: 'absolute',
-      },
-      '.cm-gutterElement.cm-mark-add::after': { color: Theme.marks.add, content: '"+"' },
-      '.cm-gutterElement.cm-mark-remove::after': {
-        color: Theme.marks.remove,
-        content: '"-"',
-      },
       // A tag is prose the snippet carries, so it reads in the hue it was
       // tagged with rather than in the code's own colors.
       '.cm-line.cm-tag-annotate': { ...mark(Theme.marks.add), color: Theme.marks.add },
@@ -125,22 +93,6 @@ export function theme(palette: Theme.derive.Result): Extension {
       // has to step aside. It belongs here rather than in the stylesheet:
       // CodeMirror injects its styles unlayered, and unlayered always wins.
       '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
-      // The gutter is part of the artwork, so it recedes rather than sitting
-      // on a panel of its own.
-      '.cm-gutters': {
-        backgroundColor: 'transparent',
-        borderRight: 'none',
-        color: palette.window.foreground,
-        // The editor reaches past the window's inset so a pin has room to
-        // paint; the gutter takes the inset back, so its numbers sit where the
-        // exported frame draws them rather than against the window's edge.
-        marginLeft: 'var(--editor-inset)',
-        opacity: 0.4,
-      },
-      // With a gutter the code is already inset by it, and the room a pin
-      // needs is the gutter's own width.
-      '&:has(.cm-gutters) .cm-content': { paddingLeft: 0 },
-      '.cm-lineNumbers .cm-gutterElement': { minWidth: '2ch', paddingInline: '0 20px' },
       // A selection has to read against every bundled theme, so it tints the
       // theme's own border color rather than picking a color of its own.
       '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
@@ -224,7 +176,11 @@ export function theme(palette: Theme.derive.Result): Extension {
       // the window in the hue a removal carries, since that is what it is about.
       '.cm-objection': {
         ...mark(Theme.marks.remove),
+        position: 'relative',
         alignItems: 'flex-start',
+        // Set off from the line above, which it is a note on rather than the
+        // next thing to read.
+        marginTop: '6px',
         color: Theme.marks.remove,
         display: 'flex',
         fontSize: 'var(--code-annotation-size)',
@@ -235,7 +191,28 @@ export function theme(palette: Theme.derive.Result): Extension {
         paddingInline: 'var(--editor-inset)',
         whiteSpace: 'pre-wrap',
       },
-      '.cm-objection:hover .twoslash-pin': { opacity: 1, transform: 'none' },
+      // A popover the row opens rather than a control sitting in it: the row is
+      // prose to read, and what to do with it belongs on top of it.
+      '.cm-objection-menu': {
+        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`,
+        borderRadius: '8px',
+        bottom: 'calc(100% - 6px)',
+        boxShadow: `inset 0 0 0 1px ${palette.window.border}, 0 8px 20px -8px ${shadow[palette.type]}`,
+        display: 'flex',
+        opacity: 0,
+        padding: '3px',
+        pointerEvents: 'none',
+        position: 'absolute',
+        right: '6px',
+        transitionDuration: motion.fast,
+        transitionProperty: 'opacity',
+        transitionTimingFunction: motion.out,
+      },
+      '.cm-objection:hover .cm-objection-menu, .cm-objection-menu:focus-within': {
+        opacity: 1,
+        pointerEvents: 'auto',
+      },
+      '.cm-objection-menu .twoslash-pin': { opacity: 1, position: 'static', transform: 'none' },
     },
     { dark: palette.type === 'dark' },
   )

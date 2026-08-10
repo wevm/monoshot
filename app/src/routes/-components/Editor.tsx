@@ -2,7 +2,7 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { linter } from '@codemirror/lint'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { Compartment, EditorState } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers as gutter } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
 import type * as Twoslash from 'monoshot/twoslash'
@@ -16,7 +16,7 @@ import { indent } from '#/lib/editor/indent.js'
 import { notations, syntax } from '#/lib/editor/notations.js'
 import { rail } from '#/lib/editor/rail.js'
 import { pins, problems } from '#/lib/editor/problems.js'
-import { number, query as queries } from '#/lib/editor/query.js'
+import { query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 import { setTypes } from '#/lib/editor/types.js'
 import type { Completion } from '#/lib/twoslash/protocol.js'
@@ -33,17 +33,7 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const {
-    code,
-    diagnostics,
-    language,
-    lineNumbers,
-    onCodeChange,
-    onComplete,
-    palette,
-    tokens,
-    types,
-  } = props
+  const { code, diagnostics, language, onCodeChange, onComplete, palette, tokens, types } = props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
@@ -53,7 +43,6 @@ export function Editor(props: Editor.Props) {
   const ask = useRef(onComplete)
   ask.current = onComplete
   const palettes = useRef(new Compartment()).current
-  const gutters = useRef(new Compartment()).current
   const rails = useRef(new Compartment()).current
   // Where the controls beside a line are drawn: outside the window, which clips.
   const aside = useContext(Frame.Aside)
@@ -93,7 +82,6 @@ export function Editor(props: Editor.Props) {
           queries,
           hover,
           completions((document, position) => ask.current(document, position)),
-          gutters.of(lineNumbers ? gutter({ formatNumber: number }) : []),
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange.current(update.state.doc.toString())
@@ -113,12 +101,6 @@ export function Editor(props: Editor.Props) {
   useEffect(() => {
     view.current?.dispatch({ effects: palettes.reconfigure(theme(palette)) })
   }, [palette, palettes])
-
-  useEffect(() => {
-    view.current?.dispatch({
-      effects: gutters.reconfigure(lineNumbers ? gutter({ formatNumber: number }) : []),
-    })
-  }, [gutters, lineNumbers])
 
   useEffect(() => {
     view.current?.dispatch({
@@ -164,8 +146,6 @@ export declare namespace Editor {
     diagnostics: readonly Twoslash.Diagnostic[]
     /** What the snippet is written in, which decides how a mark is written. */
     language: string
-    /** Shows the line-number gutter. */
-    lineNumbers: boolean
     /** Receives every edit. */
     onCodeChange: (code: string) => void
     /** Asked what could go at the caret, whenever the menu wants entries. */

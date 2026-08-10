@@ -6,7 +6,6 @@ const options = {
   background: 'default',
   code: "const a = 'x'\n",
   lang: 'tsx',
-  lineNumbers: false,
   padding: 64,
   radius: 12,
   theme: 'vitesse-dark',
@@ -107,60 +106,6 @@ describe('build', () => {
         "none": "transparent",
       }
     `)
-  })
-
-  test('only styles the gutter when line numbers are asked for', async () => {
-    const off = await frame.toDocument(options)
-    const on = await frame.toDocument({ ...options, lineNumbers: true })
-    expect({
-      off: off.includes('.line::before'),
-      on: on.includes('.line::before'),
-    }).toMatchInlineSnapshot(`
-      {
-        "off": false,
-        "on": true,
-      }
-    `)
-  })
-
-  test('numbers past a digit the marks would have hidden', async () => {
-    // A marked line is still a line: counting bare `class="line"` would drop
-    // it, and a ten-line snippet would allocate a single digit.
-    const lines = Array.from({ length: 10 }, (_, index) => `const a${index} = ${index}`)
-    lines[0] += ' // [!code hl]'
-    const document = await frame.toDocument({
-      ...options,
-      code: `${lines.join('\n')}\n`,
-      lineNumbers: true,
-    })
-    expect(document).toContain('data-line="10"')
-    expect(document).toContain('width: 2ch')
-  })
-
-  test('keeps a numbered line beside its diff marker', async () => {
-    const document = await frame.toDocument({
-      ...options,
-      code: "const a = 'x' // [!code --]\nconst a = 'y' // [!code ++]\n",
-      lineNumbers: true,
-    })
-    // The marker takes the pseudo-element the number does not, so a diff line
-    // draws both.
-    expect(document).toContain('.shiki .line.diff::after')
-    expect(document).not.toContain('.shiki .line.diff::before')
-  })
-
-  test('draws a tag as prose without a glyph repeating it', async () => {
-    const document = await frame.toDocument({
-      ...options,
-      code: '// @log: looked at\nconst a = 1\n',
-      twoslash: true,
-    })
-    expect(document).toContain('twoslash-tag-log-line')
-    expect(document).toContain(`.twoslash-tag-icon {
-  /* The tag reads as prose in its own hue, which says what it is without a
-     glyph repeating it. */
-  display: none;
-}`)
   })
 
   test('embeds a font rather than linking it', async () => {

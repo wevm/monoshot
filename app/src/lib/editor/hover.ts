@@ -5,7 +5,7 @@ import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import { keep, kept, objection } from './problems.js'
+import { keep, kept, keptUnder, objection } from './problems.js'
 import * as Types from './types.js'
 
 /**
@@ -153,13 +153,16 @@ function prose(message: string): Annotation.Annotation {
 }
 
 /**
- * Whether a pinned type sits in the space a popover of `lines` would open
+ * Whether something already sits in the space a popover of `lines` would open
  * into. Counted in document lines rather than measured: a type is about as
  * tall as the code it covers, and one line either way only decides a side.
  */
 function covered(view: EditorView, identifier: { from: number }, lines: number) {
   const { doc } = view.state
   const start = doc.lineAt(identifier.from).number
+  // A complaint kept on screen draws directly under its line, which is exactly
+  // the space a popover would open into.
+  if (keptUnder(view.state, start)) return true
   const end = Math.min(doc.lines, start + lines + 1)
   for (let line = start + 1; line <= end; line++)
     if (Identifier.caretColumn(doc.line(line).text) !== undefined) return true

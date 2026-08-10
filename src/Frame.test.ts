@@ -27,7 +27,6 @@ describe('create', () => {
       background: 'none',
       code: 'const a = 1',
       lang: 'ts',
-      lineNumbers: false,
       padding: 32,
       radius: 12,
       theme: 'nord',
@@ -240,7 +239,6 @@ describe('render with notations', () => {
     const settings = {
       background: 'default',
       lang: 'ts',
-      lineNumbers: false,
       padding: 64,
       radius: 12,
       theme: 'vitesse-dark',
@@ -332,7 +330,6 @@ describe('render with twoslash', () => {
       background: 'default',
       code: query,
       lang: 'ts',
-      lineNumbers: false,
       padding: 64,
       radius: 12,
       theme: 'vitesse-dark',

@@ -1,6 +1,6 @@
-import { RangeSet, StateField } from '@codemirror/state'
+import { StateField } from '@codemirror/state'
 import type { ChangeSpec, EditorState, Extension } from '@codemirror/state'
-import { Decoration, EditorView, GutterMarker, gutterLineClass } from '@codemirror/view'
+import { Decoration, EditorView } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
 const field = StateField.define<Value>({
@@ -8,9 +8,6 @@ const field = StateField.define<Value>({
   update: (value, transaction) => (transaction.docChanged ? build(transaction.state) : value),
   provide: (self) => [
     EditorView.decorations.from(self, (value) => value.decorations),
-    // The gutter is a column of its own, so a mark that stops at the code
-    // would start beside the numbers rather than at the window's edge.
-    gutterLineClass.from(self, (value) => value.gutter),
     // A hidden notation still holds its characters, so without this the caret
     // walks into one and Backspace corrupts it unseen.
     EditorView.atomicRanges.of((view) => view.state.field(self).hidden),
@@ -186,7 +183,6 @@ function away(state: EditorState, notation: Notation) {
 
 type Value = {
   decorations: DecorationSet
-  gutter: RangeSet<GutterMarker>
   /** The ranges standing in for a notation, which the caret steps over. */
   hidden: DecorationSet
   notations: readonly Notation[]
@@ -199,7 +195,6 @@ function build(state: EditorState): Value {
   const found: Notation[] = []
   const ranges = []
   const concealed = []
-  const cells = []
   const removed: number[] = []
   for (let number = 1; number <= doc.lines; number++) {
     const line = doc.line(number)
@@ -244,17 +239,14 @@ function build(state: EditorState): Value {
     // A line carrying a mark of its own keeps it: the mark is the louder claim.
     if (focused && !kinds?.size) {
       ranges.push(line('blur').range(from))
-      cells.push(cell('blur').range(from))
     }
     if (!kinds) continue
     for (const kind of kinds) {
       ranges.push(line(kind).range(from))
-      cells.push(cell(kind).range(from))
     }
   }
   return {
     decorations: Decoration.set([...ranges, ...concealed], true),
-    gutter: RangeSet.of(cells, true),
     hidden: Decoration.set(concealed, true),
     notations: found,
     removed,
@@ -295,22 +287,11 @@ function conceal(
 }
 
 const lines = new Map<string, Decoration>()
-const cells = new Map<string, GutterMarker>()
 
 function line(kind: Kind | 'blur'): Decoration {
   const cached = lines.get(kind)
   if (cached) return cached
   const created = Decoration.line({ class: `cm-mark-${kind}` })
   lines.set(kind, created)
-  return created
-}
-
-function cell(kind: Kind | 'blur'): GutterMarker {
-  const cached = cells.get(kind)
-  if (cached) return cached
-  const created = new (class extends GutterMarker {
-    override elementClass = `cm-mark-${kind}`
-  })()
-  cells.set(kind, created)
   return created
 }

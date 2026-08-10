@@ -37,6 +37,12 @@ export function kept(state: EditorState, at: number): boolean {
   return state.field(field, false)?.pinned.some((offset) => offset === at) ?? false
 }
 
+/** Whether a complaint kept on screen draws under a line. */
+export function keptUnder(state: EditorState, line: number): boolean {
+  const pinned = state.field(field, false)?.pinned ?? []
+  return pinned.some((at) => at <= state.doc.length && state.doc.lineAt(at).number === line)
+}
+
 /** Pins a complaint in place, or takes back the pin at that offset. */
 const pin = StateEffect.define<number>()
 
@@ -108,13 +114,18 @@ class Objection extends WidgetType {
     root.className = 'cm-objection'
     const text = document.createElement('span')
     text.textContent = this.message
-    root.appendChild(text)
-    root.appendChild(
+    // The message is already on screen, so the popover the row opens carries
+    // the one thing left to do with it.
+    const menu = document.createElement('div')
+    menu.className = 'cm-objection-menu'
+    menu.appendChild(
       Annotation.control({
-        label: 'Unpin this message',
+        label: 'Remove this message',
         select: () => view.dispatch({ effects: pin.of(this.at) }),
       }),
     )
+    root.appendChild(text)
+    root.appendChild(menu)
     return root
   }
 }

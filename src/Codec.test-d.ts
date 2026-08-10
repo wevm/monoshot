@@ -10,8 +10,6 @@ describe('serialize', () => {
   test('refuses a field the state does not carry, or carries as another type', () => {
     // @ts-expect-error a width is pixels, not a label.
     Codec.serialize({ width: 'wide' })
-    // @ts-expect-error line numbers are on or off.
-    Codec.serialize({ lineNumbers: 'yes' })
     // @ts-expect-error the state has no such field.
     Codec.serialize({ nope: true })
   })
@@ -24,7 +22,6 @@ describe('deserialize', () => {
       background: string
       code: string
       lang: string
-      lineNumbers: boolean
       padding: number
       radius: number
       theme: string

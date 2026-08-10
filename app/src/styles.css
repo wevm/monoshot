@@ -315,21 +315,6 @@
     transform: rotate(45deg);
     width: 7px;
   }
-
-  /* Shiki emits the highlighted markup, so the gutter is styled here rather
-     than through StyleX, which cannot target injected descendants. Present only
-     when it is asked for: a collapsed placeholder survives a DOM capture as its
-     natural width, which indents every line by its own line number. */
-  [data-line-numbers] .shiki .line::before {
-    content: attr(data-line);
-    display: inline-block;
-    margin-right: 20px;
-    opacity: 0.4;
-    overflow: hidden;
-    text-align: right;
-    vertical-align: top;
-    width: var(--gutter, 2ch);
-  }
 }
 
 /* Motion is the reveal, not the message: without it the surfaces still arrive,

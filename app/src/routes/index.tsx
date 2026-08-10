@@ -213,7 +213,6 @@ type Capture = {
 const fallback: Settings = {
   background: 'default',
   language: 'auto',
-  lineNumbers: false,
   padding: 64,
   radius: 12,
   theme: 'vitesse-dark',
@@ -240,7 +239,6 @@ function restore(hash: string) {
     settings: {
       background: state.background,
       language,
-      lineNumbers: state.lineNumbers,
       padding: state.padding,
       radius: state.radius,
       theme,
@@ -258,7 +256,6 @@ function share(parameters: { code: string; settings: Settings; title: string }) 
     background: settings.background,
     code,
     lang: settings.language,
-    lineNumbers: settings.lineNumbers,
     padding: settings.padding,
     radius: settings.radius,
     theme: settings.theme,
@@ -790,11 +787,7 @@ function Page() {
               titleBar={artwork.settings.titleBar}
               width={artwork.settings.width}
             >
-              <Frame.Code
-                css={artwork.css}
-                html={artwork.html}
-                lineNumbers={artwork.settings.lineNumbers}
-              />
+              <Frame.Code css={artwork.css} html={artwork.html} />
             </Frame>
           ) : null}
         </div>
@@ -833,7 +826,6 @@ function Page() {
                   code={code}
                   diagnostics={diagnostics}
                   language={language}
-                  lineNumbers={settings.lineNumbers}
                   onCodeChange={setCode}
                   // A language the service cannot read has nothing to offer,
                   // and the resolver only exists once a document needed one.

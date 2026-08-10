@@ -15,7 +15,6 @@ const themes = Theme.list()
 const shortcuts = {
   background: 'b',
   language: 'a',
-  lineNumbers: 'l',
   theme: 't',
   titleBar: 'w',
 } as const
@@ -217,7 +216,7 @@ const styles = stylex.create({
  * and a panel opens above it, spanning its width.
  */
 export function Toolbar(props: Toolbar.Props) {
-  const { background, language, lineNumbers, onChange, resolved, theme, titleBar } = props
+  const { background, language, onChange, resolved, theme, titleBar } = props
   const [panel, setPanel] = useState<Panel>()
   // A hex the palette does not carry belongs to the custom picker.
   const custom = background.startsWith('#') && !backgrounds.includes(background as never)
@@ -303,7 +302,6 @@ export function Toolbar(props: Toolbar.Props) {
       if (shortcut === shortcuts.theme) toggle('theme')
       else if (shortcut === shortcuts.background) toggle('background')
       else if (shortcut === shortcuts.language) toggle('language')
-      else if (shortcut === shortcuts.lineNumbers) onChange({ lineNumbers: !lineNumbers })
       else if (shortcut === shortcuts.titleBar) onChange({ titleBar: !titleBar })
       else return
       event.preventDefault()
@@ -476,14 +474,6 @@ export function Toolbar(props: Toolbar.Props) {
             value={backgroundLabel(background)}
           />
           <Item
-            onClick={() => onChange({ lineNumbers: !lineNumbers })}
-            pressed={lineNumbers}
-            shortcut={shortcuts.lineNumbers}
-            up
-            title="Line numbers"
-            value={lineNumbers ? 'On' : 'Off'}
-          />
-          <Item
             onClick={() => onChange({ titleBar: !titleBar })}
             pressed={titleBar}
             shortcut={shortcuts.titleBar}
@@ -512,7 +502,6 @@ export declare namespace Toolbar {
     background: string
     /** A pinned language, or `auto` to read it from the code. */
     language: BundledLanguage | 'auto'
-    lineNumbers: boolean
     theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
     titleBar: boolean

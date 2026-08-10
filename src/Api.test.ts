@@ -221,7 +221,6 @@ describe('create', () => {
         "background",
         "code",
         "lang",
-        "lineNumbers",
         "padding",
         "radius",
         "theme",
