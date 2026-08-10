@@ -1,4 +1,5 @@
 import { createHighlighter } from 'shiki'
+import type { TwoslashReturn } from 'twoslash'
 import * as Document from './internal/Document.js'
 import * as Theme from './Theme.js'
 import type {
@@ -34,35 +35,50 @@ export function create(options: create.Options = {}): create.ReturnType {
   let annotator: Promise<ShikiTransformer> | undefined
 
   /**
-   * Imported here rather than at the top of the module: the compiler is
-   * megabytes, `Frame` is what a browser reaches for to highlight, and a
-   * static import would put one in every bundle that holds the other.
+   * The renderer that draws the blocks, over types already resolved or over a
+   * compiler asked to resolve them. A resolved run skips the compiler
+   * entirely, which is the difference between loading megabytes and not.
    */
-  function annotate(): Promise<ShikiTransformer> {
+  function annotate(types: render.Types | undefined): Promise<ShikiTransformer> {
+    if (types !== undefined) return build(() => types)
     // A rejection must not be cached, or one failed chunk load would leave the
     // renderer unable to annotate for the rest of its life.
     return (annotator ??= build().catch((cause: unknown) => {
       annotator = undefined
       throw cause
     }))
+  }
 
-    async function build() {
-      const [{ rendererRich, transformerTwoslash }, { createTwoslasher }] = await Promise.all([
-        import('@shikijs/twoslash'),
-        import('twoslash'),
-      ])
-      return transformerTwoslash({
-        // A snippet in an editor is half-typed most of the time, and code that
-        // does not compile still has types worth drawing.
-        throws: false,
-        renderer: rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
-        twoslasher: createTwoslasher({
-          // Twoslash otherwise insists every compiler error be declared in the
-          // source and gives up on the whole snippet when one is not.
-          handbookOptions: { noErrorValidation: true },
-        }),
-      })
-    }
+  /**
+   * Imported here rather than at the top of the module: the compiler is
+   * megabytes, `Frame` is what a browser reaches for to highlight, and a
+   * static import would put one in every bundle that holds the other.
+   *
+   * The `core` entrypoint rather than the package root, which imports
+   * `twoslash` for the convenience wrapper it exports. Reaching for the root
+   * would load the compiler even when a resolved run made it unnecessary.
+   */
+  async function build(resolved?: () => render.Types): Promise<ShikiTransformer> {
+    const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
+    const twoslasher = resolved ?? (await compiler())
+    return createTransformerFactory(
+      twoslasher,
+      rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
+    )({
+      // A snippet in an editor is half-typed most of the time, and code that
+      // does not compile still has types worth drawing.
+      throws: false,
+    })
+  }
+
+  /** The compiler, loaded only when nothing was resolved ahead of the render. */
+  async function compiler() {
+    const { createTwoslasher } = await import('twoslash')
+    return createTwoslasher({
+      // Twoslash otherwise insists every compiler error be declared in the
+      // source and gives up on the whole snippet when one is not.
+      handbookOptions: { noErrorValidation: true },
+    })
   }
 
   // Kept as a promise so concurrent renders share one creation rather than
@@ -93,7 +109,7 @@ export function create(options: create.Options = {}): create.ReturnType {
     const { code, lang, theme, twoslash = false } = parameters
     const [instance, annotations] = await Promise.all([
       resolve({ lang, theme }),
-      twoslash ? annotate() : undefined,
+      twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash),
     ])
     return {
       html: instance.codeToHtml(code, {
@@ -141,7 +157,8 @@ export function create(options: create.Options = {}): create.ReturnType {
       const result = await highlight({ code, lang, theme, twoslash })
       return Document.build({
         ...rest,
-        annotated: twoslash,
+        // Whichever resolved the types, the markup needs the styles.
+        annotated: twoslash !== false,
         html: result.html,
         palette: Theme.derive(result.theme),
       })
@@ -240,12 +257,20 @@ export declare namespace render {
     /** Theme to color with. */
     theme: BundledTheme
     /**
-     * Resolve the types a `^?` query asks for and draw them in flow. Needs
-     * `typescript`, and applies to the TypeScript family only. Defaults to
-     * `false`.
+     * Draw the types a `^?` query asks for, in flow.
+     *
+     * `true` resolves them here, which needs `typescript` and applies to the
+     * TypeScript family only. A {@link Types} resolved elsewhere is drawn as
+     * given, and loads no compiler. Defaults to `false`.
      */
-    twoslash?: boolean | undefined
+    twoslash?: boolean | Types | undefined
   }
+
+  /**
+   * A twoslash run, as the renderer reads it. Plain data, so a build step, a
+   * worker, or a cache can resolve types once and hand them over later.
+   */
+  type Types = Pick<TwoslashReturn, 'code' | 'nodes'>
 
   type ReturnType = {
     /**
