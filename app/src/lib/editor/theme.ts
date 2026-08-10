@@ -195,28 +195,6 @@ export function theme(palette: Theme.derive.Result): Extension {
         paddingInline: 'calc(1px + var(--editor-inset))',
         whiteSpace: 'pre-wrap',
       },
-      // A popover the row opens rather than a control sitting in it: the row is
-      // prose to read, and what to do with it belongs on top of it.
-      '.cm-objection-menu': {
-        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`,
-        borderRadius: '8px',
-        bottom: 'calc(100% - 6px)',
-        boxShadow: `inset 0 0 0 1px ${palette.window.border}, 0 8px 20px -8px ${shadow[palette.type]}`,
-        display: 'flex',
-        opacity: 0,
-        padding: '3px',
-        pointerEvents: 'none',
-        position: 'absolute',
-        right: '6px',
-        transitionDuration: motion.fast,
-        transitionProperty: 'opacity',
-        transitionTimingFunction: motion.out,
-      },
-      '.cm-objection:hover .cm-objection-menu, .cm-objection-menu:focus-within': {
-        opacity: 1,
-        pointerEvents: 'auto',
-      },
-      '.cm-objection-menu .twoslash-pin': { opacity: 1, position: 'static', transform: 'none' },
     },
     { dark: palette.type === 'dark' },
   )

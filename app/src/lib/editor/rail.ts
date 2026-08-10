@@ -3,7 +3,9 @@ import type { Extension } from '@codemirror/state'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
 
+import * as Annotation from './annotation.js'
 import * as Notations from './notations.js'
+import { keep, keptUnder } from './problems.js'
 
 // Lucide, at the size a control is set in: scan, highlighter, plus, minus.
 const icons: Readonly<Record<Notations.Kind, string>> = {
@@ -32,15 +34,15 @@ const blank = 'A blank line takes no mark'
  */
 const gap = 10
 
-/** The line being reached for, from either the code or the controls beside it. */
-const reach = StateEffect.define<number | undefined>()
+/** The row being reached for, from either the code or the controls beside it. */
+const reach = StateEffect.define<string | undefined>()
 
 /**
- * Which line the controls stand beside. The line itself is left alone: it says
+ * Which row the controls stand beside. The row itself is left alone: it says
  * nothing about the code, and a wash under the pointer is not what the artwork
  * is for.
  */
-const reached = StateField.define<number | undefined>({
+const reached = StateField.define<string | undefined>({
   create: () => undefined,
   update(value, transaction) {
     for (const effect of transaction.effects) if (effect.is(reach)) return effect.value
@@ -72,9 +74,20 @@ export declare namespace rail {
   }
 }
 
+/** What a row on screen offers: marks for a line of code, or one way out. */
+type Row = {
+  /** Where a kept complaint was taken from, on a row that draws one. */
+  at?: number | undefined
+  carried?: readonly Notations.Kind[] | undefined
+  key: string
+  line?: number | undefined
+  takes?: boolean | undefined
+  top: number
+}
+
 class Rail {
-  /** One strip per line on screen, by line number. */
-  private strips = new Map<number, HTMLElement>()
+  /** One strip per row on screen, by what that row is. */
+  private strips = new Map<string, HTMLElement>()
   /** Whether this has been replaced, which a measure already asked for outlives. */
   private gone = false
 
@@ -94,9 +107,9 @@ class Rail {
   }
 
   update(update: ViewUpdate) {
-    const line = update.state.field(reached)
+    const row = update.state.field(reached)
     if (update.docChanged || update.viewportChanged || update.geometryChanged) return this.render()
-    if (line !== update.startState.field(reached)) this.show(line)
+    if (row !== update.startState.field(reached)) this.show(row)
   }
 
   destroy() {
@@ -109,17 +122,29 @@ class Rail {
     this.strips.clear()
   }
 
-  /** Which line the pointer is over, wherever in the code it is. */
+  /**
+   * Which row the pointer is over, read by height rather than by position: a
+   * complaint draws between two lines, and a position would name one of them.
+   */
   private readonly track = (event: MouseEvent) => {
+    const target = event.target instanceof Element ? event.target.closest('.cm-objection') : null
+    // A complaint draws between two lines, so a position under the pointer
+    // would name one of them rather than the row itself.
+    if (target) return this.reach(`pin:${this.lineOf(target)}`)
     const position = this.view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
-    this.reach(this.view.state.doc.lineAt(position).number)
+    this.reach(`line:${this.view.state.doc.lineAt(position).number}`)
+  }
+
+  /** The line a complaint drawn under it belongs to. */
+  private lineOf(objection: Element) {
+    return this.view.state.doc.lineAt(this.view.posAtDOM(objection)).number
   }
 
   private readonly clear = () => this.reach(undefined)
 
-  private reach(line: number | undefined) {
-    if (this.view.state.field(reached, false) === line) return
-    this.view.dispatch({ effects: reach.of(line) })
+  private reach(key: string | undefined) {
+    if (this.view.state.field(reached, false) === key) return
+    this.view.dispatch({ effects: reach.of(key) })
   }
 
   /**
@@ -132,69 +157,91 @@ class Rail {
     this.view.requestMeasure({
       read: (view) => {
         const host = this.container.getBoundingClientRect()
-        const lines = []
+        const rows: Row[] = []
         for (const { from, to } of view.visibleRanges) {
           let position = from
           while (position <= to) {
             const line = view.state.doc.lineAt(position)
             const block = view.lineBlockAt(line.from)
-            lines.push({
+            rows.push({
               carried: Notations.at(view.state, line.number).map((notation) => notation.kind),
+              key: `line:${line.number}`,
+              line: line.number,
               takes: Notations.takesMark(view.state, line.number),
-              // The document's own top, so a scrolled line still lands beside
+              // The document's own top, so a scrolled row still lands beside
               // itself.
               top: view.documentTop + block.top - host.top,
-              number: line.number,
             })
             position = line.to + 1
           }
         }
-        return { left: view.dom.getBoundingClientRect().right - host.left + gap, lines }
+        // Read off the rows themselves: a complaint is drawn between two lines,
+        // which the geometry of either one does not describe.
+        for (const drawn of view.dom.querySelectorAll('.cm-objection')) {
+          const line = this.lineOf(drawn)
+          const at = keptUnder(view.state, line)
+          if (at === undefined) continue
+          rows.push({ at, key: `pin:${line}`, top: drawn.getBoundingClientRect().top - host.top })
+        }
+        return { left: view.dom.getBoundingClientRect().right - host.left + gap, rows }
       },
       write: (measured) => {
         // A measure asked for before this was replaced still runs, and the
         // strips it would build are ones nothing owns.
         if (this.gone) return
         const stale = new Set(this.strips.keys())
-        for (const line of measured.lines) {
-          stale.delete(line.number)
-          const strip = this.strips.get(line.number) ?? this.build(line.number)
-          this.strips.set(line.number, strip)
+        for (const row of measured.rows) {
+          stale.delete(row.key)
+          const strip = this.strips.get(row.key) ?? this.build(row)
+          this.strips.set(row.key, strip)
           strip.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
-          strip.style.setProperty('--rail-top', `${Math.round(line.top)}px`)
+          strip.style.setProperty('--rail-top', `${Math.round(row.top)}px`)
+          if (row.line === undefined) continue
           for (const button of strip.querySelectorAll('button')) {
-            button.disabled = !line.takes
-            button.title = line.takes ? labels[button.dataset['kind'] as Notations.Kind] : blank
-            if (line.takes && line.carried.includes(button.dataset['kind'] as Notations.Kind))
+            button.disabled = !row.takes
+            button.title = row.takes ? labels[button.dataset['kind'] as Notations.Kind] : blank
+            if (row.takes && row.carried?.includes(button.dataset['kind'] as Notations.Kind))
               button.dataset['active'] = ''
             else delete button.dataset['active']
           }
         }
-        for (const number of stale) {
-          this.strips.get(number)?.remove()
-          this.strips.delete(number)
+        for (const key of stale) {
+          this.strips.get(key)?.remove()
+          this.strips.delete(key)
         }
         this.show(this.view.state.field(reached, false))
       },
     })
   }
 
-  /** Only the line being reached for shows its controls. */
-  private show(line: number | undefined) {
-    for (const [number, strip] of this.strips)
-      if (number === line) strip.dataset['shown'] = ''
+  /** Only the row being reached for shows its controls. */
+  private show(key: string | undefined) {
+    for (const [own, strip] of this.strips)
+      if (own === key) strip.dataset['shown'] = ''
       else delete strip.dataset['shown']
   }
 
-  private build(line: number) {
+  private build(row: Row) {
     const strip = document.createElement('div')
     strip.className = 'rail'
     // Read by the strip's own reach back toward the window, so the gap it
     // stands off and the gap it carries cannot disagree.
     strip.style.setProperty('--rail-gap', `${gap}px`)
-    // A strip covers its line's full height, so the strips tile the side of the
-    // window: running down them runs down the lines without a gap between.
-    strip.addEventListener('mouseenter', () => this.reach(line))
+    // A strip covers its row's full height, so the strips tile the side of the
+    // window: running down them runs down the rows without a gap between.
+    strip.addEventListener('mouseenter', () => this.reach(row.key))
+    this.container.appendChild(strip)
+    const { at, line } = row
+    if (line === undefined) {
+      if (at !== undefined)
+        strip.appendChild(
+          Annotation.control({
+            label: 'Remove this message',
+            select: () => keep(this.view, at),
+          }),
+        )
+      return strip
+    }
     for (const kind of order) {
       const button = document.createElement('button')
       button.className = 'rail-control'
@@ -209,7 +256,6 @@ class Rail {
       button.addEventListener('click', () => this.toggle(line, kind))
       strip.appendChild(button)
     }
-    this.container.appendChild(strip)
     return strip
   }
 

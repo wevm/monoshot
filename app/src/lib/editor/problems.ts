@@ -5,8 +5,6 @@ import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 import type * as Twoslash from 'monoshot/twoslash'
 
-import * as Annotation from './annotation.js'
-
 /**
  * Whether the compiler objects to anything a span covers.
  *
@@ -37,10 +35,10 @@ export function kept(state: EditorState, at: number): boolean {
   return state.field(field, false)?.pinned.some((offset) => offset === at) ?? false
 }
 
-/** Whether a complaint kept on screen draws under a line. */
-export function keptUnder(state: EditorState, line: number): boolean {
+/** Where a complaint kept on screen under a line was taken from, if there is one. */
+export function keptUnder(state: EditorState, line: number): number | undefined {
   const pinned = state.field(field, false)?.pinned ?? []
-  return pinned.some((at) => at <= state.doc.length && state.doc.lineAt(at).number === line)
+  return pinned.find((at) => at <= state.doc.length && state.doc.lineAt(at).number === line)
 }
 
 /** Pins a complaint in place, or takes back the pin at that offset. */
@@ -90,7 +88,7 @@ function build(state: EditorState, pinned: readonly number[]): DecorationSet {
       Decoration.widget({
         block: true,
         side: 1,
-        widget: new Objection(diagnostic.message, from),
+        widget: new Objection(diagnostic.message),
       }).range(line.to),
     )
   })
@@ -98,10 +96,7 @@ function build(state: EditorState, pinned: readonly number[]): DecorationSet {
 }
 
 class Objection extends WidgetType {
-  constructor(
-    readonly message: string,
-    readonly at: number,
-  ) {
+  constructor(readonly message: string) {
     super()
   }
 
@@ -109,23 +104,12 @@ class Objection extends WidgetType {
     return other.message === this.message
   }
 
-  override toDOM(view: EditorView) {
+  override toDOM() {
     const root = document.createElement('div')
     root.className = 'cm-objection'
     const text = document.createElement('span')
     text.textContent = this.message
-    // The message is already on screen, so the popover the row opens carries
-    // the one thing left to do with it.
-    const menu = document.createElement('div')
-    menu.className = 'cm-objection-menu'
-    menu.appendChild(
-      Annotation.control({
-        label: 'Remove this message',
-        select: () => view.dispatch({ effects: pin.of(this.at) }),
-      }),
-    )
     root.appendChild(text)
-    root.appendChild(menu)
     return root
   }
 }

@@ -162,7 +162,7 @@ function covered(view: EditorView, identifier: { from: number }, lines: number) 
   const start = doc.lineAt(identifier.from).number
   // A complaint kept on screen draws directly under its line, which is exactly
   // the space a popover would open into.
-  if (keptUnder(view.state, start)) return true
+  if (keptUnder(view.state, start) !== undefined) return true
   const end = Math.min(doc.lines, start + lines + 1)
   for (let line = start + 1; line <= end; line++)
     if (Identifier.caretColumn(doc.line(line).text) !== undefined) return true
