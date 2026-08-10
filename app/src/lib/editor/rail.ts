@@ -1,6 +1,6 @@
 import { StateEffect, StateField } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
-import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
+import { EditorView, ViewPlugin } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
 
 import * as Notations from './notations.js'
@@ -32,21 +32,18 @@ const gap = 8
 /** The line being reached for, from either the code or the controls beside it. */
 const reach = StateEffect.define<number | undefined>()
 
+/**
+ * Which line the controls stand beside. The line itself is left alone: it says
+ * nothing about the code, and a wash under the pointer is not what the artwork
+ * is for.
+ */
 const reached = StateField.define<number | undefined>({
   create: () => undefined,
   update(value, transaction) {
     for (const effect of transaction.effects) if (effect.is(reach)) return effect.value
     return value
   },
-  provide: (self) =>
-    EditorView.decorations.compute([self, 'doc'], (state) => {
-      const line = state.field(self)
-      if (line === undefined || line > state.doc.lines) return Decoration.none
-      return Decoration.set(hovered.range(state.doc.line(line).from))
-    }),
 })
-
-const hovered = Decoration.line({ class: 'cm-reached' })
 
 /**
  * Offers every line the marks it can carry, so they can be set by pointer rather
@@ -54,8 +51,8 @@ const hovered = Decoration.line({ class: 'cm-reached' })
  * turns it back off, which is how a hidden notation is taken away.
  *
  * The controls stand outside the window, which clips whatever is drawn in it, so
- * they are built into a host the artwork provides. Reaching for one lights its
- * line, and running down the strip runs down the code with it.
+ * they are built into a host the artwork provides. Running down the strips runs
+ * down the lines with them.
  */
 export function rail(options: rail.Options): Extension {
   const { container, syntax } = options
@@ -75,12 +72,17 @@ export declare namespace rail {
 class Rail {
   /** One strip per line on screen, by line number. */
   private strips = new Map<number, HTMLElement>()
+  /** Whether this has been replaced, which a measure already asked for outlives. */
+  private gone = false
 
   constructor(
     readonly view: EditorView,
     readonly container: HTMLElement,
     readonly syntax: Notations.Syntax,
   ) {
+    // The host is this plugin's alone, so whatever is in it belongs to a
+    // predecessor: reconfiguring the editor leaves one behind.
+    container.replaceChildren()
     view.dom.addEventListener('mousemove', this.track)
     view.dom.addEventListener('mouseover', this.track)
     view.dom.addEventListener('mouseleave', this.clear)
@@ -95,6 +97,7 @@ class Rail {
   }
 
   destroy() {
+    this.gone = true
     this.view.dom.removeEventListener('mousemove', this.track)
     this.view.dom.removeEventListener('mouseover', this.track)
     this.view.dom.removeEventListener('mouseleave', this.clear)
@@ -122,6 +125,7 @@ class Rail {
    * update is still writing.
    */
   private render() {
+    if (this.gone) return
     this.view.requestMeasure({
       read: (view) => {
         const host = this.container.getBoundingClientRect()
@@ -145,6 +149,9 @@ class Rail {
         return { left: view.dom.getBoundingClientRect().right - host.left + gap, lines }
       },
       write: (measured) => {
+        // A measure asked for before this was replaced still runs, and the
+        // strips it would build are ones nothing owns.
+        if (this.gone) return
         const stale = new Set(this.strips.keys())
         for (const line of measured.lines) {
           stale.delete(line.number)

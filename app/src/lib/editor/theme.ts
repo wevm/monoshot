@@ -74,11 +74,35 @@ export function theme(palette: Theme.derive.Result): Extension {
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
       '.cm-line.cm-mark-highlight': mark(palette.window.foreground),
       '.cm-line.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
-      // The line being reached for, from the code or from the controls beside
-      // it, so running down the strip runs down the code with it.
-      '.cm-line.cm-reached': {
-        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 7%, transparent)`,
+      '.cm-scroller': {
+        fontFamily: 'var(--code-font-family)',
+        // Every line reaches past the inset on both sides, which the scroller
+        // would otherwise offer to scroll to. Lines wrap, so there is nothing
+        // out there to reach.
+        overflowX: 'hidden',
+        lineHeight: 'var(--code-line-height)',
+        tabSize: 'var(--code-tab-size)',
       },
+      // The annotation draws its own surface, so CodeMirror's tooltip chrome
+      // has to step aside. It belongs here rather than in the stylesheet:
+      // CodeMirror injects its styles unlayered, and unlayered always wins.
+      '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
+      // The gutter is part of the artwork, so it recedes rather than sitting
+      // on a panel of its own.
+      '.cm-gutters': {
+        backgroundColor: 'transparent',
+        borderRight: 'none',
+        color: palette.window.foreground,
+        // The editor reaches past the window's inset so a pin has room to
+        // paint; the gutter takes the inset back, so its numbers sit where the
+        // exported frame draws them rather than against the window's edge.
+        marginLeft: 'var(--editor-inset)',
+        opacity: 0.4,
+      },
+      // With a gutter the code is already inset by it, and the room a pin
+      // needs is the gutter's own width.
+      '&:has(.cm-gutters) .cm-content': { paddingLeft: 0 },
+      '.cm-lineNumbers .cm-gutterElement': { minWidth: '2ch', paddingInline: '0 20px' },
       // A selection has to read against every bundled theme, so it tints the
       // theme's own border color rather than picking a color of its own.
       '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
