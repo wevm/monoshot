@@ -13,6 +13,7 @@
     "@changesets/cli": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
+    "hono": "catalog:",
     "puppeteer-core": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
@@ -53,6 +54,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./api": {
+      "src": "./src/Api.ts",
+      "types": "./dist/Api.d.ts",
+      "default": "./dist/Api.js"
+    },
     "./headless": {
       "src": "./src/Headless.ts",
       "types": "./dist/Headless.d.ts",
@@ -81,10 +87,14 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "hono": "^4.0.0",
     "puppeteer-core": "^25.0.0",
     "typescript": "^5.5.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    },
     "puppeteer-core": {
       "optional": true
     },

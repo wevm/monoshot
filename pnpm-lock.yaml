@@ -186,6 +186,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.0
       puppeteer-core:
         specifier: 'catalog:'
         version: 25.5.0
