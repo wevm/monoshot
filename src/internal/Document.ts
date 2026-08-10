@@ -75,6 +75,8 @@ ${fontFaces(fonts)}
   --code-line-height: 22px;
   --code-tab-size: 2;
   --code-annotation-size: 12px;
+  /* What the window insets its code by, so a marked line can reach past it. */
+  --body-inset: 16px;
   --window-background: ${palette.window.background};
   --window-border: ${palette.window.border};
   --window-shadow: ${shadow[palette.type]};
@@ -118,7 +120,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .body {
   color: ${palette.window.foreground};
-  padding: ${titleBar ? '4px 16px' : '8px 16px'};
+  padding: ${titleBar ? '4px' : '8px'} var(--body-inset);
 }
 .shiki, .shiki code {
   background: transparent !important;
@@ -134,7 +136,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .shiki { padding-block: 12px; }
 ${lineNumbers ? gutter(html) : ''}
-${/has-(diff|focused|highlighted)/.test(html) ? marks(palette) : ''}
+${/has-(diff|focused|highlighted)|twoslash-tag-line/.test(html) ? marks(palette) : ''}
 ${styles}
 .twoslash-block {
   display: flex;
@@ -200,8 +202,12 @@ function gutter(html: string) {
      grid items makes no row. */
   display: grid;
 }
+.shiki {
+  /* Read back by a marked line, which insets its text by the gutter as well. */
+  --gutter-inset: calc(${width}ch + 20px);
+}
 .shiki .line {
-  padding-left: calc(${width}ch + 20px);
+  padding-left: var(--gutter-inset);
   text-indent: calc(-1ch * ${width} - 20px);
 }
 .shiki .twoslash-meta-line {
@@ -280,50 +286,107 @@ export function annotations(palette: Theme.derive.Result): string {
 }`
 }
 
+/** The hues a mark carries, which mean what they mean whatever the theme. */
+const hue = {
+  add: 'oklch(66% 0.15 150)',
+  log: 'oklch(64% 0.15 250)',
+  remove: 'oklch(62% 0.19 20)',
+  warn: 'oklch(74% 0.14 80)',
+} as const
+
 /**
- * The marks a snippet carries, drawn. Present only when something is marked:
+ * The marks a snippet carries, drawn as rows reaching the window's edges with
+ * a bar down the side they start on. Present only when something is marked:
  * the rules turn the code into rows, which a snippet with nothing to mark has
  * no reason to become.
  */
 function marks(palette: Theme.derive.Result) {
-  return `.shiki:is(.has-diff, .has-focused, .has-highlighted) code {
-  /* Rows, so a mark reaches the width of the window rather than the width of
-     the text on the line. */
+  /** A row: full width, past the inset the window holds its code at. */
+  const row = `  margin-inline: calc(-1 * var(--body-inset));
+  padding-inline-start: calc(var(--body-inset) + var(--gutter-inset, 0px));
+  padding-inline-end: var(--body-inset);`
+  /** A row's bar and wash, from one hue. */
+  const mark = (
+    color: string,
+  ) => `  background-color: color-mix(in oklab, ${color} 16%, transparent);
+  box-shadow: inset 3px 0 0 ${color};`
+  return `.shiki code {
+  /* Rows, so a mark reaches the window rather than the text on the line. */
   display: grid;
 }
-.shiki:is(.has-diff, .has-focused, .has-highlighted) .line {
+.shiki .line {
   /* A row holding nothing is still a line of the snippet: as a grid item an
      empty one would take no height, and the blank lines would close up. */
   min-height: var(--code-line-height);
 }
+.shiki .line,
+.twoslash-tag-line {
+${row}
+}
 .shiki .line.highlighted {
-  background-color: color-mix(in oklab, ${palette.window.foreground} 9%, transparent);
+${mark(palette.window.foreground)}
 }
 /* Focus says which lines matter, so the rest recede rather than being marked. */
-.shiki .has-focused .line:not(.focused),
 .shiki.has-focused .line:not(.focused) {
   opacity: 0.4;
 }
-/* Green and red whatever the theme: a diff reads by its colors. */
 .shiki .line.diff.add {
-  background-color: oklch(65% 0.15 150 / 0.18);
+${mark(hue.add)}
 }
 .shiki .line.diff.remove {
-  background-color: oklch(60% 0.17 20 / 0.18);
+${mark(hue.remove)}
   opacity: 0.7;
 }
 .shiki .line.diff::before {
-  display: inline-block;
-  opacity: 0.7;
+  opacity: 0.8;
   position: absolute;
-  /* Outside the code, in the padding the window already carries. */
-  transform: translateX(-1.1ch);
+  /* In the inset the window already holds, beside the bar. */
+  transform: translateX(calc(-1 * var(--body-inset) + 6px));
 }
 .shiki .line.diff.add::before {
   content: '+';
 }
 .shiki .line.diff.remove::before {
   content: '-';
+}
+/* A tag is prose the snippet carries, so it reads in the hue it was tagged
+   with rather than in the code's own colors. */
+.twoslash-tag-line {
+  align-items: center;
+  display: flex;
+  font-size: var(--code-annotation-size);
+  gap: 6px;
+  line-height: var(--code-line-height);
+  min-height: var(--code-line-height);
+}
+.twoslash-tag-icon {
+  /* Sized here, since the renderer ships the glyph without dimensions and an
+     SVG left to itself fills whatever row it lands in. */
+  display: block;
+  flex: none;
+  height: 1.1em;
+  width: 1.1em;
+}
+.twoslash-tag-icon svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+.twoslash-tag-log-line {
+  color: ${hue.log};
+${mark(hue.log)}
+}
+.twoslash-tag-error-line {
+  color: ${hue.remove};
+${mark(hue.remove)}
+}
+.twoslash-tag-warn-line {
+  color: ${hue.warn};
+${mark(hue.warn)}
+}
+.twoslash-tag-annotate-line {
+  color: ${hue.add};
+${mark(hue.add)}
 }`
 }
 

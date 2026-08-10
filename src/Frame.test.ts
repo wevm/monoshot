@@ -187,6 +187,40 @@ describe('render with notations', () => {
     expect(focus.html).toContain('line focused')
   })
 
+  test('draws a line for each tag a snippet carries', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      // A tag attaches to the line after it, so each needs one of its own.
+      code: [
+        'const a = 1',
+        '// @log: looked at',
+        'const b = 2',
+        '// @error: went wrong',
+        'const c = 3',
+        '// @warn: careful',
+        'const d = 4',
+        '// @annotate: note',
+        'const e = 5',
+        '',
+      ].join('\n'),
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect([...result.html.matchAll(/twoslash-tag-(\w+)-line/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "log",
+        "error",
+        "warn",
+        "annotate",
+      ]
+    `)
+    // The tag is prose about the code, not part of it.
+    expect(result.html).not.toContain('@log:')
+  })
+
   test('draws the marks only for a snippet that carries some', async () => {
     const frame = Frame.create()
     const settings = {

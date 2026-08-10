@@ -88,6 +88,9 @@ export function create(options: create.Options = {}): create.ReturnType {
   async function compiler() {
     const { createTwoslasher } = await import('twoslash')
     return createTwoslasher({
+      // The tags a snippet can carry beside its code: `@log`, `@error`,
+      // `@warn`, and `@annotate` each draw a line of their own.
+      customTags: ['annotate', 'error', 'log', 'warn'],
       compilerOptions: {
         // Twoslash compiles strict, which marks every untyped parameter: a
         // missing annotation rather than a mistake, in a snippet that left its
