@@ -175,6 +175,50 @@ describe('render with twoslash', () => {
     `)
   })
 
+  test('draws a run resolved elsewhere the same as one it resolves', async () => {
+    // What a build step or a worker hands over: plain data, no compiler.
+    const { createTwoslasher } = await import('twoslash')
+    const run = createTwoslasher({ handbookOptions: { noErrorValidation: true } })(query, 'ts')
+    const frame = Frame.create()
+    const resolved = await frame.render({
+      code: query,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    const given = await frame.render({
+      code: query,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: { code: run.code, nodes: run.nodes },
+    })
+    await frame.dispose()
+    expect(given.html).toBe(resolved.html)
+  })
+
+  test('carries a resolved run through a document', async () => {
+    const { createTwoslasher } = await import('twoslash')
+    const run = createTwoslasher({ handbookOptions: { noErrorValidation: true } })(query, 'ts')
+    const frame = Frame.create()
+    const html = await frame.toDocument({
+      background: 'default',
+      code: query,
+      lang: 'ts',
+      lineNumbers: false,
+      padding: 64,
+      radius: 12,
+      theme: 'vitesse-dark',
+      title: '',
+      titleBar: true,
+      twoslash: { code: run.code, nodes: run.nodes },
+      width: 640,
+    })
+    await frame.dispose()
+    // The styles travel with it, or every hover popover would draw.
+    expect(html).toContain('twoslash-query-line')
+    expect(html).toContain('.twoslash-popup-container')
+  })
+
   test('hands back the styles the annotated markup needs', async () => {
     // The markup carries a popover per identifier, and without these rules a
     // consumer injecting the html alone would draw every one of them.
