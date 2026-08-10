@@ -1,4 +1,4 @@
-import type * as Theme from '../Theme.js'
+import * as Theme from '../Theme.js'
 
 /** A font to embed, so the document asks the network for nothing. */
 export type Font = {
@@ -288,14 +288,6 @@ export function annotations(palette: Theme.derive.Result): string {
 }`
 }
 
-/** The hues a mark carries, which mean what they mean whatever the theme. */
-const hue = {
-  add: 'oklch(66% 0.15 150)',
-  log: 'oklch(64% 0.15 250)',
-  remove: 'oklch(62% 0.19 20)',
-  warn: 'oklch(74% 0.14 80)',
-} as const
-
 /**
  * The marks a snippet carries, drawn as rows reaching the window's edges with
  * a bar down the side they start on. Present only when something is marked:
@@ -315,7 +307,7 @@ export function marks(palette: Theme.derive.Result) {
   const row = `  margin-inline: calc(-1 * var(--body-inset, 0px));
   padding-inline-start: calc(var(--body-inset, 0px) + var(--gutter-inset, 0px));
   padding-inline-end: var(--body-inset, 0px);`
-  /** A row's bar and wash, from one hue. */
+  /** A row's bar and wash, from one Theme.marks. */
   const mark = (
     color: string,
   ) => `  background-color: color-mix(in oklab, ${color} 16%, transparent);
@@ -343,10 +335,10 @@ ${mark(palette.window.foreground)}
   opacity: 0.4;
 }
 .shiki .line.diff.add {
-${mark(hue.add)}
+${mark(Theme.marks.add)}
 }
 .shiki .line.diff.remove {
-${mark(hue.remove)}
+${mark(Theme.marks.remove)}
   opacity: 0.7;
 }
 /* Its own pseudo-element: the one before it draws a line number, which a diff
@@ -388,20 +380,20 @@ ${mark(hue.remove)}
   width: 100%;
 }
 .twoslash-tag-log-line {
-  color: ${hue.log};
-${mark(hue.log)}
+  color: ${Theme.marks.log};
+${mark(Theme.marks.log)}
 }
 .twoslash-tag-error-line {
-  color: ${hue.remove};
-${mark(hue.remove)}
+  color: ${Theme.marks.remove};
+${mark(Theme.marks.remove)}
 }
 .twoslash-tag-warn-line {
-  color: ${hue.warn};
-${mark(hue.warn)}
+  color: ${Theme.marks.warn};
+${mark(Theme.marks.warn)}
 }
 .twoslash-tag-annotate-line {
-  color: ${hue.add};
-${mark(hue.add)}
+  color: ${Theme.marks.add};
+${mark(Theme.marks.add)}
 }`
 }
 

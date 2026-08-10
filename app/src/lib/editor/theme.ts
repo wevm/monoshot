@@ -1,8 +1,16 @@
 import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
-import type { Theme } from 'monoshot'
+import { Theme } from 'monoshot'
 
 import { color, motion } from '../../theme/tokens.stylex.js'
+
+/** A row's bar and wash, from one hue. */
+function mark(color: string) {
+  return {
+    backgroundColor: `color-mix(in oklab, ${color} 16%, transparent)`,
+    boxShadow: `inset 3px 0 0 ${color}`,
+  }
+}
 
 /** Depth under the completion menu, which floats above the code. */
 const shadow = { dark: 'rgb(0 0 0 / 0.6)', light: 'rgb(0 0 0 / 0.18)' } as const
@@ -37,6 +45,32 @@ export function theme(palette: Theme.derive.Result): Extension {
       },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: palette.window.foreground },
       '.cm-line': { padding: 0 },
+      // A marked line reads as a row of the window rather than as a run of
+      // text, so it reaches past the inset the code is held at, the way the
+      // exported image draws it.
+      '.cm-line[class*="cm-mark-"], .cm-gutterElement[class*="cm-mark-"]': {
+        marginInline: 'calc(-1 * var(--editor-inset))',
+        paddingInline: 'var(--editor-inset)',
+      },
+      // With a gutter the row starts there, so the bar belongs to it rather
+      // than being drawn twice.
+      '&:has(.cm-gutters) .cm-line[class*="cm-mark-"]': { boxShadow: 'none' },
+      '.cm-lineNumbers .cm-gutterElement[class*="cm-mark-"]': {
+        marginRight: 0,
+        paddingInline: 'var(--editor-inset) 20px',
+      },
+      '.cm-gutterElement.cm-mark-add': mark(Theme.marks.add),
+      '.cm-gutterElement.cm-mark-blur': { opacity: 0.4 },
+      '.cm-gutterElement.cm-mark-highlight': mark(palette.window.foreground),
+      '.cm-gutterElement.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
+      '.cm-line.cm-mark-add': mark(Theme.marks.add),
+      // Focus says which lines matter, so the rest recede.
+      '.cm-line.cm-mark-blur': { opacity: 0.4 },
+      '.cm-line.cm-mark-highlight': mark(palette.window.foreground),
+      '.cm-line.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
+      // The comment is the handle on the mark rather than part of the code,
+      // and the export takes it back out.
+      '.cm-notation': { opacity: 0.4 },
       '.cm-scroller': {
         fontFamily: 'var(--code-font-family)',
         lineHeight: 'var(--code-line-height)',

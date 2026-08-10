@@ -28,6 +28,24 @@ export function info(name: string): Info | undefined {
  * // ^?
  * ```
  */
+/**
+ * The hues a mark carries, which mean what they mean whatever the theme: a
+ * deletion reads as a deletion in every one of them.
+ *
+ * Read by whatever draws a marked snippet, so an editor showing the marks live
+ * and the image it exports agree on what they look like.
+ */
+export const marks = {
+  /** An added line, and an `@annotate` tag. */
+  add: 'oklch(66% 0.15 150)',
+  /** A `@log` tag. */
+  log: 'oklch(64% 0.15 250)',
+  /** A removed line, and an `@error` tag. */
+  remove: 'oklch(62% 0.19 20)',
+  /** A `@warn` tag. */
+  warn: 'oklch(74% 0.14 80)',
+} as const
+
 export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const type = theme.type === 'light' ? 'light' : 'dark'
   // First parseable candidate wins: an unparseable color is as missing as an

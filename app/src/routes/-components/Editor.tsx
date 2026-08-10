@@ -12,6 +12,7 @@ import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
+import { notations } from '#/lib/editor/notations.js'
 import { problems } from '#/lib/editor/problems.js'
 import { number, query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
@@ -64,6 +65,7 @@ export function Editor(props: Editor.Props) {
           // Without a name the code surface reads as an unlabelled edit field.
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
+          notations,
           queries,
           hover,
           completions((document, position) => ask.current(document, position)),
