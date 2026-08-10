@@ -30,7 +30,7 @@ const blank = 'A blank line takes no mark'
  * How far the controls stand off the window's edge: past the grip that resizes
  * it, which reaches 8px into the margin and is the more important thing to hit.
  */
-const gap = 14
+const gap = 10
 
 /** The line being reached for, from either the code or the controls beside it. */
 const reach = StateEffect.define<number | undefined>()
@@ -189,6 +189,9 @@ class Rail {
   private build(line: number) {
     const strip = document.createElement('div')
     strip.className = 'rail'
+    // Read by the strip's own reach back toward the window, so the gap it
+    // stands off and the gap it carries cannot disagree.
+    strip.style.setProperty('--rail-gap', `${gap}px`)
     // A strip covers its line's full height, so the strips tile the side of the
     // window: running down them runs down the lines without a gap between.
     strip.addEventListener('mouseenter', () => this.reach(line))

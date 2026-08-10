@@ -98,6 +98,13 @@
     text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
   }
 
+  /* What is wrong with a token outranks what type it holds, so the mark that
+     advertises the type steps aside for the squiggle rather than sitting under
+     it. The hover reads the same way: it shows the complaint, not the type. */
+  .twoslash-mark:has(.cm-lintRange) {
+    text-decoration: none;
+  }
+
   /* A type arriving: it settles from just above, so the eye follows it down to
      where it lands rather than finding it already there. */
   @keyframes twoslash-in {
@@ -361,6 +368,23 @@
 .rail[data-shown],
 .rail:focus-within {
   opacity: 1;
+}
+
+/* The gap between the window and the controls, carried by the strip itself:
+   crossing it is on the way to the controls, so it holds them open rather than
+   dropping them halfway. Reachable only while they are open, so the grip that
+   resizes the window keeps the whole of its own edge. */
+.rail::before {
+  content: '';
+  inset-block: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 100%;
+  width: var(--rail-gap, 0px);
+}
+
+.rail[data-shown]::before {
+  pointer-events: auto;
 }
 
 .rail-control {
