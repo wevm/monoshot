@@ -44,11 +44,17 @@ export function theme(palette: Theme.derive.Result): Extension {
         paddingInline: 'var(--editor-inset)',
       },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: palette.window.foreground },
-      '.cm-line': { padding: 0 },
-      // A marked line reads as a row of the window rather than as a run of
-      // text, so it reaches past the inset the code is held at, the way the
-      // exported image draws it.
-      '.cm-line[class*="cm-mark-"], .cm-gutterElement[class*="cm-mark-"]': {
+      // Every line reaches past the inset the code is held at, so a marked one
+      // reads as a row of the window the way the exported image draws it. All of
+      // them and not only the marked ones: the box a line's controls are placed
+      // against would otherwise move the moment it took a mark.
+      '.cm-line': {
+        marginInline: 'calc(-1 * var(--editor-inset))',
+        padding: 0,
+        paddingInline: 'var(--editor-inset)',
+        position: 'relative',
+      },
+      '.cm-gutterElement[class*="cm-mark-"]': {
         marginInline: 'calc(-1 * var(--editor-inset))',
         paddingInline: 'var(--editor-inset)',
       },
@@ -73,7 +79,7 @@ export function theme(palette: Theme.derive.Result): Extension {
       // image does not.
       '.cm-rail': {
         alignItems: 'center',
-        backgroundColor: `color-mix(in oklab, ${palette.window.background} 88%, transparent)`,
+        backgroundColor: `color-mix(in oklab, ${palette.window.background} 85%, transparent)`,
         borderRadius: '8px',
         display: 'flex',
         gap: '2px',
@@ -82,16 +88,21 @@ export function theme(palette: Theme.derive.Result): Extension {
         paddingInline: '3px',
         pointerEvents: 'none',
         position: 'absolute',
-        right: '6px',
-        top: 'var(--rail-top, 0px)',
+        right: '4px',
+        top: 0,
         transitionDuration: motion.fast,
         transitionProperty: 'opacity',
         transitionTimingFunction: motion.out,
       },
       // CodeMirror takes a media query as a rule of its own, not as a condition
-      // inside one.
+      // inside one. Touch reports a hover it never leaves, so the controls are
+      // offered to a real pointer only.
       '@media (prefers-reduced-motion: reduce)': { '.cm-rail': { transitionDuration: '0s' } },
-      '.cm-rail[data-shown]': { opacity: 1, pointerEvents: 'auto' },
+      '@media (hover: hover) and (pointer: fine)': {
+        '.cm-line:hover .cm-rail': { opacity: 1, pointerEvents: 'auto' },
+      },
+      // A control reached by keyboard keeps its strip in view.
+      '.cm-rail:focus-within': { opacity: 1, pointerEvents: 'auto' },
       '.cm-rail-control': {
         alignItems: 'center',
         background: 'none',
@@ -120,7 +131,10 @@ export function theme(palette: Theme.derive.Result): Extension {
       },
       // A control a line already carries reads in that mark's own hue, which is
       // also how the mark is taken away again.
-      '.cm-rail-control[data-active]': { opacity: 1 },
+      '.cm-rail-control[data-active]': {
+        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 14%, transparent)`,
+        opacity: 1,
+      },
       '.cm-rail-control[data-kind="add"][data-active]': { color: Theme.marks.add },
       '.cm-rail-control[data-kind="remove"][data-active]': { color: Theme.marks.remove },
       '.cm-rail-control svg': {
@@ -134,6 +148,10 @@ export function theme(palette: Theme.derive.Result): Extension {
       },
       '.cm-scroller': {
         fontFamily: 'var(--code-font-family)',
+        // Every line reaches past the inset on both sides, which the scroller
+        // would otherwise offer to scroll to. Lines wrap, so there is nothing
+        // out there to reach.
+        overflowX: 'hidden',
         lineHeight: 'var(--code-line-height)',
         tabSize: 'var(--code-tab-size)',
       },

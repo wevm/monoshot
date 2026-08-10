@@ -1,6 +1,6 @@
 import type { Extension } from '@codemirror/state'
-import { EditorView, ViewPlugin } from '@codemirror/view'
-import type { ViewUpdate } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
+import type { DecorationSet, ViewUpdate } from '@codemirror/view'
 
 import * as Notations from './notations.js'
 
@@ -23,27 +23,72 @@ const labels: Readonly<Record<Notations.Kind, string>> = {
 const order = ['focus', 'highlight', 'add', 'remove'] as const
 
 /**
- * Offers each line the marks it can carry, so they can be set by pointer rather
- * than by typing the comment. The control a line already carries turns its mark
- * back off, which is how a hidden notation is taken away.
+ * Offers every line the marks it can carry, so they can be set by pointer rather
+ * than by typing the comment. The control for a mark the line already carries
+ * turns it back off, which is how a hidden notation is taken away.
  *
- * One strip, moved to the line under the pointer, rather than a control per
- * line: a long document would otherwise build hundreds of them.
+ * One strip per line, shown by hovering the line itself rather than by following
+ * the pointer: a pointer the page never sees move would otherwise leave the
+ * controls unreachable. Only the lines on screen are built.
  */
 export function rail(syntax: Notations.Syntax): Extension {
-  return ViewPlugin.define((view) => new Rail(view, syntax))
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet
+
+      constructor(view: EditorView) {
+        this.decorations = build(view, syntax)
+      }
+
+      update(update: ViewUpdate) {
+        // The marks are read from the document, so an edit can change which
+        // controls a line shows as set.
+        if (update.docChanged || update.viewportChanged)
+          this.decorations = build(update.view, syntax)
+      }
+    },
+    { decorations: (value) => value.decorations },
+  )
 }
 
-class Rail {
-  readonly dom = document.createElement('div')
-  private line: number | undefined
-  private readonly buttons = new Map<Notations.Kind, HTMLButtonElement>()
+function build(view: EditorView, syntax: Notations.Syntax): DecorationSet {
+  const ranges = []
+  for (const { from, to } of view.visibleRanges) {
+    let position = from
+    while (position <= to) {
+      const line = view.state.doc.lineAt(position)
+      const carried = Notations.at(view.state, line.number).map((notation) => notation.kind)
+      // At the line's start, not its end: a concealed notation reaches that end,
+      // and a widget inside the range standing in for it is never drawn. Where
+      // the strip sits in the line says nothing about where it is drawn.
+      ranges.push(
+        Decoration.widget({ side: -1, widget: new Controls(syntax, carried) }).range(line.from),
+      )
+      position = line.to + 1
+    }
+  }
+  return Decoration.set(ranges, true)
+}
+
+class Controls extends WidgetType {
+  /** The marks the line carries, as one value a rebuild can be skipped on. */
+  private readonly carried: string
 
   constructor(
-    readonly view: EditorView,
     readonly syntax: Notations.Syntax,
+    carried: readonly Notations.Kind[],
   ) {
-    this.dom.className = 'cm-rail'
+    super()
+    this.carried = [...carried].sort().join(' ')
+  }
+
+  override eq(other: Controls) {
+    return other.carried === this.carried && other.syntax === this.syntax
+  }
+
+  override toDOM(view: EditorView) {
+    const root = document.createElement('span')
+    root.className = 'cm-rail'
     for (const kind of order) {
       const button = document.createElement('button')
       button.className = 'cm-rail-control'
@@ -51,68 +96,28 @@ class Rail {
       button.type = 'button'
       button.title = labels[kind]
       button.setAttribute('aria-label', labels[kind])
+      if (this.carried.split(' ').includes(kind)) button.dataset['active'] = ''
       button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[kind]}"/></svg>`
       // Ahead of the click: the editor would otherwise take focus and drop the
       // caret on whatever the control sits over.
       button.addEventListener('mousedown', (event) => event.preventDefault())
-      button.addEventListener('click', () => this.toggle(kind))
-      this.buttons.set(kind, button)
-      this.dom.appendChild(button)
+      button.addEventListener('click', () => this.toggle(view, root, kind))
+      root.appendChild(button)
     }
-    view.dom.appendChild(this.dom)
-    view.dom.addEventListener('mousemove', this.track)
-    view.dom.addEventListener('mouseleave', this.hide)
+    return root
   }
 
-  update(update: ViewUpdate) {
-    // The marks may have moved with the edit, and so may the line the strip is
-    // parked on.
-    if (update.docChanged || update.geometryChanged || update.viewportChanged) this.place()
-  }
-
-  destroy() {
-    this.view.dom.removeEventListener('mousemove', this.track)
-    this.view.dom.removeEventListener('mouseleave', this.hide)
-    this.dom.remove()
-  }
-
-  private readonly track = (event: MouseEvent) => {
-    const position = this.view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
-    const line = this.view.state.doc.lineAt(position).number
-    if (line === this.line) return
-    this.line = line
-    this.place()
-  }
-
-  private readonly hide = () => {
-    this.line = undefined
-    delete this.dom.dataset['shown']
-  }
-
-  private place() {
-    const { line } = this
-    if (line === undefined || line > this.view.state.doc.lines) return this.hide()
-    const { from } = this.view.state.doc.line(line)
-    const coords = this.view.coordsAtPos(from)
-    // A line a notation hides has no box to sit beside.
-    if (!coords) return this.hide()
-    const top = coords.top - this.view.dom.getBoundingClientRect().top
-    this.dom.style.setProperty('--rail-top', `${Math.round(top)}px`)
-    const carried = new Set(Notations.at(this.view.state, line).map((notation) => notation.kind))
-    for (const [kind, button] of this.buttons)
-      if (carried.has(kind)) button.dataset['active'] = ''
-      else delete button.dataset['active']
-    this.dom.dataset['shown'] = ''
-  }
-
-  private toggle(kind: Notations.Kind) {
-    const { line } = this
-    if (line === undefined) return
-    const { state } = this.view
-    this.view.dispatch({
+  /**
+   * The line is read from where the strip sits rather than held, so an edit
+   * above it cannot leave a control addressing the wrong line.
+   */
+  private toggle(view: EditorView, root: HTMLElement, kind: Notations.Kind) {
+    const { state } = view
+    const line = state.doc.lineAt(view.posAtDOM(root)).number
+    view.dispatch({
       changes: Notations.toggle(state, { kind, line, syntax: this.syntax }),
-      // The strip keeps its place, so the caret stays where the writer left it
-      // rather than jumping to the mark they set.
+      // The caret stays where the writer left it rather than jumping to the
+      // mark they set.
       selection: state.selection,
     })
   }
