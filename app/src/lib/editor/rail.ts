@@ -237,6 +237,8 @@ class Rail {
       if (at !== undefined)
         strip.appendChild(
           this.control({
+            // Set, since the complaint being on screen is what this row is.
+            active: true,
             // The glyph that pinned it, in the hue the complaint carries: the
             // one thing this offers is to take it back.
             color: Theme.marks.remove,
@@ -261,6 +263,7 @@ class Rail {
 
   /** One control of the strip, whichever the strip is. */
   private control(options: {
+    active?: boolean | undefined
     color?: string | undefined
     icon: string
     label: string
@@ -268,6 +271,7 @@ class Rail {
   }) {
     const button = document.createElement('button')
     button.className = 'rail-control'
+    if (options.active) button.dataset['active'] = ''
     if (options.color) button.style.setProperty('--rail-color', options.color)
     button.type = 'button'
     button.title = options.label
