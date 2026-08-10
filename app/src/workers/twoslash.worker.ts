@@ -32,6 +32,9 @@ const twoslash = createTwoslashFromCDN({
   compilerOptions,
   storage,
   twoSlashOptionsOverrides: {
+    // The tags the frame draws, which stay ordinary comments unless the
+    // compiler is told to read them.
+    customTags: [...Twoslash.tags],
     // And this copy is what the snippet is actually compiled with.
     compilerOptions,
     // Half-typed code is the normal case in an editor, and twoslash otherwise

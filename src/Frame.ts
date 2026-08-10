@@ -6,6 +6,7 @@ import {
 import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
 import * as Document from './internal/Document.js'
+import { tags } from './internal/Tags.js'
 import * as Theme from './Theme.js'
 import type {
   BundledLanguage,
@@ -88,9 +89,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   async function compiler() {
     const { createTwoslasher } = await import('twoslash')
     return createTwoslasher({
-      // The tags a snippet can carry beside its code: `@log`, `@error`,
-      // `@warn`, and `@annotate` each draw a line of their own.
-      customTags: ['annotate', 'error', 'log', 'warn'],
+      customTags: [...tags],
       compilerOptions: {
         // Twoslash compiles strict, which marks every untyped parameter: a
         // missing annotation rather than a mistake, in a snippet that left its
@@ -154,32 +153,42 @@ export function create(options: create.Options = {}): create.ReturnType {
       const popup = lang === 'jsx' || lang === 'tsx' ? 'tsx' : 'ts'
       if (!instance.getLoadedLanguages().includes(popup)) await instance.loadLanguage(popup)
     }
-    return {
-      html: instance.codeToHtml(code, {
-        lang,
-        theme,
-        transformers: [
-          {
-            // Numbered here rather than in `line`, which runs before twoslash
-            // folds a query into a block and inserts its own lines: only what
-            // survives into the code element is a line of code.
-            code(node) {
-              let number = 0
-              for (const child of node.children) {
-                if (child.type !== 'element') continue
-                if (!classes(child.properties['class']).includes('line')) continue
-                child.properties['data-line'] = ++number
-              }
-            },
+    const html = instance.codeToHtml(code, {
+      lang,
+      theme,
+      transformers: [
+        {
+          // Numbered here rather than in `line`, which runs before twoslash
+          // folds a query into a block and inserts its own lines: only what
+          // survives into the code element is a line of code.
+          code(node) {
+            let number = 0
+            for (const child of node.children) {
+              if (child.type !== 'element') continue
+              if (!classes(child.properties['class']).includes('line')) continue
+              child.properties['data-line'] = ++number
+            }
           },
-          ...(annotations ? [annotations] : []),
-          // Presentation the snippet carries itself, the way a `^?` query
-          // does: `[!code focus]`, `[!code hl]`, and `[!code ++]` mark lines
-          // and are taken back out of what is drawn.
-          ...notations,
-        ],
-      }),
-      ...(annotations ? { css: Document.annotations(Theme.derive(instance.getTheme(theme))) } : {}),
+        },
+        ...(annotations ? [annotations] : []),
+        // Presentation the snippet carries itself, the way a `^?` query
+        // does: `[!code focus]`, `[!code hl]`, and `[!code ++]` mark lines
+        // and are taken back out of what is drawn.
+        ...notations,
+      ],
+    })
+    // The styles belong to the markup rather than to a document: a caller
+    // embedding `html` has nowhere else to read them from.
+    const marked = Document.marked(html)
+    const palette = annotations || marked ? Theme.derive(instance.getTheme(theme)) : undefined
+    const css = palette
+      ? [annotations ? Document.annotations(palette) : '', marked ? Document.marks(palette) : '']
+          .filter(Boolean)
+          .join('\n')
+      : ''
+    return {
+      html,
+      ...(css ? { css } : {}),
       // Detached: the registry entry is shared, so handing it out would let
       // one caller's edit change what later renders produce.
       theme: structuredClone(instance.getTheme(theme)),

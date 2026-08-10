@@ -1,5 +1,9 @@
 import { createTwoslasher } from 'twoslash'
 
+import { tags } from './internal/Tags.js'
+
+export { tags } from './internal/Tags.js'
+
 /** A type the language service resolved for a span of the source. */
 export type Annotation = {
   /** Offset into the source as written, notations included. */
@@ -58,7 +62,7 @@ export type Result = {
  * ```
  */
 export function create(): create.ReturnType {
-  const twoslasher = createTwoslasher()
+  const twoslasher = createTwoslasher({ customTags: [...tags] })
   return {
     run(code, options = {}) {
       return annotate(

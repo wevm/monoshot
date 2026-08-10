@@ -136,7 +136,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .shiki { padding-block: 12px; }
 ${lineNumbers ? gutter(html) : ''}
-${/has-(diff|focused|highlighted)|twoslash-tag-line/.test(html) ? marks(palette) : ''}
+${marked(html) ? marks(palette) : ''}
 ${styles}
 .twoslash-block {
   display: flex;
@@ -194,7 +194,9 @@ const shadow = {
  * code instead of under the numbers.
  */
 function gutter(html: string) {
-  const lines = (html.match(/class="line"/g) ?? []).length
+  // The numbering the render already did, rather than a bare `class="line"`:
+  // a marked line carries its mark in the same attribute.
+  const lines = (html.match(/data-line="/g) ?? []).length
   const width = String(Math.max(lines, 10)).length
   return `.shiki code {
   /* Grid, not blocked lines: shiki puts a real newline between them, which a
@@ -300,11 +302,19 @@ const hue = {
  * the rules turn the code into rows, which a snippet with nothing to mark has
  * no reason to become.
  */
-function marks(palette: Theme.derive.Result) {
-  /** A row: full width, past the inset the window holds its code at. */
-  const row = `  margin-inline: calc(-1 * var(--body-inset));
-  padding-inline-start: calc(var(--body-inset) + var(--gutter-inset, 0px));
-  padding-inline-end: var(--body-inset);`
+export function marked(html: string): boolean {
+  return /has-(diff|focused|highlighted)|twoslash-tag-line/.test(html)
+}
+
+export function marks(palette: Theme.derive.Result) {
+  /**
+   * A row: full width, past the inset the window holds its code at. A caller
+   * embedding the markup declares `--body-inset` to say what that inset is;
+   * without one the row reaches the code's own edges.
+   */
+  const row = `  margin-inline: calc(-1 * var(--body-inset, 0px));
+  padding-inline-start: calc(var(--body-inset, 0px) + var(--gutter-inset, 0px));
+  padding-inline-end: var(--body-inset, 0px);`
   /** A row's bar and wash, from one hue. */
   const mark = (
     color: string,
@@ -318,6 +328,8 @@ function marks(palette: Theme.derive.Result) {
   /* A row holding nothing is still a line of the snippet: as a grid item an
      empty one would take no height, and the blank lines would close up. */
   min-height: var(--code-line-height);
+  /* What a diff marker sits in, so it lands in the window's own inset. */
+  position: relative;
 }
 .shiki .line,
 .twoslash-tag-line {
@@ -337,16 +349,19 @@ ${mark(hue.add)}
 ${mark(hue.remove)}
   opacity: 0.7;
 }
-.shiki .line.diff::before {
+/* Its own pseudo-element: the one before it draws a line number, which a diff
+   line has too when the gutter is on. */
+.shiki .line.diff::after {
+  left: 6px;
   opacity: 0.8;
   position: absolute;
-  /* In the inset the window already holds, beside the bar. */
-  transform: translateX(calc(-1 * var(--body-inset) + 6px));
+  /* The gutter indents the line's first box, which this is not part of. */
+  text-indent: 0;
 }
-.shiki .line.diff.add::before {
+.shiki .line.diff.add::after {
   content: '+';
 }
-.shiki .line.diff.remove::before {
+.shiki .line.diff.remove::after {
   content: '-';
 }
 /* A tag is prose the snippet carries, so it reads in the hue it was tagged

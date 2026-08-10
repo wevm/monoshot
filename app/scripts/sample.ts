@@ -18,6 +18,8 @@ const language = detect(sample) ?? 'tsx'
 const lang = dialects[language as keyof typeof dialects] ?? 'ts'
 const run = createTwoslasher({
   compilerOptions,
+  // Matches the worker, so a precomputed snippet reads its tags too.
+  customTags: [...Twoslash.tags],
   // Matches the worker: half-typed code is the normal case in an editor, and
   // twoslash otherwise insists every compiler error be declared in the source.
   handbookOptions: { noErrorValidation: true },

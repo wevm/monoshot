@@ -187,6 +187,20 @@ describe('render with notations', () => {
     expect(focus.html).toContain('line focused')
   })
 
+  test('returns the styles the marks need, twoslash or not', async () => {
+    const frame = Frame.create()
+    const marked = await frame.render({
+      code: 'const a = 1 // [!code hl]\n',
+      lang: 'ts',
+      theme: 'vitesse-dark',
+    })
+    const plain = await frame.render({ code: 'const a = 1\n', lang: 'ts', theme: 'vitesse-dark' })
+    await frame.dispose()
+    // A caller embedding the markup has nowhere else to read them from.
+    expect(marked.css).toContain('.shiki .line.highlighted')
+    expect(plain.css).toBeUndefined()
+  })
+
   test('draws a line for each tag a snippet carries', async () => {
     const frame = Frame.create()
     const result = await frame.render({

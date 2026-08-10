@@ -160,7 +160,13 @@ const styles = stylex.create({
     width: '100%',
     '::placeholder': { color: 'var(--window-title)' },
   },
-  body: { paddingBlock: 4, paddingInline: 'var(--editor-inset)' },
+  body: {
+    paddingBlock: 4,
+    paddingInline: 'var(--editor-inset)',
+    // What a marked line reaches past, so a mark meets the window's edges the
+    // way it does in an exported document.
+    '--body-inset': 'var(--editor-inset)',
+  },
   // Without the title bar the code needs its own breathing room at the top.
   bodyBare: { paddingBlock: 8 },
 })

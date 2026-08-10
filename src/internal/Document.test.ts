@@ -123,6 +123,32 @@ describe('build', () => {
     `)
   })
 
+  test('numbers past a digit the marks would have hidden', async () => {
+    // A marked line is still a line: counting bare `class="line"` would drop
+    // it, and a ten-line snippet would allocate a single digit.
+    const lines = Array.from({ length: 10 }, (_, index) => `const a${index} = ${index}`)
+    lines[0] += ' // [!code hl]'
+    const document = await frame.toDocument({
+      ...options,
+      code: `${lines.join('\n')}\n`,
+      lineNumbers: true,
+    })
+    expect(document).toContain('data-line="10"')
+    expect(document).toContain('width: 2ch')
+  })
+
+  test('keeps a numbered line beside its diff marker', async () => {
+    const document = await frame.toDocument({
+      ...options,
+      code: "const a = 'x' // [!code --]\nconst a = 'y' // [!code ++]\n",
+      lineNumbers: true,
+    })
+    // The marker takes the pseudo-element the number does not, so a diff line
+    // draws both.
+    expect(document).toContain('.shiki .line.diff::after')
+    expect(document).not.toContain('.shiki .line.diff::before')
+  })
+
   test('embeds a font rather than linking it', async () => {
     const document = await frame.toDocument({
       ...options,
