@@ -55,7 +55,7 @@ export type Options = {
 export function build(options: Options): string {
   const { background, html, lineNumbers, padding, palette, radius, title, titleBar, width } =
     options
-  const annotations = options.annotated === true ? annotated(palette) : ''
+  const styles = options.annotated === true ? annotations(palette) : ''
   const fonts = options.fonts ?? []
   const backdrop =
     background === 'none'
@@ -134,7 +134,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .shiki { padding-block: 12px; }
 ${lineNumbers ? gutter(html) : ''}
-${annotations}
+${styles}
 .twoslash-block {
   display: flex;
   padding-block: 8px 4px;
@@ -222,8 +222,12 @@ function gutter(html: string) {
  * Styles for the blocks twoslash renders in place of a `^?` line. Only the
  * static shapes: the hover popovers in the upstream stylesheet need a pointer,
  * and an image has none.
+ *
+ * Exported because annotated markup is unreadable without them, and a caller
+ * holding `Frame.render` output rather than a whole document still has to put
+ * them somewhere.
  */
-function annotated(palette: Theme.derive.Result) {
+export function annotations(palette: Theme.derive.Result): string {
   const surface = `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`
   return `.twoslash-popup-container {
   /* Every identifier carries one of these for a pointer to open. An image has

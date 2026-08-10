@@ -39,7 +39,14 @@ export function create(options: create.Options = {}): create.ReturnType {
    * static import would put one in every bundle that holds the other.
    */
   function annotate(): Promise<ShikiTransformer> {
-    return (annotator ??= (async () => {
+    // A rejection must not be cached, or one failed chunk load would leave the
+    // renderer unable to annotate for the rest of its life.
+    return (annotator ??= build().catch((cause: unknown) => {
+      annotator = undefined
+      throw cause
+    }))
+
+    async function build() {
       const [{ rendererRich, transformerTwoslash }, { createTwoslasher }] = await Promise.all([
         import('@shikijs/twoslash'),
         import('twoslash'),
@@ -55,7 +62,7 @@ export function create(options: create.Options = {}): create.ReturnType {
           handbookOptions: { noErrorValidation: true },
         }),
       })
-    })())
+    }
   }
 
   // Kept as a promise so concurrent renders share one creation rather than
@@ -109,6 +116,7 @@ export function create(options: create.Options = {}): create.ReturnType {
           ...(annotations ? [annotations] : []),
         ],
       }),
+      ...(annotations ? { css: Document.annotations(Theme.derive(instance.getTheme(theme))) } : {}),
       // Detached: the registry entry is shared, so handing it out would let
       // one caller's edit change what later renders produce.
       theme: structuredClone(instance.getTheme(theme)),
@@ -204,7 +212,8 @@ export declare namespace load {
 }
 
 export declare namespace tokens {
-  type Options = render.Options
+  /** Tokenizing resolves no types, so a query is left as the comment it is. */
+  type Options = Omit<render.Options, 'twoslash'>
 
   type ReturnType = {
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
@@ -216,7 +225,7 @@ export declare namespace tokens {
 
 export declare namespace toDocument {
   /** What to render, and the frame to render it in. */
-  type Options = Omit<Document.Options, 'html' | 'palette'> & render.Options
+  type Options = Omit<Document.Options, 'annotated' | 'html' | 'palette'> & render.Options
 
   /** The frame as one standalone HTML document. */
   type ReturnType = string
@@ -239,6 +248,11 @@ export declare namespace render {
   }
 
   type ReturnType = {
+    /**
+     * Styles the annotated markup needs, which draw the query blocks and keep
+     * the hover popovers out of flow. Absent unless `twoslash` was asked for.
+     */
+    css?: string | undefined
     /** Highlighted markup: a `pre.shiki` whose lines carry `data-line`. */
     html: string
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */

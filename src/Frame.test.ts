@@ -175,6 +175,22 @@ describe('render with twoslash', () => {
     `)
   })
 
+  test('hands back the styles the annotated markup needs', async () => {
+    // The markup carries a popover per identifier, and without these rules a
+    // consumer injecting the html alone would draw every one of them.
+    const frame = Frame.create()
+    const annotated = await frame.render({
+      code: query,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    const plain = await frame.render({ code: query, lang: 'ts', theme: 'vitesse-dark' })
+    await frame.dispose()
+    expect(annotated.css).toContain('.twoslash-popup-container')
+    expect(plain.css).toBeUndefined()
+  })
+
   test('annotates again after the renderer is disposed', async () => {
     // Disposal releases the compiler, so the next annotated render rebuilds it.
     const frame = Frame.create()
