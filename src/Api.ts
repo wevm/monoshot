@@ -9,54 +9,59 @@ import * as Theme from './Theme.js'
 /** What a snippet may weigh, so one request cannot occupy an isolate. */
 const limit = { code: 100_000, nodes: 20_000 }
 
-/**
- * The frame to draw, described strictly. The codec falls back on every field
- * so a hand-edited link still opens something; a request naming a width no
- * frame has is a mistake, and is answered as one. The bounds are stated here
- * rather than read off the codec, which holds them as fallbacks.
- */
-const document = z
-  .object({
-    background: z
-      .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
-      .optional(),
-    code: z.string().min(1).max(limit.code),
-    lang: z.string(),
-    lineNumbers: z.boolean().optional(),
-    padding: z.number().int().min(0).max(256).optional(),
-    radius: z.number().int().min(0).max(24).optional(),
-    theme: z.string().optional(),
-    title: z.string().max(200).optional(),
-    titleBar: z.boolean().optional(),
-    twoslash: z
-      .object({ code: z.string().max(limit.code), nodes: z.array(z.unknown()).max(limit.nodes) })
-      .optional(),
-    width: z.number().int().min(320).max(1600).optional(),
-  })
-  .strict()
-
-/** A body once its fields are known good, before they are read together. */
-type Document = z.infer<typeof document>
-
-const body = document.superRefine((request: Document, context: z.RefinementCtx) => {
-  if (!request.twoslash) return
-  // Twoslash cuts its notation lines out before compiling, so a run reports
-  // the source without them. Anything else was resolved against other code,
-  // and its offsets would land on this snippet in the wrong places.
-  const compiled = request.code
-    .split('\n')
-    .filter((line: string) => !/^\s*\/\/\s*\^\?/.test(line))
-    .join('\n')
-  if (request.twoslash.code !== compiled && request.twoslash.code !== request.code)
-    context.addIssue({
-      code: 'custom',
-      message: 'the resolved types belong to different code.',
-      path: ['twoslash', 'code'],
+/** Every shape a request is read through, and the types they describe. */
+namespace schema {
+  /**
+   * The frame to draw, described strictly. The codec falls back on every field
+   * so a hand-edited link still opens something; a request naming a width no
+   * frame has is a mistake, and is answered as one. The bounds are stated here
+   * rather than read off the codec, which holds them as fallbacks.
+   */
+  export const document = z
+    .object({
+      background: z
+        .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
+        .optional(),
+      code: z.string().min(1).max(limit.code),
+      lang: z.string(),
+      lineNumbers: z.boolean().optional(),
+      padding: z.number().int().min(0).max(256).optional(),
+      radius: z.number().int().min(0).max(24).optional(),
+      theme: z.string().optional(),
+      title: z.string().max(200).optional(),
+      titleBar: z.boolean().optional(),
+      twoslash: z
+        .object({ code: z.string().max(limit.code), nodes: z.array(z.unknown()).max(limit.nodes) })
+        .optional(),
+      width: z.number().int().min(320).max(1600).optional(),
     })
-})
+    .strict()
 
-/** Which themes to list. */
-const filter = z.object({ type: z.union([z.literal('dark'), z.literal('light')]).optional() })
+  /** A body once its fields are known good, before they are read together. */
+  export type Document = z.infer<typeof document>
+
+  export const body = document.superRefine((request: Document, context: z.RefinementCtx) => {
+    if (!request.twoslash) return
+    // Twoslash cuts its notation lines out before compiling, so a run reports
+    // the source without them. Anything else was resolved against other code,
+    // and its offsets would land on this snippet in the wrong places.
+    const compiled = request.code
+      .split('\n')
+      .filter((line: string) => !/^\s*\/\/\s*\^\?/.test(line))
+      .join('\n')
+    if (request.twoslash.code !== compiled && request.twoslash.code !== request.code)
+      context.addIssue({
+        code: 'custom',
+        message: 'the resolved types belong to different code.',
+        path: ['twoslash', 'code'],
+      })
+  })
+
+  /** Which themes to list. */
+  export const filter = z.object({
+    type: z.union([z.literal('dark'), z.literal('light')]).optional(),
+  })
+}
 
 /**
  * One shape for every rejection, whichever route and whichever check raised
@@ -148,7 +153,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   const app = new Hono()
     .post(
       '/document',
-      validate('json', body, {
+      validate('json', schema.body, {
         description: 'Renders a snippet to a standalone document, which runs and fetches nothing.',
         responses: {
           200: { content: { 'text/html': {} }, description: 'The document.' },
@@ -188,7 +193,7 @@ export function create(options: create.Options = {}): create.ReturnType {
     )
     .get(
       '/themes',
-      validate('query', filter, {
+      validate('query', schema.filter, {
         description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
         responses: { 200: { description: 'The bundled themes.' } },
         summary: 'List themes',

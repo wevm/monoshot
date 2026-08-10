@@ -30,6 +30,7 @@
 - Avoid inline object types on local variables. When an explicit local object type improves clarity, name it directly above the use.
 - Do not extract a named type until it is reused or makes a difficult shape materially easier to read.
 - Keep shared domain types beside the module that owns the concept.
+- Group a module's Zod schemas in a `schema` namespace, and derive their types beside them (`schema.Document`). Export the namespace only when another module validates against the same shape.
 - Let declared return types constrain intermediate expressions. Avoid redundant local annotations.
 - Return values directly unless a binding is reused or gives a complex expression a useful name.
 - For a fallible local derivation, prefer an IIFE expression over a mutable variable assigned across `try` and `catch` blocks.
