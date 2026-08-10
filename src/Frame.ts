@@ -53,15 +53,21 @@ export function create(options: create.Options = {}): create.ReturnType {
    * Imported here rather than at the top of the module: the compiler is
    * megabytes, `Frame` is what a browser reaches for to highlight, and a
    * static import would put one in every bundle that holds the other.
+   *
+   * The `core` entrypoint rather than the package root, which imports
+   * `twoslash` for the convenience wrapper it exports. Reaching for the root
+   * would load the compiler even when a resolved run made it unnecessary.
    */
   async function build(resolved?: () => render.Types): Promise<ShikiTransformer> {
-    const { rendererRich, transformerTwoslash } = await import('@shikijs/twoslash')
-    return transformerTwoslash({
+    const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
+    const twoslasher = resolved ?? (await compiler())
+    return createTransformerFactory(
+      twoslasher,
+      rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
+    )({
       // A snippet in an editor is half-typed most of the time, and code that
       // does not compile still has types worth drawing.
       throws: false,
-      renderer: rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
-      twoslasher: resolved ?? (await compiler()),
     })
   }
 
