@@ -8,5 +8,8 @@
   "upload_source_maps": true,
   "observability": {
     "enabled": true
+  },
+  "browser": {
+    "binding": "BROWSER"
   }
 }

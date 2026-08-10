@@ -115,6 +115,7 @@ describe('create', () => {
     expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
       [
         "/v1/document",
+        "/v1/image",
         "/v1/themes",
       ]
     `)
@@ -143,13 +144,47 @@ describe('create', () => {
       `)
   })
 
+  describe('image', () => {
+    test('answers plainly when the deployment has no browser', async () => {
+      // Every other route works without one, so this is the deployment's
+      // state rather than the request's mistake.
+      const response = await Api.route.request('/image', {
+        body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts' }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+      expect(response.status).toBe(503)
+      expect(await response.json()).toMatchInlineSnapshot(`
+        {
+          "error": "This deployment has no browser to draw in.",
+        }
+      `)
+    })
+
+    test('reads a request before it reaches for a browser', async () => {
+      // A request it cannot read is answered whether or not one is configured.
+      const response = await Api.route.request('/image', {
+        body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts', scale: 99 }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      })
+      expect(response.status).toBe(400)
+      expect(await response.json()).toMatchInlineSnapshot(`
+        {
+          "error": "scale: Too big: expected number to be <=6",
+        }
+      `)
+    })
+  })
+
   test('describes itself', async () => {
     const response = await Api.route.request('/openapi.json')
     const spec = (await response.json()) as { paths: Record<string, unknown> }
     expect(response.status).toBe(200)
-    expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
+    expect(Object.keys(spec.paths).sort()).toMatchInlineSnapshot(`
       [
         "/document",
+        "/image",
         "/themes",
       ]
     `)

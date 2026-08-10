@@ -5,6 +5,7 @@ import * as z from 'zod'
 
 import * as Codec from './Codec.js'
 import * as Frame from './Frame.js'
+import * as Raster from './internal/Raster.js'
 import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
@@ -60,12 +61,14 @@ namespace schema {
   /** A body once its fields are known good, before they are read together. */
   export type Document = z.infer<typeof document>
 
-  export const body = document.superRefine((request: Document, context: z.RefinementCtx) => {
+  /**
+   * Whether a run describes the code it arrived with. Twoslash cuts its
+   * notations out before compiling and reports where, so cutting the same
+   * ranges brings the run's own code back. Anything else was resolved against
+   * other code, and its offsets would land in the wrong places here.
+   */
+  function resolved(request: Document, context: z.RefinementCtx) {
     if (!request.twoslash) return
-    // Twoslash cuts its notations out before compiling, and reports where. Cut
-    // the same ranges and the run's own code comes back; anything else was
-    // resolved against other code, and its offsets would land in the wrong
-    // places here.
     const cuts = [...request.twoslash.meta.removals].sort((a, b) => a[0] - b[0])
     let compiled = ''
     let at = 0
@@ -80,7 +83,15 @@ namespace schema {
         message: 'the resolved types belong to different code.',
         path: ['twoslash', 'code'],
       })
-  })
+  }
+
+  export const body = document.superRefine(resolved)
+
+  /** A frame to draw as an image, which is the frame plus how large to draw it. */
+  export const picture = document
+    .extend({ scale: z.number().positive().max(6).optional() })
+    .strict()
+    .superRefine(resolved)
 
   /** Which themes to list. */
   export const filter = z.object({
@@ -120,6 +131,40 @@ export function create(options: create.Options = {}) {
   // runtime, which a Worker refuses, and a Worker is what this is for.
   const frame = options.frame ?? Frame.create({ engine: 'javascript' })
 
+  /**
+   * The document a request describes, or the response refusing it. Both render
+   * routes read a request the same way; only what they do with the document
+   * afterwards differs.
+   */
+  async function frame_document(request: schema.Document): Promise<Response | string> {
+    // Read back through the codec, which holds what every field falls back to:
+    // a request, a link, and the editor then draw the same frame from a field
+    // nobody set.
+    const state = Codec.schema.parse(request)
+    if (!(state.lang in bundledLanguages))
+      return Response.json({ error: `lang: \`${state.lang}\` is not bundled.` }, { status: 400 })
+    const theme = Theme.info(state.theme)
+    if (!theme)
+      return Response.json({ error: `theme: \`${state.theme}\` is not bundled.` }, { status: 400 })
+    try {
+      return await frame.toDocument({
+        ...state,
+        // Asserted through `unknown`: the run is validated structurally here,
+        // and the renderer's node union declares positions this neither reads
+        // nor requires a caller to send.
+        ...(request.twoslash
+          ? { twoslash: request.twoslash as unknown as Frame.render.Types }
+          : {}),
+        lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
+        theme: theme.name,
+      })
+    } catch (cause) {
+      // Not a rejection: the request was understood, and drawing it failed.
+      const message = cause instanceof Error ? cause.message : String(cause)
+      return Response.json({ error: message }, { status: 500 })
+    }
+  }
+
   const app = new Hono()
     .post(
       '/document',
@@ -132,39 +177,51 @@ export function create(options: create.Options = {}) {
         summary: 'Render a document',
       }),
       async (c) => {
+        const drawn = await frame_document(c.req.valid('json'))
+        if (drawn instanceof Response) return drawn
+        // No cache header: a shared cache keys on the URL, which says nothing
+        // about the body each of these renders from.
+        return c.body(drawn, 200, { 'content-type': 'text/html; charset=utf-8' })
+      },
+    )
+    .post(
+      '/image',
+      OpenApi.validate('json', schema.picture, {
+        description:
+          'Renders a snippet to a PNG, by screenshotting the document in a browser. Needs a browser binding.',
+        responses: {
+          200: { description: 'The image.', media: 'image/png', schema: z.string() },
+          500: { description: 'The frame could not be drawn.', schema: schema.failure },
+          503: {
+            description: 'This deployment has no browser to draw in.',
+            schema: schema.failure,
+          },
+        },
+        summary: 'Render an image',
+      }),
+      async (c) => {
+        const browser = options.browser?.(c)
+        if (!browser) return c.json({ error: 'This deployment has no browser to draw in.' }, 503)
         const request = c.req.valid('json')
-        // Read back through the codec, which holds what every field falls back
-        // to: a request, a link, and the editor then draw the same frame from a
-        // field nobody set.
-        const state = Codec.schema.parse(request)
-        if (!(state.lang in bundledLanguages))
-          return c.json({ error: `lang: \`${state.lang}\` is not bundled.` }, 400)
-        const theme = Theme.info(state.theme)
-        if (!theme) return c.json({ error: `theme: \`${state.theme}\` is not bundled.` }, 400)
-
-        const html = await (async () => {
+        const drawn = await frame_document(request)
+        if (drawn instanceof Response) return drawn
+        const png = await (async () => {
           try {
-            return await frame.toDocument({
-              ...state,
-              // Asserted through `unknown`: the run is validated structurally
-              // here, and the renderer's node union declares positions this
-              // neither reads nor requires a caller to send.
-              ...(request.twoslash
-                ? { twoslash: request.twoslash as unknown as Frame.render.Types }
-                : {}),
-              lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
-              theme: theme.name,
+            return await Browser.screenshot(browser, {
+              html: drawn,
+              scale: request.scale ?? 2,
             })
           } catch (cause) {
             return cause instanceof Error ? cause : new Error(String(cause))
           }
         })()
-        // Not a rejection: the request was understood, and drawing it failed.
-        if (html instanceof Error) return c.json({ error: html.message }, 500)
-
-        // No cache header: a shared cache keys on the URL, which says nothing
-        // about the body each of these renders from.
-        return c.body(html, 200, { 'content-type': 'text/html; charset=utf-8' })
+        if (png instanceof Error) return c.json({ error: png.message }, 500)
+        // The bytes as they are: `c.body` takes a stream or a string, and an
+        // image is neither.
+        return new Response(png as unknown as BodyInit, {
+          headers: { 'content-type': 'image/png' },
+          status: 200,
+        })
       },
     )
     .get(
@@ -190,10 +247,82 @@ export function create(options: create.Options = {}) {
 export declare namespace create {
   type Options = {
     /**
+     * The browser to screenshot in, read off each request. A binding reaches a
+     * Worker through its environment rather than its module scope, so this
+     * takes a reader rather than the binding itself. Without one, `/image`
+     * answers `503`: nothing else needs a browser.
+     */
+    browser?: ((context: { env: unknown }) => Browser.Endpoint | undefined) | undefined
+    /**
      * Renderer to draw with. Defaults to one holding shiki's JavaScript
      * engine. Pass one to share loaded grammars, or to choose the engine.
      */
     frame?: Frame.create.ReturnType | undefined
+  }
+}
+
+/**
+ * Screenshotting in a browser Cloudflare runs, rather than one on this
+ * machine. Reached through a binding, so nothing here starts a process.
+ */
+namespace Browser {
+  /** A Browser Rendering binding, which is anything that answers a fetch. */
+  export type Endpoint = { fetch: typeof fetch }
+
+  /**
+   * Screenshots the frame a document draws.
+   *
+   * Imported here rather than at the top of the module: `@cloudflare/puppeteer`
+   * only resolves inside a Worker, and this module is what a Node consumer
+   * reaches through the root entrypoint.
+   */
+  export async function screenshot(
+    endpoint: Endpoint,
+    options: { html: string; scale: number },
+  ): Promise<Uint8Array> {
+    const { html, scale } = options
+    const puppeteer = await import('@cloudflare/puppeteer').catch(() => {
+      throw new Error('Rendering images needs `@cloudflare/puppeteer` installed.')
+    })
+    const browser = await open(puppeteer, endpoint)
+    try {
+      const page = await browser.newPage()
+      await page.setContent(html, { waitUntil: 'load' })
+      // The document embeds its fonts, so this resolves without the network.
+      await page.evaluate(() => document.fonts.ready)
+      const canvas = await page.$('.canvas')
+      if (!canvas) throw new Error('The document rendered no frame.')
+      const box = await canvas.boundingBox()
+      await page.setViewport({
+        deviceScaleFactor: Raster.fit(box, scale),
+        height: Math.ceil(box?.height ?? 1),
+        width: Math.ceil(box?.width ?? 1),
+      })
+      return await canvas.screenshot({ omitBackground: true, type: 'png' })
+    } finally {
+      // Disconnected rather than closed: the session outlives this request, so
+      // the next one skips a launch that costs seconds.
+      await browser.disconnect()
+    }
+  }
+
+  /**
+   * A browser to draw in: one already running where there is one, since a
+   * launch is the expensive part and a session is reusable.
+   */
+  async function open(
+    puppeteer: typeof import('@cloudflare/puppeteer'),
+    endpoint: Endpoint,
+  ): Promise<Awaited<ReturnType<typeof puppeteer.launch>>> {
+    const free = await puppeteer
+      .sessions(endpoint)
+      .then((all) => all.find((session) => !session.connectionId))
+      .catch(() => undefined)
+    if (free) {
+      const reused = await puppeteer.connect(endpoint, free.sessionId).catch(() => undefined)
+      if (reused) return reused
+    }
+    return await puppeteer.launch(endpoint)
   }
 }
 

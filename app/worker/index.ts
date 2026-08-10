@@ -14,7 +14,9 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   // Renders a frame to the standalone document a browser screenshots. The
   // library owns the routes, so the CLI, this app, and any other consumer
   // draw from one description of a frame.
-  .route('/', Api.route)
+  // The binding reaches a Worker through its environment, so the routes read
+  // it off each request rather than holding it.
+  .route('/', Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER }))
   // A whole package's declarations in one response. The editor resolves types
   // in the browser, where fetching them file by file from a CDN costs hundreds
   // of round trips for a package like `shiki`.
