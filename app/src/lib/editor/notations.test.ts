@@ -116,6 +116,16 @@ describe('notations', () => {
       `)
   })
 
+  test('reads a twoslash tag as the prose the export draws', () => {
+    expect(marked('// @log: looked at\nconst a = 1\n')).toMatchInlineSnapshot(`
+      {
+        "1": [
+          "cm-tag-log",
+        ],
+      }
+    `)
+  })
+
   test('leaves a comment that only looks like one alone', () => {
     expect(marked('// [!code nonsense]\nconst a = 1\n')).toMatchInlineSnapshot(`{}`)
   })

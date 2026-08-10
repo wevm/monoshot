@@ -65,11 +65,44 @@ export function theme(palette: Theme.derive.Result): Extension {
         marginRight: 0,
         paddingInline: 'var(--editor-inset) 20px',
       },
-      '.cm-gutterElement.cm-mark-add': mark(Theme.marks.add),
+      '.cm-gutterElement.cm-mark-add': { ...mark(Theme.marks.add), position: 'relative' },
       '.cm-gutterElement.cm-mark-blur': { opacity: 0.4 },
       '.cm-gutterElement.cm-mark-highlight': mark(palette.window.foreground),
-      '.cm-gutterElement.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
+      '.cm-gutterElement.cm-mark-remove': {
+        ...mark(Theme.marks.remove),
+        opacity: 0.7,
+        position: 'relative',
+      },
       '.cm-line.cm-mark-add': mark(Theme.marks.add),
+      // The sign a diff line carries, in the inset the window already holds.
+      // Its own pseudo-element, since the gutter draws a number in the other.
+      '.cm-line.cm-mark-add::after, .cm-line.cm-mark-remove::after': {
+        left: '6px',
+        opacity: 0.8,
+        position: 'absolute',
+      },
+      '.cm-line.cm-mark-add::after': { content: '"+"' },
+      '.cm-line.cm-mark-remove::after': { content: '"-"' },
+      // With a gutter the row starts there, so the sign goes with it rather
+      // than landing on a number.
+      '&:has(.cm-gutters) .cm-line.cm-mark-add::after': { content: '""' },
+      '&:has(.cm-gutters) .cm-line.cm-mark-remove::after': { content: '""' },
+      '.cm-gutterElement.cm-mark-add::after, .cm-gutterElement.cm-mark-remove::after': {
+        left: '6px',
+        opacity: 0.8,
+        position: 'absolute',
+      },
+      '.cm-gutterElement.cm-mark-add::after': { content: '"+"' },
+      '.cm-gutterElement.cm-mark-remove::after': { content: '"-"' },
+      // A tag is prose the snippet carries, so it reads in the hue it was
+      // tagged with rather than in the code's own colors.
+      '.cm-line.cm-tag-annotate': { ...mark(Theme.marks.add), color: Theme.marks.add },
+      '.cm-line.cm-tag-error': { ...mark(Theme.marks.remove), color: Theme.marks.remove },
+      '.cm-line.cm-tag-log': { ...mark(Theme.marks.log), color: Theme.marks.log },
+      '.cm-line.cm-tag-warn': { ...mark(Theme.marks.warn), color: Theme.marks.warn },
+      // The code's own colors are painted on the spans inside, which the line
+      // cannot talk over without saying so.
+      '.cm-line[class*="cm-tag-"] span': { color: 'inherit !important' },
       // Focus says which lines matter, so the rest recede.
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
       '.cm-line.cm-mark-highlight': mark(palette.window.foreground),

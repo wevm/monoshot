@@ -368,17 +368,9 @@ ${mark(Theme.marks.remove)}
   min-height: var(--code-line-height);
 }
 .twoslash-tag-icon {
-  /* Sized here, since the renderer ships the glyph without dimensions and an
-     SVG left to itself fills whatever row it lands in. */
-  display: block;
-  flex: none;
-  height: 1.1em;
-  width: 1.1em;
-}
-.twoslash-tag-icon svg {
-  display: block;
-  height: 100%;
-  width: 100%;
+  /* The tag reads as prose in its own hue, which says what it is without a
+     glyph repeating it. */
+  display: none;
 }
 .twoslash-tag-log-line {
   color: ${Theme.marks.log};

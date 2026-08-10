@@ -149,6 +149,20 @@ describe('build', () => {
     expect(document).not.toContain('.shiki .line.diff::before')
   })
 
+  test('draws a tag as prose without a glyph repeating it', async () => {
+    const document = await frame.toDocument({
+      ...options,
+      code: '// @log: looked at\nconst a = 1\n',
+      twoslash: true,
+    })
+    expect(document).toContain('twoslash-tag-log-line')
+    expect(document).toContain(`.twoslash-tag-icon {
+  /* The tag reads as prose in its own hue, which says what it is without a
+     glyph repeating it. */
+  display: none;
+}`)
+  })
+
   test('embeds a font rather than linking it', async () => {
     const document = await frame.toDocument({
       ...options,

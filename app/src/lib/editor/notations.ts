@@ -92,6 +92,12 @@ export function syntax(language: string): Syntax {
  */
 const pattern = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+([\w+-]+)(?::(\d+))?\][ \t]*(?:\*\/|-->)?/g
 
+/**
+ * A twoslash tag, which is prose the snippet carries about the line after it.
+ * The export draws it as a row of its own; here it stays where it was written.
+ */
+const tags = /^[ \t]*(?:\/\/|#|\/\*)[ \t]*@(annotate|error|log|warn):[ \t]?/
+
 const kinds: Readonly<Record<string, Kind>> = {
   '++': 'add',
   '--': 'remove',
@@ -197,6 +203,14 @@ function build(state: EditorState): Value {
   const removed: number[] = []
   for (let number = 1; number <= doc.lines; number++) {
     const line = doc.line(number)
+    const tag = tags.exec(line.text)
+    if (tag) {
+      // What names the tag is not part of what it says, so it reads as the
+      // prose the export draws rather than as a comment.
+      concealed.push(Decoration.replace({}).range(line.from, line.from + tag[0].length))
+      ranges.push(Decoration.line({ class: `cm-tag-${tag[1]}` }).range(line.from))
+      continue
+    }
     const written = [...line.text.matchAll(pattern)].filter((match) => match[1] && kinds[match[1]])
     if (!written.length) continue
     // A notation on a line of its own addresses what follows it; one trailing

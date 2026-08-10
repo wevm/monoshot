@@ -575,7 +575,8 @@ const code = stylex.create({
     lineHeight: '22px',
     // Ligatures would break the 1:1 metrics the editor relies on later.
     fontVariantLigatures: 'none',
-    overflowX: 'auto',
+    // No scroller: the lines wrap, and one would clip the marks that reach past
+    // the code as well as leave a scrollbar in the picture.
     paddingBlock: 12,
     tabSize: 2,
   },
