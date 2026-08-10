@@ -38,7 +38,9 @@ const styles = stylex.create({
   // hold them against a backdrop of similar lightness.
   // The strip of controls beside the code, which sits outside the window: the
   // window clips, so a control inside it could never reach past its edge.
-  aside: { inset: 0, pointerEvents: 'none', position: 'absolute' },
+  // Above the theme arrows, whose hit area reaches across the artwork's margin
+  // and would otherwise swallow the controls standing in it.
+  aside: { inset: 0, pointerEvents: 'none', position: 'absolute', zIndex: 3 },
   // Read by the controls, which are drawn outside the canvas the palette is set
   // on and so cannot inherit it from there.
   asidePalette: (palette: { background: string; foreground: string }) => ({

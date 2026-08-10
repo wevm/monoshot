@@ -26,8 +26,11 @@ const order = ['focus', 'highlight', 'add', 'remove'] as const
 /** Why a blank line offers no marks, since its controls cannot say so. */
 const blank = 'A blank line takes no mark'
 
-/** How far the controls stand off the window's edge. */
-const gap = 8
+/**
+ * How far the controls stand off the window's edge: past the grip that resizes
+ * it, which reaches 8px into the margin and is the more important thing to hit.
+ */
+const gap = 14
 
 /** The line being reached for, from either the code or the controls beside it. */
 const reach = StateEffect.define<number | undefined>()

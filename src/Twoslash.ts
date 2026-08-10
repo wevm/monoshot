@@ -2,6 +2,7 @@ import { createTwoslasher } from 'twoslash'
 
 import { tags } from './internal/Tags.js'
 
+export { cut, unchecked } from './internal/Marks.js'
 export { tags } from './internal/Tags.js'
 
 /** A type the language service resolved for a span of the source. */

@@ -151,13 +151,20 @@ async function upgrade(request: Resolve, first: Response) {
 }
 
 function annotate(request: Resolve): Response {
-  const run = twoslash.runSync(request.code, request.lang)
+  // The compiler is kept off the lines the snippet marks as removed: blanking
+  // keeps every offset, so what it does resolve still lands where it was found.
+  const run = twoslash.runSync(Twoslash.unchecked(request.code), request.lang)
   return {
     kind: 'resolve',
     result: Twoslash.annotate(run),
     // Trimmed to what travels: a run carries the compiler's own objects, and
     // only these three fields survive `postMessage` or mean anything after it.
-    types: { code: run.code, meta: { removals: run.meta.removals }, nodes: run.nodes },
+    // The code is the snippet as written rather than as the compiler saw it.
+    types: {
+      code: Twoslash.cut(request.code, run.meta.removals),
+      meta: { removals: run.meta.removals },
+      nodes: run.nodes,
+    },
     version: request.version,
   }
 }

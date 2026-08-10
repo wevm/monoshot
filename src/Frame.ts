@@ -6,6 +6,7 @@ import {
 import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
 import * as Document from './internal/Document.js'
+import * as Marks from './internal/Marks.js'
 import { tags } from './internal/Tags.js'
 import * as Theme from './Theme.js'
 import type {
@@ -67,7 +68,7 @@ export function create(options: create.Options = {}): create.ReturnType {
    */
   async function build(resolved?: () => render.Types): Promise<ShikiTransformer> {
     const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
-    const twoslasher = resolved ?? (await compiler())
+    const twoslasher = resolved ?? checked(await compiler())
     return createTransformerFactory(
       // The factory asks for a mutable node list. Nothing reads one that way,
       // and a caller holding a resolved run should not copy it to hand it over.
@@ -137,6 +138,21 @@ export function create(options: create.Options = {}): create.ReturnType {
       langs: [...langs],
       themes: [...themes],
     })
+  }
+
+  /**
+   * Keeps the compiler off the lines a snippet marks as removed, and draws the
+   * snippet as it was written rather than as the compiler saw it.
+   */
+  function checked(twoslasher: Awaited<ReturnType<typeof compiler>>) {
+    return (
+      code: string,
+      lang?: Parameters<typeof twoslasher>[1],
+      options?: Parameters<typeof twoslasher>[2],
+    ) => {
+      const result = twoslasher(Marks.unchecked(code), lang, options)
+      return { ...result, code: Marks.cut(code, result.meta.removals) }
+    }
   }
 
   // A closure rather than a sibling method: an operation read off a destructured
