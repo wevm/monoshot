@@ -11,6 +11,7 @@
     "check:types": "tsc --noEmit",
     "deploy": "vp build && wrangler deploy",
     "dev": "vp dev",
+    "gen:sample": "node --import tsx scripts/sample.ts",
     "gen:types": "wrangler types worker-configuration.d.ts",
     "preview": "vp preview"
   },

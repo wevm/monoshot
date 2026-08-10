@@ -8,6 +8,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
+import { dialects } from '#/lib/twoslash/options.js'
+import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -174,9 +176,6 @@ const empty: Editor.Props['types'] = []
 /** The same, for a document the compiler has said nothing about yet. */
 const quiet: Editor.Props['diagnostics'] = []
 
-/** The dialect the language service should read a document as. */
-const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } as const
-
 /** Everything on screen that a shared link carries, less the code and title. */
 type Settings = Toolbar.State & { padding: number; radius: number; width: number }
 
@@ -329,7 +328,12 @@ function Page() {
   // that did match stays until one for this document arrives. The editor maps
   // what it already holds through the edits between.
   const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
-  const [resolved, setResolved] = useState<Twoslash.Resolved>()
+  // Seeded with the default snippet's types, resolved at build time: the
+  // worker that resolves them carries a compiler, and a first visit would
+  // download it to draw a document nobody has touched.
+  const [resolved, setResolved] = useState<Twoslash.Resolved | undefined>(() =>
+    code === sample ? { document: sample, ...Sample.types } : undefined,
+  )
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
   // Export failures speak for themselves: sharing `error` would swap the
@@ -340,7 +344,9 @@ function Page() {
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
   const attempt = useRef(0)
-  const [detected, setDetected] = useState<BundledLanguage>('tsx')
+  // The snippet on screen before an edit is the sample, so the language it was
+  // resolved as is the one to start from.
+  const [detected, setDetected] = useState<BundledLanguage>(Sample.language)
 
   // Under `auto` the language is read from the code, debounced: reading the
   // whole document on every keystroke would recolor the frame mid-word, and a
@@ -393,6 +399,12 @@ function Page() {
     const dialect = dialects[language as keyof typeof dialects]
     if (!dialect) {
       setResolved(undefined)
+      return
+    }
+    // Already resolved, and by something other than the worker: an untouched
+    // visit never spawns it.
+    if (code === sample && dialect === Sample.types.lang) {
+      setResolved({ document: sample, ...Sample.types })
       return
     }
     // A failure leaves the types belonging to a document that is no longer on

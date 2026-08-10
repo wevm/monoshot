@@ -6,6 +6,7 @@ import indexedDb from 'unstorage/drivers/indexedb'
 
 import { acquire } from '#/lib/twoslash/acquire.js'
 import * as Completions from '#/lib/twoslash/completions.js'
+import { compilerOptions } from '#/lib/twoslash/options.js'
 import type { Complete, Request, Resolve, Response } from '#/lib/twoslash/protocol.js'
 
 /**
@@ -15,23 +16,6 @@ import type { Complete, Request, Resolve, Response } from '#/lib/twoslash/protoc
  * that serves them instead.
  */
 const storage = createStorage({ driver: indexedDb({ base: 'monoshot:twoslash' }) })
-
-/**
- * ESNext, numerically: the enums live in `typescript`, which belongs in the
- * worker's payload once rather than imported for a few constants.
- */
-const compilerOptions = {
-  // Without it a JavaScript document resolves types but is never checked, so
-  // the editor marks nothing in half the languages it highlights.
-  checkJs: true,
-  lib: ['esnext', 'dom'],
-  module: 99,
-  // Twoslash compiles strict, which marks every untyped parameter: a missing
-  // annotation rather than a mistake, in a snippet that left its context
-  // behind.
-  noImplicitAny: false,
-  target: 99,
-}
 
 /**
  * The compiler's file system, held here so acquired packages can be written
