@@ -362,15 +362,13 @@
 .rail {
   align-items: center;
   background-color: color-mix(in oklab, var(--window-surface) 85%, transparent);
-  /* Concentric with the controls it holds: their own corner plus the padding
-     around them. */
-  border-radius: 9px;
+  border-radius: 8px;
   display: flex;
   gap: 2px;
-  height: calc(var(--code-line-height) + 6px);
+  height: var(--code-line-height);
   left: var(--rail-left, 0);
   opacity: 0;
-  padding: 3px;
+  padding-inline: 3px;
   /* Hit-testable while invisible: the strips tile the side of the window, so
      running down them keeps a line under the pointer the whole way. */
   pointer-events: auto;
@@ -405,16 +403,16 @@
   align-items: center;
   background: none;
   border: none;
-  border-radius: 6px;
+  /* Concentric with the strip: its corner less the padding around this. */
+  border-radius: 5px;
   color: var(--rail-color, var(--window-foreground));
   cursor: pointer;
   display: flex;
-  /* A line tall, so a control reads at the size of what it acts on. */
-  height: var(--code-line-height);
+  height: 20px;
   justify-content: center;
   opacity: 0.4;
   padding: 0;
-  width: var(--code-line-height);
+  width: 20px;
 }
 
 .rail-control:hover {
@@ -449,12 +447,12 @@
 
 .rail-control svg {
   fill: none;
-  height: 15px;
+  height: 14px;
   stroke: currentcolor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-  width: 15px;
+  width: 14px;
 }
 
 @media (prefers-reduced-motion: reduce) {
