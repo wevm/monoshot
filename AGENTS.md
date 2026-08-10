@@ -113,6 +113,15 @@ Applies to comments, TSDoc, commit messages, and pull requests.
 - Treat `pnpm check` as mutating because it applies fixes. Inspect and keep only task-related changes.
 - Run `git diff --check` and inspect the final diff before reporting completion.
 
+## Git Conventions
+
+- Conventional commits, lowercase, no trailing period: `feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `test:`, `chore:`. Scope optional.
+- Name the thing that changed, in the identifiers the codebase already uses. Prefer `feat: return annotation styles from Frame.render` over `feat: return the styles annotated markup needs`.
+- State the change, not the reason for it. Leave `because`, `so that`, and `in order to` out of the subject.
+- Write each message to stand alone for a reader who has not seen the pull request or the task that produced it.
+- Keep the pull request title accurate as the branch grows: a squash merge makes it the message that lands on `main`, and the branch's own messages disappear.
+- Never force push and never amend a pushed commit. Correct a mistake with a follow-up commit.
+
 ## UI Conventions
 
 - Build interactive components on Base UI (`@base-ui/react`). Do not hand-roll focus management, dismissal, positioning, roving focus, or ARIA wiring, and do not reimplement behavior with React state that a Base UI primitive already owns.
