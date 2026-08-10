@@ -97,11 +97,7 @@ export function create(options: create.Options = {}): create.ReturnType {
     const { lang, theme } = parameters
     // A rejected promise must not be cached, or one transient failure would
     // poison every later render on this renderer.
-    highlighter ??= createHighlighter({
-      ...(engine ? { engine } : {}),
-      langs: [...langs],
-      themes: [...themes],
-    }).catch((cause: unknown) => {
+    highlighter ??= start().catch((cause: unknown) => {
       highlighter = undefined
       throw cause
     })
@@ -111,6 +107,23 @@ export function create(options: create.Options = {}): create.ReturnType {
       instance.getLoadedLanguages().includes(lang) ? undefined : instance.loadLanguage(lang),
     ])
     return instance
+  }
+
+  /**
+   * The highlighter, with the engine resolved. `javascript` is imported here
+   * rather than taken from the caller: `shiki` is this package's own
+   * dependency, and a consumer has no import path to its engine.
+   */
+  async function start(): Promise<Highlighter> {
+    const resolved =
+      engine === 'javascript'
+        ? (await import('shiki/engine/javascript')).createJavaScriptRegexEngine()
+        : engine
+    return createHighlighter({
+      ...(resolved ? { engine: resolved } : {}),
+      langs: [...langs],
+      themes: [...themes],
+    })
   }
 
   // A closure rather than a sibling method: an operation read off a destructured
@@ -194,18 +207,18 @@ export declare namespace create {
   type Options = {
     /**
      * How the grammars are matched. Defaults to shiki's own, which compiles
-     * WebAssembly at runtime and so cannot start where that is disallowed. A
-     * Cloudflare Worker passes shiki's JavaScript engine instead.
+     * WebAssembly at runtime and so cannot start where that is disallowed.
+     * `javascript` selects shiki's JavaScript engine, which a Cloudflare
+     * Worker needs. A shiki engine may be passed directly instead.
      *
      * @example
      * ```ts twoslash
-     * import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
      * import { Frame } from 'monoshot'
      *
-     * const frame = Frame.create({ engine: createJavaScriptRegexEngine() })
+     * const frame = Frame.create({ engine: 'javascript' })
      * ```
      */
-    engine?: RegexEngine | undefined
+    engine?: RegexEngine | 'javascript' | undefined
     /** Languages to preload. Anything else loads on first use. */
     langs?: readonly BundledLanguage[] | undefined
     /** Themes to preload. Anything else loads on first use. */
