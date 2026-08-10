@@ -1,3 +1,4 @@
+import { Hono } from 'hono'
 import { createTwoslasher } from 'twoslash'
 
 import * as Api from './Api.js'
@@ -34,7 +35,7 @@ describe('create', () => {
     const { body, status } = await post({
       code,
       lang: 'ts',
-      twoslash: { code: run.code, nodes: run.nodes },
+      twoslash: { code: run.code, meta: { removals: run.meta.removals }, nodes: run.nodes },
     })
     expect(status).toBe(200)
     expect(body).toContain('twoslash-query-line')
@@ -73,7 +74,7 @@ describe('create', () => {
     const { body, status } = await post({
       code: 'const greeting = "hello"\n',
       lang: 'ts',
-      twoslash: { code: 'const other = 2\n', nodes: [] },
+      twoslash: { code: 'const other = 2\n', meta: { removals: [] }, nodes: [] },
     })
     expect(status).toBe(400)
     expect(body).toMatchInlineSnapshot(`
@@ -81,6 +82,65 @@ describe('create', () => {
         "error": "twoslash.code: the resolved types belong to different code.",
       }
     `)
+  })
+
+  test('accepts a run carrying a notation other than a query', async () => {
+    // The cuts come with the run, so a snippet using `---cut---` validates
+    // where reconstructing from `^?` lines alone would have refused it.
+    const code = 'const a = 1\n// ---cut---\nconst b = a\n//    ^?\n'
+    const run = createTwoslasher({ handbookOptions: { noErrorValidation: true } })(code, 'ts')
+    const { status } = await post({
+      code,
+      lang: 'ts',
+      twoslash: { code: run.code, meta: { removals: run.meta.removals }, nodes: run.nodes },
+    })
+    expect(status).toBe(200)
+  })
+
+  test('answers a frame it cannot draw apart from a request it cannot read', async () => {
+    // A language nobody bundles is the caller's mistake, and reads as one.
+    const { body, status } = await post({ code: 'const a = 1\n', lang: 'klingon' })
+    expect(status).toBe(400)
+    expect(body).toMatchInlineSnapshot(`
+      {
+        "error": "lang: \`klingon\` is not bundled.",
+      }
+    `)
+  })
+
+  test('names the prefix it was mounted under', async () => {
+    const mounted = new Hono().route('/v1', Api.route)
+    const response = await mounted.request('/v1/openapi.json')
+    const spec = (await response.json()) as { paths: Record<string, unknown> }
+    expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
+      [
+        "/v1/document",
+        "/v1/themes",
+      ]
+    `)
+  })
+
+  test('describes what every route answers, including its rejections', async () => {
+    const response = await Api.route.request('/openapi.json')
+    const spec = (await response.json()) as {
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>
+    }
+    const answers = (path: string, method: string) =>
+      Object.keys(spec.paths[path]?.[method]?.responses ?? {})
+    expect({ document: answers('/document', 'post'), themes: answers('/themes', 'get') })
+      .toMatchInlineSnapshot(`
+        {
+          "document": [
+            "200",
+            "400",
+            "500",
+          ],
+          "themes": [
+            "200",
+            "400",
+          ],
+        }
+      `)
   })
 
   test('describes itself', async () => {
@@ -156,7 +216,7 @@ describe('create', () => {
     expect(await post({ code: 'const a = 1\n', lang: 'auto' })).toMatchInlineSnapshot(`
       {
         "body": {
-          "error": "lang: name the language to render.",
+          "error": "lang: \`auto\` is not bundled.",
         },
         "status": 400,
       }
