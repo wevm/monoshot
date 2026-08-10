@@ -128,6 +128,8 @@
        inherits this fill and hangs off the surface, so a transparent one
        shows the code through the part that sticks out. */
     background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
+    /* The same corner the exported frame draws a type on. */
+    border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--window-border);
     font-family: var(--code-font-family);
     font-size: var(--code-annotation-size);
@@ -179,11 +181,14 @@
 
   .twoslash-pin {
     align-items: center;
-    /* The surface's own composited fill, so the part hanging off the edge is
-       opaque rather than showing code through it. */
-    background-color: inherit;
+    /* The surface's own fill, written out rather than inherited: the row these
+       sit in carries no background of its own, and code would otherwise read
+       through them. */
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
     border: none;
-    border-radius: 999px;
+    /* The corner the surface beside it carries, rather than a circle: they
+       read as one family. */
+    border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--window-border);
     color: inherit;
     cursor: pointer;
