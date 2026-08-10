@@ -14,9 +14,11 @@ export type Resolved = {
   lang: Lang
   /** The types the language service found in it. */
   result: Result
+  /** The run those types were read from, which the frame draws directly. */
+  types: Run
 }
 
-import type { Completion, Lang, Request, Response } from './protocol.js'
+import type { Completion, Lang, Request, Response, Run } from './protocol.js'
 
 /**
  * Talks to the twoslash worker.
@@ -100,7 +102,13 @@ export function create(options: create.Options): create.ReturnType {
       // resolving is slow enough that answers can arrive out of order.
       if (event.data.version !== version) return
       if ('error' in event.data) onError?.(event.data.error)
-      else onResult({ document: latest, lang: dialect, result: event.data.result })
+      else
+        onResult({
+          document: latest,
+          lang: dialect,
+          result: event.data.result,
+          types: event.data.types,
+        })
     })
     // A worker that fails before its own handler runs, because its chunk will
     // not load or its module scope throws, reports here rather than in a reply.

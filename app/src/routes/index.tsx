@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
+import type { Run } from '#/lib/twoslash/protocol.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
@@ -186,11 +187,12 @@ type Settings = Toolbar.State & { padding: number; radius: number; width: number
  * title, palette, or geometry.
  */
 type Artwork = {
+  /** Styles the annotated markup needs, when the render produced any. */
+  css: string | undefined
   html: string
   palette: Theme.derive.Result
   settings: Settings
   title: string
-  types: Frame.Code.Props['types']
 }
 
 /**
@@ -200,8 +202,8 @@ type Artwork = {
  */
 type Capture = {
   code: string
-  /** The types `code` asked for with `^?`, still unpainted. */
-  queries: Twoslash.Result['queries']
+  /** The run the frame draws its annotations from, when one is current. */
+  types: Run | undefined
   language: BundledLanguage
   options: Export.capture.Options
   settings: Settings
@@ -295,12 +297,17 @@ async function paint(
 }
 
 /**
- * The same types keyed by the identifier they describe, which is what the
- * exported markup resolves a `^?` query against: it walks shiki's lines and
- * has no document offsets to match on.
+ * The default snippet as the editor holds a resolved document: its run was
+ * produced at build time, and the editor's view of it is read here rather
+ * than stored twice.
  */
-function named(code: string, types: Editor.Props['types']): Frame.Code.Props['types'] {
-  return Object.fromEntries(types.map((span) => [code.slice(span.from, span.to), span.annotation]))
+function resolvedSample(): Twoslash.Resolved {
+  return {
+    document: sample,
+    lang: Sample.lang,
+    result: Sample.result,
+    types: Sample.types,
+  }
 }
 
 function Page() {
@@ -332,7 +339,7 @@ function Page() {
   // worker that resolves them carries a compiler, and a first visit would
   // download it to draw a document nobody has touched.
   const [resolved, setResolved] = useState<Twoslash.Resolved | undefined>(() =>
-    code === sample ? { document: sample, ...Sample.types } : undefined,
+    code === sample ? resolvedSample() : undefined,
   )
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
@@ -413,8 +420,8 @@ function Page() {
     })
     // Already resolved, and by something other than the worker: an untouched
     // visit never spawns it.
-    if (code === sample && dialect === Sample.types.lang) {
-      setResolved({ document: sample, ...Sample.types })
+    if (code === sample && dialect === Sample.lang) {
+      setResolved(resolvedSample())
       return
     }
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
@@ -456,23 +463,25 @@ function Page() {
    * carries the artwork rather than the editor's caret, selection, and handles.
    */
   async function draw(capture: Capture) {
-    const { code, language, options, queries, settings, title } = capture
+    const { code, language, options, settings, title, types } = capture
     const { theme } = settings
-    // The effects that fill `frame` and `annotations` trail a theme change, so
-    // an export started right after one would pair new code colors with the
-    // previous theme's backdrop and pinned types. Both come from this theme.
-    const [rendered, pinned] = await Promise.all([
-      renderer.render({ code, lang: language, theme }),
-      paint(theme, queries),
-    ])
+    // The frame draws the annotations itself, from the run the worker already
+    // resolved: the export and the command line then produce the same markup
+    // rather than two readings of the same types.
+    const rendered = await renderer.render({
+      code,
+      lang: language,
+      theme,
+      ...(types ? { twoslash: types } : {}),
+    })
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
       setArtwork({
+        css: rendered.css,
         html: rendered.html,
         palette: Theme.derive(rendered.theme),
         settings,
         title,
-        types: named(code, pinned),
       }),
     )
     try {
@@ -511,8 +520,10 @@ function Page() {
     // The exported markup turns `^?` lines into blocks, so it wants the
     // queries rather than every identifier's type. Only ones resolved against
     // this document: an older answer's offsets would mark the wrong words.
-    const queries = resolved?.document === code ? resolved.result.queries : []
-    const capture: Capture = { code, language, options, queries, settings, title }
+    // Only a run resolved against this very document: an older one carries
+    // offsets into text that is no longer here.
+    const types = resolved?.document === code ? resolved.types : undefined
+    const capture: Capture = { code, language, options, settings, title, types }
     const run = Promise.resolve(pending.current)
       .catch(() => {})
       .then(() => draw(capture))
@@ -780,9 +791,9 @@ function Page() {
               width={artwork.settings.width}
             >
               <Frame.Code
+                css={artwork.css}
                 html={artwork.html}
                 lineNumbers={artwork.settings.lineNumbers}
-                types={artwork.types}
               />
             </Frame>
           ) : null}

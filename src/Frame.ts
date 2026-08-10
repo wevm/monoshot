@@ -62,9 +62,16 @@ export function create(options: create.Options = {}): create.ReturnType {
     const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
     const twoslasher = resolved ?? (await compiler())
     return createTransformerFactory(
-      twoslasher,
+      // The factory asks for a mutable node list. Nothing reads one that way,
+      // and a caller holding a resolved run should not copy it to hand it over.
+      twoslasher as Parameters<typeof createTransformerFactory>[0],
       rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
     )({
+      // The default is `ts` and `tsx` alone, which silently draws nothing for
+      // a JavaScript document the language service resolves types for just as
+      // well. Both the ids and the aliases: the filter matches the name it was
+      // called with, and callers spell it either way.
+      langs: ['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'],
       // A snippet in an editor is half-typed most of the time, and code that
       // does not compile still has types worth drawing.
       throws: false,
@@ -111,6 +118,12 @@ export function create(options: create.Options = {}): create.ReturnType {
       resolve({ lang, theme }),
       twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash),
     ])
+    // The renderer draws the type it resolved as TypeScript, whatever the
+    // document is written in, and asks the highlighter for that grammar.
+    if (annotations) {
+      const popup = lang === 'jsx' || lang === 'tsx' ? 'tsx' : 'ts'
+      if (!instance.getLoadedLanguages().includes(popup)) await instance.loadLanguage(popup)
+    }
     return {
       html: instance.codeToHtml(code, {
         lang,
@@ -270,7 +283,12 @@ export declare namespace render {
    * A twoslash run, as the renderer reads it. Plain data, so a build step, a
    * worker, or a cache can resolve types once and hand them over later.
    */
-  type Types = Pick<TwoslashReturn, 'code' | 'nodes'>
+  type Types = {
+    /** The source the run was resolved against. */
+    code: string
+    /** What the run found in it. */
+    nodes: readonly TwoslashReturn['nodes'][number][]
+  }
 
   type ReturnType = {
     /**
