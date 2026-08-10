@@ -11,8 +11,8 @@ import { compilerOptions, dialects } from '../src/lib/twoslash/options.js'
  * Resolves the default snippet's types once, at build time.
  *
  * The worker that resolves them at runtime carries a TypeScript compiler, and
- * a first visit would download it before the reader has typed anything. Run
- * through `pnpm -C app gen:sample`; CI fails on a stale result.
+ * a first visit would download it before the reader has typed anything. Regenerate with
+ * `pnpm -C app gen:sample` after changing the snippet or the compiler options.
  */
 const language = detect(sample) ?? 'tsx'
 const lang = dialects[language as keyof typeof dialects] ?? 'ts'

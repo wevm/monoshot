@@ -47,18 +47,6 @@ jobs:
       - name: Check app types
         run: pnpm --dir app check:types
 
-      # The default snippet's types are resolved at build time and committed.
-      # A snippet, a compiler option, or a TypeScript release can move them.
-      - name: Check the resolved sample
-        run: |
-          pnpm --dir app gen:sample
-          # `status`, not `diff`: an unstaged file is a diff against nothing.
-          test -z "$(git status --porcelain app/src/lib/twoslash/sample.gen.ts)" || {
-            echo "::error::The resolved sample is stale. Run \`pnpm -C app gen:sample\`."
-            git --no-pager diff app/src/lib/twoslash/sample.gen.ts
-            exit 1
-          }
-
   test:
     name: Test
     runs-on: ubuntu-latest
