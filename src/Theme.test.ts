@@ -1,6 +1,5 @@
 import { parse } from 'culori'
 import { bundledThemes } from 'shiki'
-import type { BundledTheme } from 'shiki'
 
 import * as Frame from './Frame.js'
 import * as Theme from './Theme.js'

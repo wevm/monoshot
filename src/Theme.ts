@@ -65,7 +65,15 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
   // An achromatic theme has no hue to rotate, so the backdrop stays neutral
   // rather than emitting `oklch(... NaN)`.
   const hue = accent?.h
-  const chroma = hue === undefined ? 0 : type === 'dark' ? 0.09 : 0.06
+  // The backdrop is the theme's own color rather than a fixed wash of its hue,
+  // so a vivid theme sits on a vivid one. Bounded either way: unbounded, a
+  // saturated keyword becomes a backdrop that outshouts the code on it.
+  const chroma =
+    accent === undefined
+      ? 0
+      : type === 'dark'
+        ? clamp(accent.c, 0.06, 0.15)
+        : clamp(accent.c * 0.6, 0.03, 0.09)
   // Symmetric magnitude in both directions so the window always separates from
   // the backdrop by the same amount, whichever way the theme leans.
   const shift = 0.16
@@ -214,26 +222,46 @@ function toOklch(value: string): Oklch | undefined {
  */
 function pickAccent(theme: ThemeRegistrationResolved): Oklch | undefined {
   const tokens = [...(theme.settings ?? []), ...(theme.tokenColors ?? [])]
-  let x = 0
-  let y = 0
-  let chroma = 0
-  let count = 0
+  /** Token colors gathered by hue, wide enough that one hue lands in one arc. */
+  const arcs = new Map<
+    number,
+    { chroma: number; count: number; weight: number; x: number; y: number }
+  >()
   for (const token of tokens) {
     const value = token.settings?.foreground
     if (!value) continue
     const color = toOklch(value)
     if (!color || !Number.isFinite(color.h) || color.c <= 0.02) continue
+    // A rule painting twenty scopes carries twenty times as much of the theme
+    // as one painting a single scope, and a vivid color carries more than a
+    // muted one at the same reach.
+    const weight = scopes(token.scope) * color.c
+    const arc = Math.floor((color.h ?? 0) / 30)
+    const found = arcs.get(arc) ?? { chroma: 0, count: 0, weight: 0, x: 0, y: 0 }
     const radians = ((color.h ?? 0) * Math.PI) / 180
-    x += Math.cos(radians) * color.c
-    y += Math.sin(radians) * color.c
-    chroma += color.c
-    count += 1
+    found.chroma += color.c
+    found.count += 1
+    found.weight += weight
+    found.x += Math.cos(radians) * weight
+    found.y += Math.sin(radians) * weight
+    arcs.set(arc, found)
   }
-  if (count === 0) return undefined
-  // A near-zero resultant means hues cancel out (a balanced rainbow palette),
-  // so there is no identity hue to borrow.
-  if (Math.hypot(x, y) / chroma < 0.15) return undefined
-  return { c: chroma / count, h: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360, l: 0.5 }
+  const heaviest = [...arcs.values()].sort((a, b) => b.weight - a.weight)[0]
+  if (!heaviest) return undefined
+  // The mean of the arc that won rather than of the whole palette: averaging
+  // every hue a theme uses lands between them, on a color it never paints.
+  return {
+    c: heaviest.chroma / heaviest.count,
+    h: ((Math.atan2(heaviest.y, heaviest.x) * 180) / Math.PI + 360) % 360,
+    l: 0.5,
+  }
+}
+
+/** How much of a theme a rule paints, as the number of scopes it names. */
+function scopes(scope: string | readonly string[] | undefined): number {
+  if (Array.isArray(scope)) return Math.max(scope.length, 1)
+  if (typeof scope === 'string') return Math.max(scope.split(',').length, 1)
+  return 1
 }
 
 function css(color: Oklch): string {

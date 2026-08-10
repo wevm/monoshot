@@ -103,7 +103,7 @@ describe('build', () => {
     }).toMatchInlineSnapshot(`
       {
         "custom": "#101014",
-        "default": "linear-gradient(140deg, oklch(0.34220370283599866 0.09 37.89172016407201), oklch(0.28220370283599866 0.09 87.89172016407201))",
+        "default": "linear-gradient(140deg, oklch(0.34220370283599866 0.09789893959403556 351.04021560887355), oklch(0.28220370283599866 0.09789893959403556 41.04021560887355))",
         "none": "transparent",
       }
     `)

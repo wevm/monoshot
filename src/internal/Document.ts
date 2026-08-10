@@ -203,6 +203,10 @@ function gutter(html: string) {
      block would render as height on top of the line box. Whitespace between
      grid items makes no row. */
   display: grid;
+  /* A row wraps at the window rather than reaching past it: an auto column is
+     as wide as its widest line, and a grid item carries a minimum of its own
+     content. */
+  grid-template-columns: minmax(0, 1fr);
 }
 .shiki {
   /* Read back by a marked line, which insets its text by the gutter as well. */
@@ -245,6 +249,11 @@ export function annotations(palette: Theme.derive.Result): string {
 }
 .twoslash-meta-line {
   display: flex;
+}
+/* Preformatted only where the line holds code: a message and a tag are prose,
+   and prose reaching the window's edge wraps rather than running out of it. */
+.twoslash-query-line,
+.twoslash-popup-code {
   white-space: pre;
 }
 .twoslash-query-line .twoslash-popup-container {
@@ -309,6 +318,10 @@ export function marks(palette: Theme.derive.Result) {
   return `.shiki code {
   /* Rows, so a mark reaches the window rather than the text on the line. */
   display: grid;
+  /* A row wraps at the window rather than reaching past it: an auto column is
+     as wide as its widest line, and a grid item carries a minimum of its own
+     content. */
+  grid-template-columns: minmax(0, 1fr);
 }
 .shiki .line {
   /* A row holding nothing is still a line of the snippet: as a grid item an
