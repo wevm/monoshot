@@ -191,10 +191,11 @@
     color: inherit;
     cursor: pointer;
     display: flex;
-    height: 18px;
+    /* A line tall, so a control reads at the size of what it acts on. */
+    height: var(--code-line-height);
     justify-content: center;
     padding: 0;
-    width: 18px;
+    width: var(--code-line-height);
   }
 
   /* Reaches across the gap to the surface, so crossing it does not read as
@@ -236,12 +237,12 @@
 
   .twoslash-pin svg {
     fill: none;
-    height: 11px;
+    height: 13px;
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 2;
-    width: 11px;
+    width: 13px;
   }
 
   /* The run between the word and its type. Transparent, and part of the
@@ -361,13 +362,15 @@
 .rail {
   align-items: center;
   background-color: color-mix(in oklab, var(--window-surface) 85%, transparent);
-  border-radius: 8px;
+  /* Concentric with the controls it holds: their own corner plus the padding
+     around them. */
+  border-radius: 9px;
   display: flex;
   gap: 2px;
-  height: var(--code-line-height);
+  height: calc(var(--code-line-height) + 6px);
   left: var(--rail-left, 0);
   opacity: 0;
-  padding-inline: 3px;
+  padding: 3px;
   /* Hit-testable while invisible: the strips tile the side of the window, so
      running down them keeps a line under the pointer the whole way. */
   pointer-events: auto;
@@ -406,11 +409,12 @@
   color: var(--rail-color, var(--window-foreground));
   cursor: pointer;
   display: flex;
-  height: 20px;
+  /* A line tall, so a control reads at the size of what it acts on. */
+  height: var(--code-line-height);
   justify-content: center;
   opacity: 0.4;
   padding: 0;
-  width: 20px;
+  width: var(--code-line-height);
 }
 
 .rail-control:hover {
@@ -445,12 +449,12 @@
 
 .rail-control svg {
   fill: none;
-  height: 14px;
+  height: 15px;
   stroke: currentcolor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
-  width: 14px;
+  width: 15px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -196,7 +196,9 @@ class Rail {
           const strip = this.strips.get(row.key) ?? this.build(row)
           this.strips.set(row.key, strip)
           strip.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
-          strip.style.setProperty('--rail-top', `${Math.round(row.top)}px`)
+          // Back by its own padding, so the control lines up with the row
+          // rather than the strip around it.
+          strip.style.setProperty('--rail-top', `${Math.round(row.top) - 3}px`)
           if (row.line === undefined) continue
           for (const button of strip.querySelectorAll('button')) {
             button.disabled = !row.takes
