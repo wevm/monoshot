@@ -195,11 +195,14 @@
   }
 
   /* Reaches across the gap to the surface, so crossing it does not read as
-     leaving both. */
+     leaving both. Only the gap: over the controls it would take the presses
+     meant for them. */
   .twoslash-controls::after {
     content: '';
-    inset: 0 -2px 0 0;
+    inset-block: 0;
+    left: 100%;
     position: absolute;
+    width: 2px;
   }
 
   /* A pinned block sits in the code's own column, so at column 0 there is

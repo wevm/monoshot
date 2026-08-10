@@ -10,11 +10,12 @@ import * as Types from './types.js'
 
 /**
  * How far the hover reaches past its own left edge. CodeMirror keeps a hover
- * open while the pointer is inside the tooltip's bounding box, so the pin
+ * open while the pointer is inside the tooltip's bounding box, so a control
  * hanging outside the surface only stays reachable if the tooltip is this much
- * wider than what it draws.
+ * wider than what it draws: two of them at 18px, the gap and the margin
+ * between, and a little to spare.
  */
-const reach = 30
+const reach = 46
 
 /** How far the notch sits inside the surface's leading edge. */
 const inset = 8
