@@ -220,7 +220,6 @@ describe('create', () => {
       [
         "background",
         "code",
-        "highlightedLines",
         "lang",
         "lineNumbers",
         "padding",

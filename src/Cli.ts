@@ -42,10 +42,6 @@ const languages = new Map<string, BundledLanguage>(
  */
 const settings = z.object({
   background: z.string().optional().describe('`default`, `none`, or a `#rrggbb` color.'),
-  highlight: z
-    .string()
-    .optional()
-    .describe('Lines to draw attention to, such as `3,7-9`. Every other line is dimmed.'),
   lang: z.string().optional().describe('Language to tokenize with. Read from the file otherwise.'),
   lineNumbers: z.boolean().optional().describe('Number the snippet down its left edge.'),
   padding: z.number().optional().describe('Space around the window, in pixels.'),
@@ -221,11 +217,7 @@ function frame(
   code: string,
   options: z.output<typeof settings>,
 ): { state: Codec.State & { lang: BundledLanguage; theme: BundledTheme } } | Failure {
-  const state = Codec.schema.parse({
-    ...options,
-    code,
-    ...(options.highlight === undefined ? {} : { highlightedLines: lines(options.highlight) }),
-  })
+  const state = Codec.schema.parse({ ...options, code })
   // The codec falls back rather than failing, which a half-edited URL needs
   // and a command does not: a flag that was replaced was never understood.
   const replaced = ignored(options, state)
@@ -254,14 +246,10 @@ function frame(
 function ignored(options: z.output<typeof settings>, state: Codec.State): readonly string[] {
   const asked = options as Record<string, unknown>
   const kept = state as unknown as Record<string, unknown>
-  return (
-    Object.keys(state)
-      // `highlightedLines` is spelled `--highlight` and read from that, so it
-      // never matches what the caller passed.
-      .filter((key) => key !== 'code' && key !== 'highlightedLines' && key !== 'lang')
-      .filter((key) => asked[key] !== undefined && asked[key] !== kept[key])
-      .map((key) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`))
-  )
+  return Object.keys(state)
+    .filter((key) => key !== 'code' && key !== 'lang')
+    .filter((key) => asked[key] !== undefined && asked[key] !== kept[key])
+    .map((key) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`))
 }
 
 /**
@@ -318,21 +306,6 @@ function launch(url: string): void {
   const child = spawn(command, [...args], { detached: true, stdio: 'ignore' })
   child.on('error', () => {})
   child.unref()
-}
-
-/**
- * The lines a `3,7-9` spelling names. Ranges as well as single lines, because
- * a passage worth pointing at is rarely one line long.
- */
-function lines(given: string): readonly number[] {
-  const found = new Set<number>()
-  for (const part of given.split(',')) {
-    const [from, to] = part.trim().split('-').map(Number)
-    if (from === undefined || !Number.isInteger(from)) continue
-    const last = to !== undefined && Number.isInteger(to) ? to : from
-    for (let line = from; line <= last; line += 1) if (line >= 1) found.add(line)
-  }
-  return [...found].sort((a, b) => a - b)
 }
 
 /** Where an image lands when the caller names no path. */

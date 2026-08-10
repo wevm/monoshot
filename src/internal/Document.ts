@@ -134,7 +134,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .shiki { padding-block: 12px; }
 ${lineNumbers ? gutter(html) : ''}
-${html.includes('data-highlighted') ? highlights() : ''}
+${/has-(diff|focused|highlighted)/.test(html) ? marks(palette) : ''}
 ${styles}
 .twoslash-block {
   display: flex;
@@ -281,12 +281,49 @@ export function annotations(palette: Theme.derive.Result): string {
 }
 
 /**
- * Dims what was not highlighted, rather than painting what was: a wash behind
- * a line fights whatever the theme colors the code on it.
+ * The marks a snippet carries, drawn. Present only when something is marked:
+ * the rules turn the code into rows, which a snippet with nothing to mark has
+ * no reason to become.
  */
-function highlights() {
-  return `.shiki .line:not([data-highlighted]) {
+function marks(palette: Theme.derive.Result) {
+  return `.shiki:is(.has-diff, .has-focused, .has-highlighted) code {
+  /* Rows, so a mark reaches the width of the window rather than the width of
+     the text on the line. */
+  display: grid;
+}
+.shiki:is(.has-diff, .has-focused, .has-highlighted) .line {
+  /* A row holding nothing is still a line of the snippet: as a grid item an
+     empty one would take no height, and the blank lines would close up. */
+  min-height: var(--code-line-height);
+}
+.shiki .line.highlighted {
+  background-color: color-mix(in oklab, ${palette.window.foreground} 9%, transparent);
+}
+/* Focus says which lines matter, so the rest recede rather than being marked. */
+.shiki .has-focused .line:not(.focused),
+.shiki.has-focused .line:not(.focused) {
   opacity: 0.4;
+}
+/* Green and red whatever the theme: a diff reads by its colors. */
+.shiki .line.diff.add {
+  background-color: oklch(65% 0.15 150 / 0.18);
+}
+.shiki .line.diff.remove {
+  background-color: oklch(60% 0.17 20 / 0.18);
+  opacity: 0.7;
+}
+.shiki .line.diff::before {
+  display: inline-block;
+  opacity: 0.7;
+  position: absolute;
+  /* Outside the code, in the padding the window already carries. */
+  transform: translateX(-1.1ch);
+}
+.shiki .line.diff.add::before {
+  content: '+';
+}
+.shiki .line.diff.remove::before {
+  content: '-';
 }`
 }
 

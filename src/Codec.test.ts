@@ -7,7 +7,6 @@ const state = {
   code: "import { createHighlighter } from 'shiki'\n\nconst a = 1\n",
   lang: 'typescript',
   lineNumbers: true,
-  highlightedLines: [2, 3],
   padding: 96,
   radius: 8,
   theme: 'github-dark',
@@ -26,7 +25,6 @@ describe('serialize', () => {
       {
         "background": "default",
         "code": "const a = 1",
-        "highlightedLines": [],
         "lang": "auto",
         "lineNumbers": false,
         "padding": 64,
@@ -84,7 +82,6 @@ describe('deserialize', () => {
       {
         "background": "default",
         "code": "const a = 1",
-        "highlightedLines": [],
         "lang": "rust",
         "lineNumbers": false,
         "padding": 64,

@@ -146,44 +146,51 @@ describe('create', () => {
   })
 })
 
-describe('render with highlights', () => {
-  const code = 'const a = 1\nconst b = 2\nconst c = 3\n'
-
-  test('marks the lines asked for, numbered as it draws them', async () => {
+describe('render with notations', () => {
+  test('marks the line a `[!code hl]` sits on, and takes the notation out', async () => {
     const frame = Frame.create()
     const result = await frame.render({
-      code,
-      highlightedLines: [2],
+      code: 'const a = 1 // [!code hl]\nconst b = 2\n',
       lang: 'ts',
       theme: 'vitesse-dark',
     })
     await frame.dispose()
-    expect(
-      [...result.html.matchAll(/data-line="(\d+)"(\s+data-highlighted)?/g)].map(
-        (match) => `${match[1]}${match[2] ? ' marked' : ''}`,
-      ),
-    ).toMatchInlineSnapshot(`
+    expect(result.html).toContain('has-highlighted')
+    expect(result.html).not.toContain('[!code')
+    expect([...result.html.matchAll(/class="line ?([a-z ]*)"/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
       [
-        "1",
-        "2 marked",
-        "3",
-        "4",
+        "highlighted",
+        "",
+        "",
       ]
     `)
   })
 
-  test('marks nothing when nothing was asked for', async () => {
+  test('reads a diff, and a focus', async () => {
     const frame = Frame.create()
-    const result = await frame.render({ code, lang: 'ts', theme: 'vitesse-dark' })
+    const [diff, focus] = await Promise.all([
+      frame.render({
+        code: 'const a = 1 // [!code --]\nconst a = 2 // [!code ++]\n',
+        lang: 'ts',
+        theme: 'vitesse-dark',
+      }),
+      frame.render({
+        code: 'const a = 1 // [!code focus]\nconst b = 2\n',
+        lang: 'ts',
+        theme: 'vitesse-dark',
+      }),
+    ])
     await frame.dispose()
-    expect(result.html).not.toContain('data-highlighted')
+    expect(diff.html).toContain('line diff remove')
+    expect(diff.html).toContain('line diff add')
+    expect(focus.html).toContain('line focused')
   })
 
-  test('dims the rest only when something is marked', async () => {
+  test('draws the marks only for a snippet that carries some', async () => {
     const frame = Frame.create()
     const settings = {
       background: 'default',
-      code,
       lang: 'ts',
       lineNumbers: false,
       padding: 64,
@@ -194,12 +201,12 @@ describe('render with highlights', () => {
       width: 640,
     } as const
     const [marked, plain] = await Promise.all([
-      frame.toDocument({ ...settings, highlightedLines: [1] }),
-      frame.toDocument(settings),
+      frame.toDocument({ ...settings, code: 'const a = 1 // [!code hl]\n' }),
+      frame.toDocument({ ...settings, code: 'const a = 1\n' }),
     ])
     await frame.dispose()
-    expect(marked).toContain('.line:not([data-highlighted])')
-    expect(plain).not.toContain('data-highlighted')
+    expect(marked).toContain('.line.highlighted')
+    expect(plain).not.toContain('.line.highlighted')
   })
 })
 

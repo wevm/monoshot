@@ -1,3 +1,8 @@
+import {
+  transformerNotationDiff,
+  transformerNotationFocus,
+  transformerNotationHighlight,
+} from '@shikijs/transformers'
 import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
 import * as Document from './internal/Document.js'
@@ -135,8 +140,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   // A closure rather than a sibling method: an operation read off a destructured
   // renderer has no receiver to resolve.
   async function highlight(parameters: render.Options): Promise<render.ReturnType> {
-    const { code, highlightedLines = [], lang, theme, twoslash = false } = parameters
-    const drawn = new Set(highlightedLines)
+    const { code, lang, theme, twoslash = false } = parameters
     const [instance, annotations] = await Promise.all([
       resolve({ lang, theme }),
       twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash),
@@ -162,13 +166,14 @@ export function create(options: create.Options = {}): create.ReturnType {
                 if (child.type !== 'element') continue
                 if (!classes(child.properties['class']).includes('line')) continue
                 child.properties['data-line'] = ++number
-                // Numbered as the frame draws them, so a highlight follows
-                // what the reader sees rather than the source it came from.
-                if (drawn.has(number)) child.properties['data-highlighted'] = ''
               }
             },
           },
           ...(annotations ? [annotations] : []),
+          // Presentation the snippet carries itself, the way a `^?` query
+          // does: `[!code focus]`, `[!code hl]`, and `[!code ++]` mark lines
+          // and are taken back out of what is drawn.
+          ...notations,
         ],
       }),
       ...(annotations ? { css: Document.annotations(Theme.derive(instance.getTheme(theme))) } : {}),
@@ -192,8 +197,8 @@ export function create(options: create.Options = {}): create.ReturnType {
     },
     render: highlight,
     async toDocument(parameters) {
-      const { code, highlightedLines, lang, theme, twoslash = false, ...rest } = parameters
-      const result = await highlight({ code, highlightedLines, lang, theme, twoslash })
+      const { code, lang, theme, twoslash = false, ...rest } = parameters
+      const result = await highlight({ code, lang, theme, twoslash })
       return Document.build({
         ...rest,
         // Whichever resolved the types, the markup needs the styles.
@@ -282,8 +287,8 @@ export declare namespace load {
 }
 
 export declare namespace tokens {
-  /** Tokenizing draws nothing, so neither highlights nor types apply. */
-  type Options = Omit<render.Options, 'highlightedLines' | 'twoslash'>
+  /** Tokenizing resolves no types, so a query is left as the comment it is. */
+  type Options = Omit<render.Options, 'twoslash'>
 
   type ReturnType = {
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
@@ -307,11 +312,6 @@ export declare namespace render {
     code: string
     /** Language to tokenize with. */
     lang: BundledLanguage
-    /**
-     * Lines to draw attention to, numbered from one as the frame renders them.
-     * Every other line is dimmed. Defaults to none, which draws them alike.
-     */
-    highlightedLines?: readonly number[] | undefined
     /** Theme to color with. */
     theme: BundledTheme
     /**
@@ -347,6 +347,17 @@ export declare namespace render {
     theme: ThemeRegistrationResolved
   }
 }
+
+/**
+ * Shiki's own readers for the marks a snippet carries. Always on: a notation
+ * costs nothing to look for, and a snippet that has none renders as it would
+ * have anyway.
+ */
+const notations = [
+  transformerNotationDiff(),
+  transformerNotationFocus(),
+  transformerNotationHighlight(),
+]
 
 /** A hast node's classes, which arrive as a string or as a list. */
 function classes(value: unknown): readonly string[] {
