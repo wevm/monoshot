@@ -344,9 +344,7 @@ function Page() {
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
   const attempt = useRef(0)
-  // The snippet on screen before an edit is the sample, so the language it was
-  // resolved as is the one to start from.
-  const [detected, setDetected] = useState<BundledLanguage>(Sample.language)
+  const [detected, setDetected] = useState<BundledLanguage>('tsx')
 
   // Under `auto` the language is read from the code, debounced: reading the
   // whole document on every keystroke would recolor the frame mid-word, and a
@@ -357,7 +355,11 @@ function Page() {
     return () => clearTimeout(timer)
   }, [code, settings.language])
 
-  const language = settings.language === 'auto' ? detected : settings.language
+  // The sample was resolved as one language at build time, and reads as that
+  // one whatever detection makes of it. Detection still owns every other
+  // document, including one it cannot place, which stays TypeScript.
+  const language =
+    settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
 
   // The fragment is the only place state is kept, so it is written on every
   // change, debounced: a keystroke should not push a history entry, and the
@@ -401,18 +403,20 @@ function Page() {
       setResolved(undefined)
       return
     }
+    // A failure leaves the types belonging to a document that is no longer on
+    // screen, so they go rather than stand in for the current one. Built even
+    // for a document that needs no resolving, because a caret asking for
+    // completions reaches through it and the worker inside is what is lazy.
+    resolver.current ??= Twoslash.create({
+      onError: () => setResolved(undefined),
+      onResult: setResolved,
+    })
     // Already resolved, and by something other than the worker: an untouched
     // visit never spawns it.
     if (code === sample && dialect === Sample.types.lang) {
       setResolved({ document: sample, ...Sample.types })
       return
     }
-    // A failure leaves the types belonging to a document that is no longer on
-    // screen, so they go rather than stand in for the current one.
-    resolver.current ??= Twoslash.create({
-      onError: () => setResolved(undefined),
-      onResult: setResolved,
-    })
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
     return () => clearTimeout(timer)
   }, [code, language])
