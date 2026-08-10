@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
-    "@hono/zod-openapi": "1.5.2",
+    "@hono/zod-validator": "0.9.0",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "hono": "catalog:",
@@ -83,13 +83,13 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "@hono/zod-openapi": "^1.5.0",
+    "@hono/zod-validator": "^0.9.0",
     "hono": "^4.0.0",
     "puppeteer-core": "^25.0.0",
     "typescript": "^5.5.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
-    "@hono/zod-openapi": {
+    "@hono/zod-validator": {
       "optional": true
     },
     "hono": {
