@@ -86,8 +86,11 @@ export function syntax(language: string): Syntax {
 /**
  * A notation comment, in the comment syntax of whatever the snippet is written
  * in. The count suffix, as in `[!code hl:3]`, is how many lines it covers.
+ *
+ * Every one on the line, not just the last: shiki reads them all, so a line
+ * carrying two would otherwise show one of them as code.
  */
-const pattern = /(\/\/|\/\*|#|<!--)\s*\[!code\s+([\w+-]+)(?::(\d+))?\]\s*(?:\*\/|-->)?[ \t]*$/
+const pattern = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+([\w+-]+)(?::(\d+))?\][ \t]*(?:\*\/|-->)?/g
 
 const kinds: Readonly<Record<string, Kind>> = {
   '++': 'add',
@@ -123,6 +126,14 @@ export function at(state: EditorState, line: number): readonly Notation[] {
 }
 
 /**
+ * Whether a line can carry a mark. A blank one cannot: a comment alone on a line
+ * addresses the line after it, and is taken out along with the line it sat on.
+ */
+export function takesMark(state: EditorState, line: number): boolean {
+  return state.doc.line(line).text.trim() !== ''
+}
+
+/**
  * Lines holding nothing but a notation, which the export removes. The editor
  * skips their numbers so both surfaces count the code the same way.
  */
@@ -131,31 +142,40 @@ export function removed(state: EditorState): readonly number[] {
 }
 
 /**
- * Turns a mark on or off for a line. A notation reaching further than the line
- * goes entirely rather than shrinking: a count is what its writer asked for, and
- * halving it is not.
+ * Turns a mark on or off for a line, and takes off whatever else the line
+ * carried: a line reads as one thing at a time.
+ *
+ * A notation reaching further than the line goes entirely rather than shrinking:
+ * a count is what its writer asked for, and halving it is not.
  */
 export function toggle(
   state: EditorState,
   options: { kind: Kind; line: number; syntax: Syntax },
 ): ChangeSpec {
   const { kind, line, syntax } = options
-  const carried = at(state, line).find((notation) => notation.kind === kind)
-  if (!carried) {
-    const { to } = state.doc.line(line)
-    const close = syntax.close ? ` ${syntax.close}` : ''
-    return { from: to, insert: ` ${syntax.open} [!code ${names[kind]}]${close}` }
-  }
-  const text = state.doc.lineAt(carried.from)
-  // The gap the comment sat behind goes too, so the code does not end in one.
-  if (!carried.alone) {
-    const code = state.doc.sliceString(text.from, carried.from).replace(/[ \t]+$/, '')
-    return { from: text.from + code.length, to: carried.to }
-  }
-  // A comment standing alone leaves an empty line behind unless a line break
-  // goes with it.
+  const carried = at(state, line)
+  const changes: ChangeSpec[] = []
+  // A mark set from a line of its own is written elsewhere, so it is taken away
+  // there rather than by rewriting this line.
+  for (const notation of carried) if (notation.alone) changes.push(away(state, notation))
+  const text = state.doc.line(line)
+  const code = text.text.replace(pattern, '').replace(/[ \t]+$/, '')
+  const close = syntax.close ? ` ${syntax.close}` : ''
+  const written = carried.some((notation) => notation.kind === kind)
+    ? code
+    : `${code} ${syntax.open} [!code ${names[kind]}]${close}`
+  changes.push({ from: text.from, to: text.to, insert: written })
+  return changes
+}
+
+/** The line a notation standing alone sat on, taken away with a line break. */
+function away(state: EditorState, notation: Notation) {
+  const text = state.doc.lineAt(notation.from)
+  // The break before it rather than the one after, which the line this leaves
+  // behind is rewritten from.
+  if (text.from > 0) return { from: text.from - 1, to: text.to }
   if (text.to < state.doc.length) return { from: text.from, to: text.to + 1 }
-  return { from: Math.max(0, text.from - 1), to: text.to }
+  return { from: text.from, to: text.to }
 }
 
 type Value = {
@@ -177,24 +197,31 @@ function build(state: EditorState): Value {
   const removed: number[] = []
   for (let number = 1; number <= doc.lines; number++) {
     const line = doc.line(number)
-    const match = pattern.exec(line.text)
-    const kind = match?.[2] && kinds[match[2]]
-    if (!match || !kind) continue
-    const at = match.index
+    const written = [...line.text.matchAll(pattern)].filter((match) => match[1] && kinds[match[1]])
+    if (!written.length) continue
     // A notation on a line of its own addresses what follows it; one trailing
     // code addresses the line it sits on.
-    const alone = line.text.slice(0, at).trim() === ''
+    const alone = line.text.replace(pattern, '').trim() === ''
     if (alone) removed.push(number)
-    const first = alone ? number + 1 : number
-    const count = Number(match[3] ?? 1)
-    const covered = []
-    for (let target = first; target < first + count; target++)
-      if (target <= doc.lines) {
-        covered.push(target)
-        marked.set(target, (marked.get(target) ?? new Set()).add(kind))
-      }
-    found.push({ alone, from: line.from + at, kind, lines: covered, to: line.to })
-    concealed.push(conceal(state, { alone, at, line }))
+    for (const match of written) {
+      const kind = kinds[match[1] as string] as Kind
+      const first = alone ? number + 1 : number
+      const count = Number(match[2] ?? 1)
+      const covered = []
+      for (let target = first; target < first + count; target++)
+        if (target <= doc.lines) {
+          covered.push(target)
+          marked.set(target, (marked.get(target) ?? new Set()).add(kind))
+        }
+      found.push({
+        alone,
+        from: line.from + match.index,
+        kind,
+        lines: covered,
+        to: line.from + match.index + match[0].length,
+      })
+    }
+    concealed.push(...conceal(state, { alone, line, written }))
   }
   const focused = [...marked].some(([, kinds]) => kinds.has('focus'))
   for (let number = 1; number <= doc.lines; number++) {
@@ -221,25 +248,36 @@ function build(state: EditorState): Value {
 }
 
 /**
- * The range a notation comment stops occupying. One standing alone takes a line
- * break with it, so the line closes up rather than staying blank.
+ * The ranges the notations on a line stop occupying. A line holding nothing else
+ * takes a line break with it, so it closes up rather than staying blank.
  */
 function conceal(
   state: EditorState,
-  options: { alone: boolean; at: number; line: { from: number; to: number } },
+  options: {
+    alone: boolean
+    line: { from: number; to: number }
+    written: readonly RegExpExecArray[]
+  },
 ) {
-  const { alone, at, line } = options
-  if (!alone) {
-    // The gap the comment sat behind goes too, so the code does not end in one.
-    const code = state.doc.sliceString(line.from, line.from + at).replace(/[ \t]+$/, '')
-    return Decoration.replace({}).range(line.from + code.length, line.to)
+  const { alone, line, written } = options
+  if (alone) {
+    // The break before it rather than the one after: a range reaching into the
+    // next line swallows the mark that line was given.
+    if (line.from > 0) return [Decoration.replace({ block: true }).range(line.from - 1, line.to)]
+    if (line.to < state.doc.length)
+      return [Decoration.replace({ block: true }).range(line.from, line.to + 1)]
+    return [Decoration.replace({}).range(line.from, line.to)]
   }
-  // The break before it rather than the one after: a range reaching into the
-  // next line swallows the mark that line was given.
-  if (line.from > 0) return Decoration.replace({ block: true }).range(line.from - 1, line.to)
-  if (line.to < state.doc.length)
-    return Decoration.replace({ block: true }).range(line.from, line.to + 1)
-  return Decoration.replace({}).range(line.from, line.to)
+  // The gap each comment sat behind goes too, so the code does not end in one.
+  return written.map((match) => {
+    const before = state.doc
+      .sliceString(line.from, line.from + match.index)
+      .replace(/[ \t]+$/, '').length
+    return Decoration.replace({}).range(
+      line.from + before,
+      line.from + match.index + match[0].length,
+    )
+  })
 }
 
 const lines = new Map<string, Decoration>()

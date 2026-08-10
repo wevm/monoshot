@@ -23,6 +23,9 @@ const labels: Readonly<Record<Notations.Kind, string>> = {
 
 const order = ['focus', 'highlight', 'add', 'remove'] as const
 
+/** Why a blank line offers no marks, since its controls cannot say so. */
+const blank = 'A blank line takes no mark'
+
 /** How far the controls stand off the window's edge. */
 const gap = 8
 
@@ -130,6 +133,7 @@ class Rail {
             const block = view.lineBlockAt(line.from)
             lines.push({
               carried: Notations.at(view.state, line.number).map((notation) => notation.kind),
+              takes: Notations.takesMark(view.state, line.number),
               // The document's own top, so a scrolled line still lands beside
               // itself.
               top: view.documentTop + block.top - host.top,
@@ -148,10 +152,13 @@ class Rail {
           this.strips.set(line.number, strip)
           strip.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
           strip.style.setProperty('--rail-top', `${Math.round(line.top)}px`)
-          for (const button of strip.querySelectorAll('button'))
-            if (line.carried.includes(button.dataset['kind'] as Notations.Kind))
+          for (const button of strip.querySelectorAll('button')) {
+            button.disabled = !line.takes
+            button.title = line.takes ? labels[button.dataset['kind'] as Notations.Kind] : blank
+            if (line.takes && line.carried.includes(button.dataset['kind'] as Notations.Kind))
               button.dataset['active'] = ''
             else delete button.dataset['active']
+          }
         }
         for (const number of stale) {
           this.strips.get(number)?.remove()
@@ -195,7 +202,9 @@ class Rail {
 
   private toggle(line: number, kind: Notations.Kind) {
     const { state } = this.view
-    if (line > state.doc.lines) return
+    // Refused here rather than only on the control: a blank line carrying a mark
+    // of its own would be taken away along with it.
+    if (line > state.doc.lines || !Notations.takesMark(state, line)) return
     this.view.dispatch({
       changes: Notations.toggle(state, { kind, line, syntax: this.syntax }),
       // The caret stays where the writer left it rather than jumping to the mark

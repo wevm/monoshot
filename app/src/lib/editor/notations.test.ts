@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
-import { notations, removed, syntax, toggle } from './notations.js'
+import { notations, removed, syntax, takesMark, toggle } from './notations.js'
 
 /** The class each line ends up with, which is what this field decides. */
 function marked(doc: string) {
@@ -84,6 +84,19 @@ describe('notations', () => {
         ],
         "3": [
           "cm-mark-blur",
+        ],
+      }
+    `)
+  })
+
+  test('reads every notation on a line, not just the last', () => {
+    // Shiki reads them all, so a line carrying two would otherwise show one of
+    // them as code.
+    expect(marked('const a = 1 // [!code hl] // [!code ++]\n')).toMatchInlineSnapshot(`
+      {
+        "1": [
+          "cm-mark-highlight",
+          "cm-mark-add",
         ],
       }
     `)
@@ -192,10 +205,19 @@ describe('toggle', () => {
     `)
   })
 
-  test('leaves the other marks a line carries alone', () => {
+  test('takes off the mark a line already carried', () => {
+    // A line reads as one thing at a time.
     expect(pressed('const a = 1 // [!code hl]\n', { kind: 'focus', line: 1, syntax: line }))
       .toMatchInlineSnapshot(`
-      "const a = 1 // [!code hl] // [!code focus]
+      "const a = 1 // [!code focus]
+      "
+    `)
+  })
+
+  test('takes off a mark written on a line of its own', () => {
+    expect(pressed('// [!code hl]\nconst a = 1\n', { kind: 'add', line: 2, syntax: line }))
+      .toMatchInlineSnapshot(`
+      "const a = 1 // [!code ++]
       "
     `)
   })
@@ -227,6 +249,21 @@ describe('syntax', () => {
         {
           "open": "//",
         },
+      ]
+    `)
+  })
+})
+
+describe('takesMark', () => {
+  test('refuses a blank line, which a mark of its own would take away', () => {
+    // Shiki reads a comment alone on a line as addressing the line after it,
+    // and removes the line it sat on.
+    const state = EditorState.create({ doc: 'const a = 1\n\n  \n', extensions: [notations] })
+    expect([1, 2, 3].map((line) => takesMark(state, line))).toMatchInlineSnapshot(`
+      [
+        true,
+        false,
+        false,
       ]
     `)
   })
