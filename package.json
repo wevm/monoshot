@@ -11,10 +11,8 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
-    "@hono/zod-validator": "0.9.0",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
-    "hono": "catalog:",
     "puppeteer-core": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
@@ -74,8 +72,10 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@hono/zod-validator": "catalog:",
     "@shikijs/twoslash": "4.4.2",
     "culori": "catalog:",
+    "hono": "catalog:",
     "incur": "catalog:",
     "lz-string": "catalog:",
     "shiki": "catalog:",
@@ -83,18 +83,10 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "@hono/zod-validator": "^0.9.0",
-    "hono": "^4.0.0",
     "puppeteer-core": "^25.0.0",
     "typescript": "^5.5.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
-    "@hono/zod-validator": {
-      "optional": true
-    },
-    "hono": {
-      "optional": true
-    },
     "puppeteer-core": {
       "optional": true
     },
