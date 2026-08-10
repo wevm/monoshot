@@ -156,7 +156,8 @@ export function theme(palette: Theme.derive.Result): Extension {
       // which is the marker they would otherwise lose.
       '.cm-lintRange-error': {
         backgroundImage: 'none',
-        textDecoration: `underline wavy ${palette.type === 'dark' ? color.squiggleOnDark : color.squiggleOnLight}`,
+        textDecoration: `underline wavy ${Theme.marks.remove}`,
+        textDecorationSkipInk: 'none',
       },
       // The same surface a type gets: a message merges into the type's own
       // hover tooltip, and the two read as one popover or as neither. Matched

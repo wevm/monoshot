@@ -325,6 +325,13 @@ ${mark(Theme.marks.remove)}
   color: ${Theme.marks.remove};
   content: '-';
 }
+/* The token a complaint is about, marked where it sits rather than only named
+   in the row below: what is wrong is a place in the code first. */
+.twoslash-error {
+  text-decoration: underline wavy ${Theme.marks.remove};
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
 /* A tag is prose the snippet carries, so it reads in the hue it was tagged
    with rather than in the code's own colors. A complaint the compiler made is
    the same kind of row, so it reads the same way. */
