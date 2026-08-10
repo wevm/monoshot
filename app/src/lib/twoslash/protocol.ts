@@ -1,4 +1,14 @@
+import type { Frame } from 'monoshot'
 import type * as Twoslash from 'monoshot/twoslash'
+
+/**
+ * A run, as the renderer needs it plus the cuts the editor maps through.
+ * Built from the renderer's shape rather than intersected with the reader's:
+ * a run satisfies the narrower one already.
+ */
+export type Run = Frame.render.Types & {
+  meta: { removals: readonly (readonly [number, number])[] }
+}
 
 /** Languages twoslash can resolve types for. */
 export type Lang = 'js' | 'jsx' | 'ts' | 'tsx'
@@ -73,8 +83,12 @@ export type Response =
   | {
       /** Names this message among the replies the worker sends. */
       kind: 'resolve'
-      /** The types found in the document. */
-      result: Twoslash.Result
+      /**
+       * The run itself, rather than what the editor makes of it: the frame
+       * draws its own annotations from the same nodes, so one payload serves
+       * both and neither reads the other's interpretation.
+       */
+      types: Run
       /** The `version` of the request this answers. */
       version: number
     }

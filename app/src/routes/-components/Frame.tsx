@@ -504,69 +504,35 @@ export namespace Frame {
   /**
    * The highlighted code surface. Markup comes from shiki, which escapes the
    * source when it serializes, so arbitrary user code is safe to inject here.
+   *
+   * Annotations arrive in that markup rather than being placed here: the
+   * renderer folds a `^?` line into the type it asked for, and `css` carries
+   * the rules that draw it.
    */
   export function Code(props: Code.Props) {
-    const { html, lineNumbers, types } = props
-    const root = useRef<HTMLDivElement>(null)
-
-    // A `^?` line is not code: the type takes its place, in flow, so an export
-    // carries the pinned blocks exactly as the editor shows them.
-    useEffect(() => {
-      let consumed = 0
-      let last = 0
-      const lines = [...(root.current?.querySelectorAll<HTMLElement>('.line') ?? [])]
-      // Every line as it arrived: a converted one reads back as the type put in
-      // its place, which a caret on the line below would resolve against.
-      const source = lines.map((line) => line.textContent ?? '')
-      for (const [index, line] of lines.entries()) {
-        const column = Identifier.caretColumn(source[index] ?? '')
-        const above = source[index - 1] ?? ''
-        const identifier =
-          column === undefined
-            ? undefined
-            : Identifier.atColumn(above, Math.min(column, above.length))
-        const annotation = identifier && types?.[identifier.name]
-        if (column === undefined || !annotation) {
-          // Every consumed query line shifts the numbering of the rest up. A
-          // converted line has no number left to read, and the effect runs
-          // twice in development.
-          const number = Number(line.dataset['line'])
-          if (!Number.isFinite(number)) continue
-          if (consumed) line.dataset['line'] = String(number - consumed)
-          last = Math.max(last, number - consumed)
-          continue
-        }
-        consumed += 1
-        // The block takes no line number: the query was never code.
-        line.removeAttribute('data-line')
-        line.classList.add('twoslash-block')
-        line.style.setProperty('--twoslash-column', String(column))
-        line.textContent = ''
-        const surface = document.createElement('div')
-        surface.className = 'twoslash'
-        Annotation.paint(surface, annotation)
-        line.appendChild(surface)
-      }
-      // A fixed two-character gutter clips the leading digit past line 99.
-      root.current?.style.setProperty('--gutter', `${String(Math.max(last, 10)).length}ch`)
-    }, [html, types])
+    const { css, html, lineNumbers } = props
+    // A fixed two-character gutter clips the leading digit past line 99.
+    const gutter = `${String(Math.max((html.match(/data-line="/g) ?? []).length, 10)).length}ch`
 
     return (
       <div
         data-line-numbers={lineNumbers || undefined}
-        dangerouslySetInnerHTML={{ __html: html }}
-        ref={root}
+        ref={(node) => node?.style.setProperty('--gutter', gutter)}
         {...stylex.props(code.root)}
-      />
+      >
+        {css ? <style>{css}</style> : null}
+        {/* eslint-disable-next-line */}
+        <div dangerouslySetInnerHTML={{ __html: html }} />
+      </div>
     )
   }
 
   export declare namespace Code {
     type Props = {
+      /** Styles the annotated markup needs, when the render produced any. */
+      css?: string | undefined
       html: string
       lineNumbers?: boolean | undefined
-      /** Types a `^?` query can resolve to, keyed by identifier. */
-      types?: Record<string, Annotation.Annotation> | undefined
     }
   }
 }

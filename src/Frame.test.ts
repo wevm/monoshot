@@ -235,6 +235,34 @@ describe('render with twoslash', () => {
     expect(plain.css).toBeUndefined()
   })
 
+  test('annotates every dialect the language service reads', async () => {
+    // The transformer draws nothing outside its own language list, which it
+    // matches against the name it was called with, and the popup it draws is
+    // highlighted with a grammar of its own.
+    const drawn: Record<string, boolean> = {}
+    for (const lang of ['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'] as const) {
+      const frame = Frame.create()
+      const result = await frame.render({
+        code: query,
+        lang,
+        theme: 'vitesse-dark',
+        twoslash: true,
+      })
+      await frame.dispose()
+      drawn[lang] = result.html.includes('twoslash-query-line')
+    }
+    expect(drawn).toMatchInlineSnapshot(`
+      {
+        "javascript": true,
+        "js": true,
+        "jsx": true,
+        "ts": true,
+        "tsx": true,
+        "typescript": true,
+      }
+    `)
+  })
+
   test('annotates again after the renderer is disposed', async () => {
     // Disposal releases the compiler, so the next annotated render rebuilds it.
     const frame = Frame.create()
