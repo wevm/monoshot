@@ -23,6 +23,7 @@ describe('deserialize', () => {
     expectTypeOf<Codec.State>().toEqualTypeOf<{
       background: string
       code: string
+      highlightedLines: number[]
       lang: string
       lineNumbers: boolean
       padding: number

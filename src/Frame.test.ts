@@ -146,6 +146,63 @@ describe('create', () => {
   })
 })
 
+describe('render with highlights', () => {
+  const code = 'const a = 1\nconst b = 2\nconst c = 3\n'
+
+  test('marks the lines asked for, numbered as it draws them', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code,
+      highlightedLines: [2],
+      lang: 'ts',
+      theme: 'vitesse-dark',
+    })
+    await frame.dispose()
+    expect(
+      [...result.html.matchAll(/data-line="(\d+)"(\s+data-highlighted)?/g)].map(
+        (match) => `${match[1]}${match[2] ? ' marked' : ''}`,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "1",
+        "2 marked",
+        "3",
+        "4",
+      ]
+    `)
+  })
+
+  test('marks nothing when nothing was asked for', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({ code, lang: 'ts', theme: 'vitesse-dark' })
+    await frame.dispose()
+    expect(result.html).not.toContain('data-highlighted')
+  })
+
+  test('dims the rest only when something is marked', async () => {
+    const frame = Frame.create()
+    const settings = {
+      background: 'default',
+      code,
+      lang: 'ts',
+      lineNumbers: false,
+      padding: 64,
+      radius: 12,
+      theme: 'vitesse-dark',
+      title: '',
+      titleBar: true,
+      width: 640,
+    } as const
+    const [marked, plain] = await Promise.all([
+      frame.toDocument({ ...settings, highlightedLines: [1] }),
+      frame.toDocument(settings),
+    ])
+    await frame.dispose()
+    expect(marked).toContain('.line:not([data-highlighted])')
+    expect(plain).not.toContain('data-highlighted')
+  })
+})
+
 describe('render with twoslash', () => {
   const query = 'const greeting = "hello"\n//    ^?\n'
 

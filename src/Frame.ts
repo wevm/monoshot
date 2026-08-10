@@ -83,6 +83,12 @@ export function create(options: create.Options = {}): create.ReturnType {
   async function compiler() {
     const { createTwoslasher } = await import('twoslash')
     return createTwoslasher({
+      compilerOptions: {
+        // Twoslash compiles strict, which marks every untyped parameter: a
+        // missing annotation rather than a mistake, in a snippet that left its
+        // context behind.
+        noImplicitAny: false,
+      },
       // Twoslash otherwise insists every compiler error be declared in the
       // source and gives up on the whole snippet when one is not.
       handbookOptions: { noErrorValidation: true },
@@ -129,7 +135,8 @@ export function create(options: create.Options = {}): create.ReturnType {
   // A closure rather than a sibling method: an operation read off a destructured
   // renderer has no receiver to resolve.
   async function highlight(parameters: render.Options): Promise<render.ReturnType> {
-    const { code, lang, theme, twoslash = false } = parameters
+    const { code, highlightedLines = [], lang, theme, twoslash = false } = parameters
+    const drawn = new Set(highlightedLines)
     const [instance, annotations] = await Promise.all([
       resolve({ lang, theme }),
       twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash),
@@ -155,6 +162,9 @@ export function create(options: create.Options = {}): create.ReturnType {
                 if (child.type !== 'element') continue
                 if (!classes(child.properties['class']).includes('line')) continue
                 child.properties['data-line'] = ++number
+                // Numbered as the frame draws them, so a highlight follows
+                // what the reader sees rather than the source it came from.
+                if (drawn.has(number)) child.properties['data-highlighted'] = ''
               }
             },
           },
@@ -182,8 +192,8 @@ export function create(options: create.Options = {}): create.ReturnType {
     },
     render: highlight,
     async toDocument(parameters) {
-      const { code, lang, theme, twoslash = false, ...rest } = parameters
-      const result = await highlight({ code, lang, theme, twoslash })
+      const { code, highlightedLines, lang, theme, twoslash = false, ...rest } = parameters
+      const result = await highlight({ code, highlightedLines, lang, theme, twoslash })
       return Document.build({
         ...rest,
         // Whichever resolved the types, the markup needs the styles.
@@ -272,8 +282,8 @@ export declare namespace load {
 }
 
 export declare namespace tokens {
-  /** Tokenizing resolves no types, so a query is left as the comment it is. */
-  type Options = Omit<render.Options, 'twoslash'>
+  /** Tokenizing draws nothing, so neither highlights nor types apply. */
+  type Options = Omit<render.Options, 'highlightedLines' | 'twoslash'>
 
   type ReturnType = {
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
@@ -297,6 +307,11 @@ export declare namespace render {
     code: string
     /** Language to tokenize with. */
     lang: BundledLanguage
+    /**
+     * Lines to draw attention to, numbered from one as the frame renders them.
+     * Every other line is dimmed. Defaults to none, which draws them alike.
+     */
+    highlightedLines?: readonly number[] | undefined
     /** Theme to color with. */
     theme: BundledTheme
     /**

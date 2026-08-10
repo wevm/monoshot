@@ -197,6 +197,18 @@ describe('create', () => {
       expect(settings((output as { url: string }).url).lang).toMatchInlineSnapshot(`"python"`)
     })
 
+    test('reads a range spelling into the lines it names', async () => {
+      const source = await file('demo.ts', 'const a = 1\nconst b = 2\nconst c = 3\nconst d = 4\n')
+      const { output } = await run(['share', source, '--highlight', '3,1-2'])
+      expect(settings((output as { url: string }).url).highlightedLines).toMatchInlineSnapshot(`
+        [
+          1,
+          2,
+          3,
+        ]
+      `)
+    })
+
     test('refuses a language shiki does not bundle', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['share', source, '--lang', 'klingon'])

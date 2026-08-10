@@ -46,6 +46,7 @@ namespace schema {
         .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
         .optional(),
       code: z.string().min(1).max(limit.code),
+      highlightedLines: z.array(z.number().int().min(1)).max(limit.nodes).optional(),
       lang: z.string(),
       lineNumbers: z.boolean().optional(),
       padding: z.number().int().min(0).max(256).optional(),

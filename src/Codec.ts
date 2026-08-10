@@ -14,6 +14,11 @@ export const schema = z.object({
     .catch('default'),
   /** The snippet itself, which is empty when the window holds nothing. */
   code: z.string().catch(''),
+  /**
+   * Lines to draw attention to, numbered from one as the frame renders them.
+   * An empty list draws every line alike.
+   */
+  highlightedLines: z.array(z.number().int().min(1)).catch([]),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
   /** Whether the snippet is numbered down its left edge. */
@@ -42,6 +47,7 @@ export type State = z.output<typeof schema>
 const keys = {
   background: 'b',
   code: 'c',
+  highlightedLines: 'h',
   lang: 'g',
   lineNumbers: 'n',
   padding: 'p',

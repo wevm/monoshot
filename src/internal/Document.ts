@@ -134,6 +134,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .shiki { padding-block: 12px; }
 ${lineNumbers ? gutter(html) : ''}
+${html.includes('data-highlighted') ? highlights() : ''}
 ${styles}
 .twoslash-block {
   display: flex;
@@ -276,6 +277,16 @@ export function annotations(palette: Theme.derive.Result): string {
   opacity: 0.75;
   padding-bottom: 4px;
   white-space: pre-wrap;
+}`
+}
+
+/**
+ * Dims what was not highlighted, rather than painting what was: a wash behind
+ * a line fights whatever the theme colors the code on it.
+ */
+function highlights() {
+  return `.shiki .line:not([data-highlighted]) {
+  opacity: 0.4;
 }`
 }
 
