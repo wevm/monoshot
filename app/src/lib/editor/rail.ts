@@ -3,7 +3,6 @@ import type { Extension } from '@codemirror/state'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
 
-import * as Annotation from './annotation.js'
 import * as Notations from './notations.js'
 import { keep, keptUnder } from './problems.js'
 
@@ -15,6 +14,9 @@ const icons: Readonly<Record<Notations.Kind, string>> = {
   highlight: 'm9 11-6 6v3h9l3-3m10-5-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4',
   remove: 'M5 12h14',
 }
+
+/** Lucide's x, for the one thing a complaint on screen offers. */
+const dismiss = 'M18 6 6 18M6 6l12 12'
 
 const labels: Readonly<Record<Notations.Kind, string>> = {
   add: 'Mark as added',
@@ -235,7 +237,8 @@ class Rail {
     if (line === undefined) {
       if (at !== undefined)
         strip.appendChild(
-          Annotation.control({
+          this.control({
+            icon: dismiss,
             label: 'Remove this message',
             select: () => keep(this.view, at),
           }),
@@ -243,20 +246,30 @@ class Rail {
       return strip
     }
     for (const kind of order) {
-      const button = document.createElement('button')
-      button.className = 'rail-control'
+      const button = this.control({
+        icon: icons[kind],
+        label: labels[kind],
+        select: () => this.toggle(line, kind),
+      })
       button.dataset['kind'] = kind
-      button.type = 'button'
-      button.title = labels[kind]
-      button.setAttribute('aria-label', labels[kind])
-      button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[kind]}"/></svg>`
-      // Ahead of the click: the editor would otherwise take focus and drop the
-      // caret on whatever the control sits over.
-      button.addEventListener('mousedown', (event) => event.preventDefault())
-      button.addEventListener('click', () => this.toggle(line, kind))
       strip.appendChild(button)
     }
     return strip
+  }
+
+  /** One control of the strip, whichever the strip is. */
+  private control(options: { icon: string; label: string; select: () => void }) {
+    const button = document.createElement('button')
+    button.className = 'rail-control'
+    button.type = 'button'
+    button.title = options.label
+    button.setAttribute('aria-label', options.label)
+    button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
+    // Ahead of the click: the editor would otherwise take focus and drop the
+    // caret on whatever the control sits over.
+    button.addEventListener('mousedown', (event) => event.preventDefault())
+    button.addEventListener('click', options.select)
+    return button
   }
 
   private toggle(line: number, kind: Notations.Kind) {
