@@ -25,7 +25,6 @@ describe('notations', () => {
       {
         "1": [
           "cm-mark-highlight",
-          "cm-notation",
         ],
       }
     `)
@@ -34,9 +33,6 @@ describe('notations', () => {
   test('marks the line a notation of its own precedes', () => {
     expect(marked('// [!code ++]\nconst a = 1\n')).toMatchInlineSnapshot(`
       {
-        "1": [
-          "cm-notation",
-        ],
         "2": [
           "cm-mark-add",
         ],
@@ -48,9 +44,6 @@ describe('notations', () => {
     expect(marked('// [!code hl:2]\nconst a = 1\nconst b = 2\nconst c = 3\n'))
       .toMatchInlineSnapshot(`
         {
-          "1": [
-            "cm-notation",
-          ],
           "2": [
             "cm-mark-highlight",
           ],
@@ -69,7 +62,6 @@ describe('notations', () => {
         {
           "1": [
             "cm-mark-focus",
-            "cm-notation",
           ],
           "2": [
             "cm-mark-highlight",
@@ -86,7 +78,6 @@ describe('notations', () => {
       {
         "1": [
           "cm-mark-focus",
-          "cm-notation",
         ],
         "2": [
           "cm-mark-blur",
@@ -104,7 +95,6 @@ describe('notations', () => {
         {
           "1": [
             "cm-mark-highlight",
-            "cm-notation",
           ],
           "2": [
             "cm-mark-add",
@@ -136,6 +126,33 @@ describe('notations', () => {
       extensions: [notations],
     })
     expect(removed(state)).toMatchInlineSnapshot(`[]`)
+  })
+})
+
+describe('notations', () => {
+  test('hides a notation on the line the caret sits on', () => {
+    const doc = 'const a = 1 // [!code hl]\n'
+    const state = EditorState.create({ doc, extensions: [notations] })
+    // The comment is the mark rather than something to look at, so the caret
+    // being on its line does not bring it back.
+    const shown = state.facet(EditorView.decorations).flatMap((set) => {
+      if (typeof set === 'function') return []
+      const spans: [number, number][] = []
+      set.between(0, doc.length, (from, to, value) => {
+        if (value.spec.class || value.spec.attributes) return
+        spans.push([from, to])
+      })
+      return spans
+    })
+    expect(shown).toMatchInlineSnapshot(`
+      [
+        [
+          11,
+          25,
+        ],
+      ]
+    `)
+    expect(doc.slice(11, 25)).toMatchInlineSnapshot(`" // [!code hl]"`)
   })
 })
 

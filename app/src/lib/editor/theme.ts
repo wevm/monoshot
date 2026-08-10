@@ -68,9 +68,6 @@ export function theme(palette: Theme.derive.Result): Extension {
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
       '.cm-line.cm-mark-highlight': mark(palette.window.foreground),
       '.cm-line.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
-      // The comment is the handle on the mark rather than part of the code,
-      // and the export takes it back out.
-      '.cm-notation': { opacity: 0.4 },
       // The marks a line can carry, offered at the window's edge. Space for
       // them is not reserved: the code would then wrap somewhere the exported
       // image does not.

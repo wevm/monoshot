@@ -5,10 +5,7 @@ import type { DecorationSet } from '@codemirror/view'
 
 const field = StateField.define<Value>({
   create: (state) => build(state),
-  update: (value, transaction) =>
-    // The caret reveals the notation it sits on, so a selection change matters
-    // as much as an edit.
-    transaction.docChanged || transaction.selection ? build(transaction.state) : value,
+  update: (value, transaction) => (transaction.docChanged ? build(transaction.state) : value),
   provide: (self) => [
     EditorView.decorations.from(self, (value) => value.decorations),
     // The gutter is a column of its own, so a mark that stops at the code
@@ -112,9 +109,10 @@ const names: Readonly<Record<Kind, string>> = {
  * Draws the marks a snippet carries while it is being written, so the editor
  * shows what the exported image will show.
  *
- * The comment goes out of view once it reads as a notation, the way a `^?` line
- * does: it is the mark rather than something to look at. Putting the caret on
- * its line brings it back, so it stays something the writer can edit.
+ * The comment goes out of view the moment it reads as a notation, the way a
+ * `^?` line does: it is the mark rather than something to look at. The controls
+ * beside the line take it away again, and Backspace at the line's end takes the
+ * whole of it in one step.
  */
 export const notations: Extension = field
 
@@ -171,7 +169,6 @@ type Value = {
 
 function build(state: EditorState): Value {
   const { doc } = state
-  const caret = doc.lineAt(state.selection.main.head).number
   const marked = new Map<number, Set<Kind>>()
   const found: Notation[] = []
   const ranges = []
@@ -197,10 +194,7 @@ function build(state: EditorState): Value {
         marked.set(target, (marked.get(target) ?? new Set()).add(kind))
       }
     found.push({ alone, from: line.from + at, kind, lines: covered, to: line.to })
-    // The caret's own line keeps its comment, dimmed: it is the mark rather
-    // than part of the code, but it is still what the writer is editing.
-    if (number === caret) ranges.push(comment.range(line.from + at, line.to))
-    else concealed.push(conceal(state, { alone, at, line }))
+    concealed.push(conceal(state, { alone, at, line }))
   }
   const focused = [...marked].some(([, kinds]) => kinds.has('focus'))
   for (let number = 1; number <= doc.lines; number++) {
@@ -247,8 +241,6 @@ function conceal(
     return Decoration.replace({ block: true }).range(line.from, line.to + 1)
   return Decoration.replace({}).range(line.from, line.to)
 }
-
-const comment = Decoration.mark({ class: 'cm-notation' })
 
 const lines = new Map<string, Decoration>()
 const cells = new Map<string, GutterMarker>()
