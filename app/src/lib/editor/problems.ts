@@ -13,14 +13,28 @@ import * as Annotation from './annotation.js'
  * A marked span carries its own hover, and the two would otherwise stack into
  * one popover: what is wrong with a token outranks what type it holds.
  */
-export function objection(state: EditorState, span: { from: number; to: number }): boolean {
-  let found = false
+export function objection(
+  state: EditorState,
+  span: { from: number; to: number },
+): { from: number; message: string; to: number } | undefined {
+  let found: { from: number; message: string; to: number } | undefined
   // Overlap rather than touch: a diagnostic ending where the span starts sits
   // beside it rather than on it.
-  forEachDiagnostic(state, (_, from, to) => {
-    if (from < span.to && span.from < to) found = true
+  forEachDiagnostic(state, (diagnostic, from, to) => {
+    if (found || from >= span.to || span.from >= to) return
+    found = { from, message: diagnostic.message, to }
   })
   return found
+}
+
+/** Keeps a complaint on screen, or takes back the one kept at that offset. */
+export function keep(view: EditorView, at: number): void {
+  view.dispatch({ effects: pin.of(at) })
+}
+
+/** Whether a complaint covering an offset is already on screen. */
+export function kept(state: EditorState, at: number): boolean {
+  return state.field(field, false)?.pinned.some((offset) => offset === at) ?? false
 }
 
 /** Pins a complaint in place, or takes back the pin at that offset. */
@@ -127,13 +141,8 @@ export function problems(
       // character, and that marker takes the character before it rather than
       // being dropped for having nowhere to sit.
       const to = Math.min(Math.max(diagnostic.to, diagnostic.from + 1), end)
-      const from = Math.max(0, Math.min(diagnostic.from, to - 1))
       return {
-        // The hover is where a complaint is read, so it is also where it is
-        // kept: an exported frame draws every one, and this says which are on
-        // screen while the snippet is being written.
-        actions: [{ apply: (view) => view.dispatch({ effects: pin.of(from) }), name: 'Pin' }],
-        from,
+        from: Math.max(0, Math.min(diagnostic.from, to - 1)),
         message: diagnostic.text,
         severity: severity[diagnostic.level],
         to,

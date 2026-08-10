@@ -5,7 +5,7 @@ import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import { objection } from './problems.js'
+import { keep, kept, objection } from './problems.js'
 import * as Types from './types.js'
 
 /**
@@ -57,24 +57,27 @@ export const hover: Extension = [
       const found = Types.at(view.state, pos)
       const identifier = found && { from: found.from, to: found.to }
       if (!identifier || !found) return null
-      // Same rule against the compiler: a marked token already opens the
-      // message, and what is wrong with it is why it is worth hovering.
-      if (objection(view.state, identifier)) return null
-      // A pinned type is already on screen, so hovering it would only cover
-      // the block it is asking about.
-      if (pinned(view, identifier)) return null
+      // What is wrong with a token outranks what type it holds, and it is read
+      // on the same surface: one popover, whichever it is showing.
+      const complaint = objection(view.state, identifier)
+      // Already on screen, either as the block a pin left or as the type a
+      // caret line asked for: a hover would only cover what it is about.
+      if (complaint ? kept(view.state, complaint.from) : pinned(view, identifier)) return null
+      const message = complaint && prose(complaint.message)
       return {
         // Below the identifier, where pinning will leave it, so hovering
         // previews the pinned block in place rather than somewhere else. It
         // goes above instead when that space is already showing a pinned
         // type, which a hover would otherwise sit on top of. CodeMirror
         // flips it back if there is no room up there.
-        above: covered(view, identifier, found.annotation.length),
+        above: covered(view, identifier, (message ?? found.annotation).length),
         create: () => {
-          const surface = Annotation.element(found.annotation, {
-            label: 'Pin this type',
-            select: () => toggle(view, identifier),
-          })
+          const surface = Annotation.element(
+            message ?? found.annotation,
+            complaint
+              ? { label: 'Pin this message', select: () => keep(view, complaint.from) }
+              : { label: 'Pin this type', select: () => toggle(view, identifier) },
+          )
           let word: Rect | null = null
           return {
             dom: bridge(surface),
@@ -140,6 +143,14 @@ export const hover: Extension = [
     },
   ]),
 ]
+
+/**
+ * A message on the surface a type is drawn on, so the compiler's prose and the
+ * language service's types read as one popover rather than two designs.
+ */
+function prose(message: string): Annotation.Annotation {
+  return [[{ content: message, offset: 0 }]]
+}
 
 /**
  * Whether a pinned type sits in the space a popover of `lines` would open

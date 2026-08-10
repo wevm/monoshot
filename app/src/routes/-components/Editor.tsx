@@ -1,4 +1,5 @@
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
+import { linter } from '@codemirror/lint'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers as gutter } from '@codemirror/view'
@@ -83,6 +84,11 @@ export function Editor(props: Editor.Props) {
           highlight,
           notations,
           pins,
+          // The complaints are pushed in rather than found here, so there is no
+          // source to run. Only the configuration is wanted: the built-in
+          // tooltip waits 300ms and would repeat what the hover already draws
+          // the moment the pointer lands.
+          linter(null, { tooltipFilter: () => [] }),
           rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries,
           hover,
