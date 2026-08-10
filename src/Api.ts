@@ -69,40 +69,60 @@ const reject: Parameters<typeof zValidator>[2] = (result, c) => {
   return c.json({ error: `${at ? `${at}: ` : ''}${issue?.message ?? 'Invalid request.'}` }, 400)
 }
 
+/** What a route says about itself, carried on the middleware that guards it. */
+type Described = {
+  description: string
+  responses: Record<number, { content?: Record<string, unknown>; description: string }>
+  schema: z.ZodType
+  summary: string
+  target: 'json' | 'query'
+}
+
 /**
- * What the routes accept and answer, from the schemas they validate with.
- * Written once here rather than declared beside every handler, so a route and
- * its description cannot drift.
+ * Validates a request, and remembers what it validated. The description is
+ * read back off the routes, so a route and what it accepts cannot drift.
  */
-const specification = {
-  info: { title: 'monoshot', version: '1' },
-  openapi: '3.1.0',
-  paths: {
-    '/document': {
-      post: {
-        description: 'Renders a snippet to a standalone document, which runs and fetches nothing.',
-        requestBody: {
-          content: { 'application/json': { schema: z.toJSONSchema(document) } },
-          required: true,
-        },
-        responses: {
-          200: { content: { 'text/html': {} }, description: 'The document.' },
-          400: { description: 'The request described a frame that cannot be drawn.' },
-        },
-        summary: 'Render a document',
-      },
-    },
-    '/themes': {
-      get: {
-        description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
-        parameters: [
-          { in: 'query', name: 'type', schema: z.toJSONSchema(filter).properties?.['type'] },
-        ],
-        responses: { 200: { description: 'The bundled themes.' } },
-        summary: 'List themes',
-      },
-    },
-  },
+function validate<schema extends z.ZodType, const target extends 'json' | 'query'>(
+  target: target,
+  schema: schema,
+  described: Omit<Described, 'schema' | 'target'>,
+) {
+  return Object.assign(zValidator(target, schema, reject), { ...described, schema, target })
+}
+
+/** The routes as OpenAPI, built from the middleware guarding each one. */
+function describe(app: Hono): Record<string, unknown> {
+  const paths: Record<string, Record<string, unknown>> = {}
+  for (const route of app.routes) {
+    const described = route.handler as Partial<Described>
+    if (!described.schema) continue
+    const schema = z.toJSONSchema(described.schema) as {
+      properties?: Record<string, unknown>
+      required?: string[]
+    }
+    const path = (paths[route.path] ??= {})
+    path[route.method.toLowerCase()] = {
+      description: described.description,
+      responses: described.responses,
+      summary: described.summary,
+      ...(described.target === 'json'
+        ? {
+            requestBody: {
+              content: { 'application/json': { schema } },
+              required: true,
+            },
+          }
+        : {
+            parameters: Object.entries(schema.properties ?? {}).map(([name, property]) => ({
+              in: 'query',
+              name,
+              required: schema.required?.includes(name) ?? false,
+              schema: property,
+            })),
+          }),
+    }
+  }
+  return { info: { title: 'monoshot', version: '1' }, openapi: '3.1.0', paths }
 }
 
 /**
@@ -125,40 +145,62 @@ export function create(options: create.Options = {}): create.ReturnType {
   // runtime, which a Worker refuses, and a Worker is what this is for.
   const frame = options.frame ?? Frame.create({ engine: 'javascript' })
 
-  return new Hono()
-    .post('/document', zValidator('json', body, reject), async (c) => {
-      const request = c.req.valid('json')
-      // Read back through the codec, which holds what every field falls back
-      // to: a request, a link, and the editor then draw the same frame from a
-      // field nobody set.
-      const state = Codec.schema.parse(request)
-      if (state.lang === 'auto') return c.json({ error: 'lang: name the language to render.' }, 400)
-      const theme = Theme.info(state.theme)
-      if (!theme) return c.json({ error: `theme: \`${state.theme}\` is not bundled.` }, 400)
+  const app = new Hono()
+    .post(
+      '/document',
+      validate('json', body, {
+        description: 'Renders a snippet to a standalone document, which runs and fetches nothing.',
+        responses: {
+          200: { content: { 'text/html': {} }, description: 'The document.' },
+          400: { description: 'The request described a frame that cannot be drawn.' },
+        },
+        summary: 'Render a document',
+      }),
+      async (c) => {
+        const request = c.req.valid('json')
+        // Read back through the codec, which holds what every field falls back
+        // to: a request, a link, and the editor then draw the same frame from a
+        // field nobody set.
+        const state = Codec.schema.parse(request)
+        if (state.lang === 'auto')
+          return c.json({ error: 'lang: name the language to render.' }, 400)
+        const theme = Theme.info(state.theme)
+        if (!theme) return c.json({ error: `theme: \`${state.theme}\` is not bundled.` }, 400)
 
-      const html = await (async () => {
-        try {
-          return await frame.toDocument({
-            ...state,
-            ...(request.twoslash ? { twoslash: request.twoslash as Frame.render.Types } : {}),
-            lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
-            theme: theme.name,
-          })
-        } catch (cause) {
-          return cause instanceof Error ? cause : new Error(String(cause))
-        }
-      })()
-      if (html instanceof Error) return c.json({ error: html.message }, 400)
+        const html = await (async () => {
+          try {
+            return await frame.toDocument({
+              ...state,
+              ...(request.twoslash ? { twoslash: request.twoslash as Frame.render.Types } : {}),
+              lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
+              theme: theme.name,
+            })
+          } catch (cause) {
+            return cause instanceof Error ? cause : new Error(String(cause))
+          }
+        })()
+        if (html instanceof Error) return c.json({ error: html.message }, 400)
 
-      // No cache header: a shared cache keys on the URL, which says nothing
-      // about the body each of these renders from.
-      return c.body(html, 200, { 'content-type': 'text/html; charset=utf-8' })
-    })
-    .get('/themes', zValidator('query', filter, reject), (c) => {
-      const { type } = c.req.valid('query')
-      return c.json(Theme.list().filter((theme) => !type || theme.type === type))
-    })
-    .get('/openapi.json', (c) => c.json(specification))
+        // No cache header: a shared cache keys on the URL, which says nothing
+        // about the body each of these renders from.
+        return c.body(html, 200, { 'content-type': 'text/html; charset=utf-8' })
+      },
+    )
+    .get(
+      '/themes',
+      validate('query', filter, {
+        description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
+        responses: { 200: { description: 'The bundled themes.' } },
+        summary: 'List themes',
+      }),
+      (c) => {
+        const { type } = c.req.valid('query')
+        return c.json(Theme.list().filter((theme) => !type || theme.type === type))
+      },
+    )
+
+  // Read when asked rather than when built, so every route is registered.
+  return app.get('/openapi.json', (c) => c.json(describe(app)))
 }
 
 /**

@@ -93,7 +93,30 @@ describe('create', () => {
         "/themes",
       ]
     `)
-    // Read off the schema the route validates with, rather than written twice.
+    // Read off the middleware guarding each route, so a path cannot be
+    // described without being validated, or validated without being described.
+    expect((spec.paths['/themes'] as { get: { parameters: unknown } }).get.parameters)
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "in": "query",
+          "name": "type",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "const": "dark",
+                "type": "string",
+              },
+              {
+                "const": "light",
+                "type": "string",
+              },
+            ],
+          },
+        },
+      ]
+    `)
     const document = spec.paths['/document'] as {
       post: { requestBody: { content: Record<string, { schema: { properties: object } }> } }
     }
