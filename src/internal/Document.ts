@@ -259,10 +259,14 @@ export function marks(palette: Theme.derive.Result) {
    * A row: full width, past the inset the window holds its code at. A caller
    * embedding the markup declares `--body-inset` to say what that inset is;
    * without one the row reaches the code's own edges.
+   *
+   * A pixel past it, since the window clips on a rounded rect: an edge landing
+   * exactly on that clip is antialiased into it, leaving the window showing
+   * through as a hairline.
    */
-  const row = `  margin-inline: calc(-1 * var(--body-inset, 0px));
-  padding-inline-start: var(--body-inset, 0px);
-  padding-inline-end: var(--body-inset, 0px);`
+  const row = `  margin-inline: calc(-1px - var(--body-inset, 0px));
+  padding-inline-start: calc(1px + var(--body-inset, 0px));
+  padding-inline-end: calc(1px + var(--body-inset, 0px));`
   /** A row's bar and wash, from one Theme.marks. */
   const mark = (
     color: string,

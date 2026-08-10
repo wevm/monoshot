@@ -49,9 +49,12 @@ export function theme(palette: Theme.derive.Result): Extension {
       // them and not only the marked ones: the box a line's controls are placed
       // against would otherwise move the moment it took a mark.
       '.cm-line': {
-        marginInline: 'calc(-1 * var(--editor-inset))',
+        // A pixel past the inset, since the window clips on a rounded rect: an
+        // edge landing exactly on that clip is antialiased into it, leaving the
+        // window showing through as a hairline.
+        marginInline: 'calc(-1px - var(--editor-inset))',
         padding: 0,
-        paddingInline: 'var(--editor-inset)',
+        paddingInline: 'calc(1px + var(--editor-inset))',
         position: 'relative',
       },
       '.cm-line.cm-mark-add': mark(Theme.marks.add),
@@ -180,15 +183,15 @@ export function theme(palette: Theme.derive.Result): Extension {
         alignItems: 'flex-start',
         // Set off from the line above, which it is a note on rather than the
         // next thing to read.
+        marginInline: 'calc(-1px - var(--editor-inset))',
         marginTop: '6px',
         color: Theme.marks.remove,
         display: 'flex',
         fontSize: 'var(--code-annotation-size)',
         gap: '6px',
         lineHeight: 'var(--code-line-height)',
-        marginInline: 'calc(-1 * var(--editor-inset))',
         minHeight: 'var(--code-line-height)',
-        paddingInline: 'var(--editor-inset)',
+        paddingInline: 'calc(1px + var(--editor-inset))',
         whiteSpace: 'pre-wrap',
       },
       // A popover the row opens rather than a control sitting in it: the row is
