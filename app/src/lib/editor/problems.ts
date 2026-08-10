@@ -44,6 +44,17 @@ export function overlooked(state: EditorState): readonly number[] {
   return state.field(field, false)?.ignored ?? []
 }
 
+/**
+ * Where a complaint a span carries was waved off, if one was. The complaint is
+ * no longer reported, so nothing else on the span says it is there.
+ */
+export function overlookedAt(
+  state: EditorState,
+  span: { from: number; to: number },
+): number | undefined {
+  return overlooked(state).find((at) => at >= span.from && at <= span.to)
+}
+
 /** Whether a complaint covering an offset is already on screen. */
 export function kept(state: EditorState, at: number): boolean {
   return state.field(field, false)?.pinned.some((offset) => offset === at) ?? false

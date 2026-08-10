@@ -5,7 +5,7 @@ import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import { keep, kept, keptUnder, objection, overlook } from './problems.js'
+import { keep, kept, keptUnder, objection, overlook, overlookedAt } from './problems.js'
 import * as Types from './types.js'
 
 /**
@@ -65,6 +65,9 @@ export const hover: Extension = [
       // caret line asked for: a hover would only cover what it is about.
       if (complaint ? kept(view.state, complaint.from) : pinned(view, identifier)) return null
       const message = complaint && prose(complaint.message)
+      // A complaint waved off is no longer reported, so the only thing left
+      // saying it was ever there is the offer to hear it again.
+      const waved = complaint ? undefined : overlookedAt(view.state, identifier)
       return {
         // Below the identifier, where pinning will leave it, so hovering
         // previews the pinned block in place rather than somewhere else. It
@@ -84,7 +87,18 @@ export const hover: Extension = [
                     select: () => overlook(view, complaint.from),
                   },
                 ]
-              : { label: 'Pin this type', select: () => toggle(view, identifier) },
+              : [
+                  { label: 'Pin this type', select: () => toggle(view, identifier) },
+                  ...(waved === undefined
+                    ? []
+                    : [
+                        {
+                          icon: Annotation.back,
+                          label: 'Report this message again',
+                          select: () => overlook(view, waved),
+                        },
+                      ]),
+                ],
           )
           let word: Rect | null = null
           return {

@@ -15,6 +15,9 @@ export type Action = {
 /** Lucide's x, for whatever a surface offers to be rid of. */
 export const cross = 'M18 6 6 18M6 6l12 12'
 
+/** Lucide's rotate-ccw, for whatever a surface offers to have back. */
+export const back = 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5'
+
 /**
  * Lucide's pin, at the size the annotation type is set in. Shared, so whatever
  * offers to unpin something offers the same glyph.
