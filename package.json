@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@cloudflare/puppeteer": "1.3.0",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "puppeteer-core": "catalog:",
@@ -83,10 +84,14 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@cloudflare/puppeteer": "^1.3.0",
     "puppeteer-core": "^25.0.0",
     "typescript": "^5.5.0 || ^6.0.0"
   },
   "peerDependenciesMeta": {
+    "@cloudflare/puppeteer": {
+      "optional": true
+    },
     "puppeteer-core": {
       "optional": true
     },
