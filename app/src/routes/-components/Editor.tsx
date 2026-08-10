@@ -5,7 +5,7 @@ import { EditorView, keymap, lineNumbers as gutter } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
 import type * as Twoslash from 'monoshot/twoslash'
-import { useEffect, useRef } from 'react'
+import { useContext, useEffect, useRef } from 'react'
 
 import { completions } from '#/lib/editor/completions.js'
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
@@ -20,6 +20,8 @@ import { theme } from '#/lib/editor/theme.js'
 import { setTypes } from '#/lib/editor/types.js'
 import type { Completion } from '#/lib/twoslash/protocol.js'
 import type { Types } from '#/lib/editor/types.js'
+
+import { Frame } from './Frame.js'
 
 const styles = stylex.create({
   root: {
@@ -52,6 +54,8 @@ export function Editor(props: Editor.Props) {
   const palettes = useRef(new Compartment()).current
   const gutters = useRef(new Compartment()).current
   const rails = useRef(new Compartment()).current
+  // Where the controls beside a line are drawn: outside the window, which clips.
+  const aside = useContext(Frame.Aside)
 
   useEffect(() => {
     const parent = host.current
@@ -78,7 +82,7 @@ export function Editor(props: Editor.Props) {
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           notations,
-          rails.of(rail(syntax(language))),
+          rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries,
           hover,
           completions((document, position) => ask.current(document, position)),
@@ -110,8 +114,10 @@ export function Editor(props: Editor.Props) {
   }, [gutters, lineNumbers])
 
   useEffect(() => {
-    view.current?.dispatch({ effects: rails.reconfigure(rail(syntax(language))) })
-  }, [language, rails])
+    view.current?.dispatch({
+      effects: rails.reconfigure(rail({ container: aside, syntax: syntax(language) })),
+    })
+  }, [aside, language, rails])
 
   useEffect(() => {
     view.current?.dispatch({ effects: setTypes.of(types) })

@@ -351,3 +351,90 @@
     transform: none;
   }
 }
+
+/* The controls beside a line, drawn outside the window: it clips, so nothing in
+   it could reach past its edge. Positioned by the editor, which knows where each
+   line sits. */
+.rail {
+  align-items: center;
+  background-color: color-mix(in oklab, var(--window-surface) 85%, transparent);
+  border-radius: 8px;
+  display: flex;
+  gap: 2px;
+  height: var(--code-line-height);
+  left: var(--rail-left, 0);
+  opacity: 0;
+  padding-inline: 3px;
+  /* Hit-testable while invisible: the strips tile the side of the window, so
+     running down them keeps a line under the pointer the whole way. */
+  pointer-events: auto;
+  position: absolute;
+  top: var(--rail-top, 0);
+  transition: opacity 140ms cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.rail[data-shown],
+.rail:focus-within {
+  opacity: 1;
+}
+
+.rail-control {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--window-foreground);
+  cursor: pointer;
+  display: flex;
+  height: 20px;
+  justify-content: center;
+  opacity: 0.4;
+  padding: 0;
+  width: 20px;
+}
+
+.rail-control:hover {
+  background-color: color-mix(in oklab, var(--window-foreground) 12%, transparent);
+  opacity: 1;
+}
+
+.rail-control:active {
+  background-color: color-mix(in oklab, var(--window-foreground) 20%, transparent);
+}
+
+.rail-control:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--window-foreground);
+  outline-offset: 1px;
+}
+
+/* A control for a mark the line already carries, which is also what takes it
+   away again. */
+.rail-control[data-active] {
+  background-color: color-mix(in oklab, var(--window-foreground) 14%, transparent);
+  opacity: 1;
+}
+
+.rail-control[data-kind='add'][data-active] {
+  color: oklch(66% 0.15 150);
+}
+
+.rail-control[data-kind='remove'][data-active] {
+  color: oklch(62% 0.19 20);
+}
+
+.rail-control svg {
+  fill: none;
+  height: 14px;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    transition-duration: 0s;
+  }
+}

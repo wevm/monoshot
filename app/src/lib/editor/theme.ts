@@ -74,107 +74,11 @@ export function theme(palette: Theme.derive.Result): Extension {
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
       '.cm-line.cm-mark-highlight': mark(palette.window.foreground),
       '.cm-line.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
-      // The marks a line can carry, offered at the window's edge. Space for
-      // them is not reserved: the code would then wrap somewhere the exported
-      // image does not.
-      '.cm-rail': {
-        alignItems: 'center',
-        backgroundColor: `color-mix(in oklab, ${palette.window.background} 85%, transparent)`,
-        borderRadius: '8px',
-        display: 'flex',
-        gap: '2px',
-        height: 'var(--code-line-height)',
-        opacity: 0,
-        paddingInline: '3px',
-        pointerEvents: 'none',
-        position: 'absolute',
-        right: '4px',
-        top: 0,
-        transitionDuration: motion.fast,
-        transitionProperty: 'opacity',
-        transitionTimingFunction: motion.out,
+      // The line being reached for, from the code or from the controls beside
+      // it, so running down the strip runs down the code with it.
+      '.cm-line.cm-reached': {
+        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 7%, transparent)`,
       },
-      // CodeMirror takes a media query as a rule of its own, not as a condition
-      // inside one. Touch reports a hover it never leaves, so the controls are
-      // offered to a real pointer only.
-      '@media (prefers-reduced-motion: reduce)': { '.cm-rail': { transitionDuration: '0s' } },
-      '@media (hover: hover) and (pointer: fine)': {
-        '.cm-line:hover .cm-rail': { opacity: 1, pointerEvents: 'auto' },
-      },
-      // A control reached by keyboard keeps its strip in view.
-      '.cm-rail:focus-within': { opacity: 1, pointerEvents: 'auto' },
-      '.cm-rail-control': {
-        alignItems: 'center',
-        background: 'none',
-        border: 'none',
-        borderRadius: '6px',
-        color: palette.window.foreground,
-        cursor: 'pointer',
-        display: 'flex',
-        height: '20px',
-        justifyContent: 'center',
-        opacity: 0.4,
-        padding: 0,
-        width: '20px',
-      },
-      '.cm-rail-control:hover': {
-        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 12%, transparent)`,
-        opacity: 1,
-      },
-      '.cm-rail-control:active': {
-        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 20%, transparent)`,
-      },
-      '.cm-rail-control:focus-visible': {
-        opacity: 1,
-        outline: `2px solid ${palette.window.foreground}`,
-        outlineOffset: '1px',
-      },
-      // A control a line already carries reads in that mark's own hue, which is
-      // also how the mark is taken away again.
-      '.cm-rail-control[data-active]': {
-        backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 14%, transparent)`,
-        opacity: 1,
-      },
-      '.cm-rail-control[data-kind="add"][data-active]': { color: Theme.marks.add },
-      '.cm-rail-control[data-kind="remove"][data-active]': { color: Theme.marks.remove },
-      '.cm-rail-control svg': {
-        fill: 'none',
-        height: '14px',
-        stroke: 'currentColor',
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        strokeWidth: 2,
-        width: '14px',
-      },
-      '.cm-scroller': {
-        fontFamily: 'var(--code-font-family)',
-        // Every line reaches past the inset on both sides, which the scroller
-        // would otherwise offer to scroll to. Lines wrap, so there is nothing
-        // out there to reach.
-        overflowX: 'hidden',
-        lineHeight: 'var(--code-line-height)',
-        tabSize: 'var(--code-tab-size)',
-      },
-      // The annotation draws its own surface, so CodeMirror's tooltip chrome
-      // has to step aside. It belongs here rather than in the stylesheet:
-      // CodeMirror injects its styles unlayered, and unlayered always wins.
-      '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
-      // The gutter is part of the artwork, so it recedes rather than sitting
-      // on a panel of its own.
-      '.cm-gutters': {
-        backgroundColor: 'transparent',
-        borderRight: 'none',
-        color: palette.window.foreground,
-        // The editor reaches past the window's inset so a pin has room to
-        // paint; the gutter takes the inset back, so its numbers sit where the
-        // exported frame draws them rather than against the window's edge.
-        marginLeft: 'var(--editor-inset)',
-        opacity: 0.4,
-      },
-      // With a gutter the code is already inset by it, and the room a pin
-      // needs is the gutter's own width.
-      '&:has(.cm-gutters) .cm-content': { paddingLeft: 0 },
-      '.cm-lineNumbers .cm-gutterElement': { minWidth: '2ch', paddingInline: '0 20px' },
       // A selection has to read against every bundled theme, so it tints the
       // theme's own border color rather than picking a color of its own.
       '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {

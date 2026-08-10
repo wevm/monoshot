@@ -6,7 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useRef, useState } from 'react'
 
 import * as Annotation from '#/lib/editor/annotation.js'
 import * as Identifier from '#/lib/editor/identifier.js'
@@ -36,6 +36,15 @@ const styles = stylex.create({
   // Grips take the opposite polarity from the artwork, so they read on a light
   // theme as well as a dark one, with a hairline in the other direction to
   // hold them against a backdrop of similar lightness.
+  // The strip of controls beside the code, which sits outside the window: the
+  // window clips, so a control inside it could never reach past its edge.
+  aside: { inset: 0, pointerEvents: 'none', position: 'absolute' },
+  // Read by the controls, which are drawn outside the canvas the palette is set
+  // on and so cannot inherit it from there.
+  asidePalette: (palette: { background: string; foreground: string }) => ({
+    '--window-foreground': palette.foreground,
+    '--window-surface': palette.background,
+  }),
   gripPalette: (light: boolean) => ({
     '--grip': light ? color.chrome : color.onChrome,
     '--grip-edge': light ? 'rgb(255 255 255 / 0.5)' : 'rgb(0 0 0 / 0.5)',
@@ -189,6 +198,9 @@ export function Frame(props: Frame.Props) {
   } = props
 
   const [dragging, setDragging] = useState(false)
+  // Held in state rather than a ref: what draws into it is a child, which has to
+  // render again once the element exists.
+  const [aside, setAside] = useState<HTMLDivElement | null>(null)
 
   // Leave the theme arrows and their labels a gutter, but never let a narrow
   // viewport drag the artwork smaller than it already is. Route components are
@@ -205,6 +217,10 @@ export function Frame(props: Frame.Props) {
       <div
         {...stylex.props(
           styles.root,
+          styles.asidePalette({
+            background: palette.window.background,
+            foreground: palette.window.foreground,
+          }),
           styles.gripPalette(palette.type === 'light'),
           styles.width(width),
         )}
@@ -259,9 +275,12 @@ export function Frame(props: Frame.Props) {
                 </m.div>
               )}
             </AnimatePresence>
-            <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>{children}</div>
+            <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>
+              <Frame.Aside.Provider value={aside}>{children}</Frame.Aside.Provider>
+            </div>
           </div>
         </div>
+        <div ref={setAside} {...stylex.props(styles.aside)} />
         {/* Padding grows on every side at once, so the artwork's own edge
             keeps pace with the pointer. */}
         <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesOuter)}>
@@ -487,6 +506,12 @@ type Palette = {
 const paddingCeiling = 160
 
 export namespace Frame {
+  /**
+   * Where a child draws what belongs beside the code rather than in it. Outside
+   * the window, which clips, and over the artwork it sits on.
+   */
+  export const Aside = createContext<HTMLElement | null>(null)
+
   /** The largest padding that still leaves the window a usable width. */
   export function maxPadding(width: number) {
     return Math.min(paddingCeiling, Math.max(0, Math.floor((width - 240) / 2)))
