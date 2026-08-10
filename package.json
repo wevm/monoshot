@@ -72,8 +72,10 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@hono/zod-validator": "catalog:",
     "@shikijs/twoslash": "4.4.2",
     "culori": "catalog:",
+    "hono": "catalog:",
     "incur": "catalog:",
     "lz-string": "catalog:",
     "shiki": "catalog:",

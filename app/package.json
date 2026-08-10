@@ -38,7 +38,8 @@
     "react-dom": "catalog:",
     "twoslash-cdn": "catalog:",
     "typescript": "catalog:",
-    "unstorage": "catalog:"
+    "unstorage": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",

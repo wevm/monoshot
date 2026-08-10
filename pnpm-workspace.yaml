@@ -14,6 +14,7 @@ catalog:
   '@codemirror/state': ^6.7.1
   '@codemirror/view': ^6.43.8
   '@cloudflare/vite-plugin': ^1.51.0
+  '@hono/zod-validator': ^0.9.0
   '@fontsource-variable/geist-mono': ^5.3.0
   '@rolldown/plugin-babel': ^0.2.3
   '@stylexjs/stylex': 0.19.0
