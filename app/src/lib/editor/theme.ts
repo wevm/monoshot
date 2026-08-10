@@ -78,22 +78,23 @@ export function theme(palette: Theme.derive.Result): Extension {
       // Its own pseudo-element, since the gutter draws a number in the other.
       '.cm-line.cm-mark-add::after, .cm-line.cm-mark-remove::after': {
         left: '6px',
-        opacity: 0.8,
         position: 'absolute',
       },
-      '.cm-line.cm-mark-add::after': { content: '"+"' },
-      '.cm-line.cm-mark-remove::after': { content: '"-"' },
+      '.cm-line.cm-mark-add::after': { color: Theme.marks.add, content: '"+"' },
+      '.cm-line.cm-mark-remove::after': { color: Theme.marks.remove, content: '"-"' },
       // With a gutter the row starts there, so the sign goes with it rather
       // than landing on a number.
       '&:has(.cm-gutters) .cm-line.cm-mark-add::after': { content: '""' },
       '&:has(.cm-gutters) .cm-line.cm-mark-remove::after': { content: '""' },
       '.cm-gutterElement.cm-mark-add::after, .cm-gutterElement.cm-mark-remove::after': {
         left: '6px',
-        opacity: 0.8,
         position: 'absolute',
       },
-      '.cm-gutterElement.cm-mark-add::after': { content: '"+"' },
-      '.cm-gutterElement.cm-mark-remove::after': { content: '"-"' },
+      '.cm-gutterElement.cm-mark-add::after': { color: Theme.marks.add, content: '"+"' },
+      '.cm-gutterElement.cm-mark-remove::after': {
+        color: Theme.marks.remove,
+        content: '"-"',
+      },
       // A tag is prose the snippet carries, so it reads in the hue it was
       // tagged with rather than in the code's own colors.
       '.cm-line.cm-tag-annotate': { ...mark(Theme.marks.add), color: Theme.marks.add },
@@ -106,7 +107,11 @@ export function theme(palette: Theme.derive.Result): Extension {
       // Focus says which lines matter, so the rest recede.
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
       '.cm-line.cm-mark-highlight': mark(palette.window.foreground),
-      '.cm-line.cm-mark-remove': { ...mark(Theme.marks.remove), opacity: 0.7 },
+      '.cm-line.cm-mark-remove': mark(Theme.marks.remove),
+      // The code being replaced reads as code that is gone: its own colors would
+      // still be claiming it. Drained rather than recolored, so what the syntax
+      // made of the line survives as light and dark.
+      '.cm-line.cm-mark-remove span': { filter: 'grayscale(1)', opacity: 0.8 },
       '.cm-scroller': {
         fontFamily: 'var(--code-font-family)',
         // Every line reaches past the inset on both sides, which the scroller

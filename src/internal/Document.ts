@@ -340,21 +340,28 @@ ${mark(Theme.marks.add)}
 }
 .shiki .line.diff.remove {
 ${mark(Theme.marks.remove)}
-  opacity: 0.7;
+}
+/* The code being replaced reads as code that is gone: its own colors would
+   still be claiming it. Drained rather than recolored, so what the syntax made
+   of the line survives as light and dark. */
+.shiki .line.diff.remove span {
+  filter: grayscale(1);
+  opacity: 0.8;
 }
 /* Its own pseudo-element: the one before it draws a line number, which a diff
    line has too when the gutter is on. */
 .shiki .line.diff::after {
   left: 6px;
-  opacity: 0.8;
   position: absolute;
   /* The gutter indents the line's first box, which this is not part of. */
   text-indent: 0;
 }
 .shiki .line.diff.add::after {
+  color: ${Theme.marks.add};
   content: '+';
 }
 .shiki .line.diff.remove::after {
+  color: ${Theme.marks.remove};
   content: '-';
 }
 /* A tag is prose the snippet carries, so it reads in the hue it was tagged
