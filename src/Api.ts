@@ -70,6 +70,37 @@ const document_route = createRoute({
   summary: 'Render a document',
 })
 
+const themes_route = createRoute({
+  description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
+  method: 'get',
+  path: '/themes',
+  request: {
+    query: z.object({
+      type: z
+        .union([z.literal('dark'), z.literal('light')])
+        .optional()
+        .openapi({ example: 'dark' }),
+    }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.array(
+            z.object({
+              displayName: z.string(),
+              name: z.string(),
+              type: z.union([z.literal('dark'), z.literal('light')]),
+            }),
+          ),
+        },
+      },
+      description: 'The bundled themes.',
+    },
+  },
+  summary: 'List themes',
+})
+
 /**
  * Creates the routes that render a frame over HTTP.
  *
@@ -126,6 +157,11 @@ export function create(options: create.Options = {}): create.ReturnType {
     // No cache header: a shared cache keys on the URL, which says nothing
     // about the body each of these renders from.
     return c.body(html, 200, { 'content-type': 'text/html; charset=utf-8' })
+  })
+
+  app.openapi(themes_route, (c) => {
+    const { type } = c.req.valid('query')
+    return c.json(Theme.list().filter((theme) => !type || theme.type === type))
   })
 
   app.doc('/openapi.json', { info: { title: 'monoshot', version: '1' }, openapi: '3.1.0' })

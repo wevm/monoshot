@@ -1,8 +1,13 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono } from 'hono'
 import { Api } from 'monoshot'
+import * as z from 'zod'
 
 import * as Registry from './registry.js'
+
+// Registered rather than left to the default: the bundler drops the locale
+// zod reaches for otherwise, and every rejection reads `Invalid input`.
+z.config(z.locales.en())
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))

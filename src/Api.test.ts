@@ -90,6 +90,27 @@ describe('create', () => {
     expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
       [
         "/document",
+        "/themes",
+      ]
+    `)
+    // Read off the schema the route validates with, rather than written twice.
+    const document = spec.paths['/document'] as {
+      post: { requestBody: { content: Record<string, { schema: { properties: object } }> } }
+    }
+    const properties = document.post.requestBody.content['application/json']?.schema.properties
+    expect(Object.keys(properties ?? {})).toMatchInlineSnapshot(`
+      [
+        "background",
+        "code",
+        "lang",
+        "lineNumbers",
+        "padding",
+        "radius",
+        "theme",
+        "title",
+        "titleBar",
+        "twoslash",
+        "width",
       ]
     `)
   })
