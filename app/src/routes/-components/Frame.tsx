@@ -171,13 +171,7 @@ const styles = stylex.create({
     width: '100%',
     '::placeholder': { color: 'var(--window-title)' },
   },
-  body: {
-    paddingBlock: 4,
-    paddingInline: 'var(--editor-inset)',
-    // What a marked line reaches past, so a mark meets the window's edges the
-    // way it does in an exported document.
-    '--body-inset': 'var(--editor-inset)',
-  },
+  body: { paddingBlock: 4, paddingInline: 'var(--editor-inset)' },
   // Without the title bar the code needs its own breathing room at the top.
   bodyBare: { paddingBlock: 8 },
 })
@@ -550,7 +544,15 @@ export namespace Frame {
     return (
       <div
         data-line-numbers={lineNumbers || undefined}
-        ref={(node) => node?.style.setProperty('--gutter', gutter)}
+        ref={(node) => {
+          if (!node) return
+          node.style.setProperty('--gutter', gutter)
+          // Written as a value rather than left to inherit: an export serializes
+          // computed styles, and a custom property standing for another one is
+          // copied unresolved, so the marks would reach nothing.
+          const inset = getComputedStyle(node).getPropertyValue('--editor-inset')
+          node.style.setProperty('--body-inset', inset)
+        }}
         {...stylex.props(code.root)}
       >
         {css ? <style>{css}</style> : null}
