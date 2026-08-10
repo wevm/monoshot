@@ -1,4 +1,4 @@
-import * as Twoslash from 'monoshot/twoslash'
+import type * as Twoslash from 'monoshot/twoslash'
 
 /** What the worker resolves for a document. */
 export type Result = Twoslash.Result
@@ -106,9 +106,7 @@ export function create(options: create.Options): create.ReturnType {
         onResult({
           document: latest,
           lang: dialect,
-          // Read here rather than in the worker: the frame wants the run and
-          // the editor wants this, and the run is what crosses the boundary.
-          result: Twoslash.annotate(event.data.types),
+          result: event.data.result,
           types: event.data.types,
         })
     })

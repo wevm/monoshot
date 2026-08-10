@@ -7,8 +7,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
-import * as TwoslashCore from 'monoshot/twoslash'
-
 import * as Twoslash from '#/lib/twoslash/client.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
 import { dialects } from '#/lib/twoslash/options.js'
@@ -307,7 +305,7 @@ function resolvedSample(): Twoslash.Resolved {
   return {
     document: sample,
     lang: Sample.lang,
-    result: TwoslashCore.annotate(Sample.types),
+    result: Sample.result,
     types: Sample.types,
   }
 }

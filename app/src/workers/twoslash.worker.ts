@@ -151,6 +151,7 @@ function annotate(request: Resolve): Response {
   const run = twoslash.runSync(request.code, request.lang)
   return {
     kind: 'resolve',
+    result: Twoslash.annotate(run),
     // Trimmed to what travels: a run carries the compiler's own objects, and
     // only these three fields survive `postMessage` or mean anything after it.
     types: { code: run.code, meta: { removals: run.meta.removals }, nodes: run.nodes },

@@ -83,10 +83,13 @@ export type Response =
   | {
       /** Names this message among the replies the worker sends. */
       kind: 'resolve'
+      /** The types found in the document, as the editor reads them. */
+      result: Twoslash.Result
       /**
-       * The run itself, rather than what the editor makes of it: the frame
-       * draws its own annotations from the same nodes, so one payload serves
-       * both and neither reads the other's interpretation.
+       * The run those types were read from, which the frame draws directly.
+       * Sent alongside rather than derived here: reading a run needs
+       * `monoshot/twoslash`, which carries the compiler into whatever imports
+       * it, and the worker is the one place that already has one.
        */
       types: Run
       /** The `version` of the request this answers. */
