@@ -1,8 +1,10 @@
 import { StateEffect, StateField } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
+import { Theme } from 'monoshot'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import type { ViewUpdate } from '@codemirror/view'
 
+import * as Annotation from './annotation.js'
 import * as Notations from './notations.js'
 import { keep, keptUnder } from './problems.js'
 
@@ -14,9 +16,6 @@ const icons: Readonly<Record<Notations.Kind, string>> = {
   highlight: 'm9 11-6 6v3h9l3-3m10-5-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4',
   remove: 'M5 12h14',
 }
-
-/** Lucide's x, for the one thing a complaint on screen offers. */
-const dismiss = 'M18 6 6 18M6 6l12 12'
 
 const labels: Readonly<Record<Notations.Kind, string>> = {
   add: 'Mark as added',
@@ -238,8 +237,11 @@ class Rail {
       if (at !== undefined)
         strip.appendChild(
           this.control({
-            icon: dismiss,
-            label: 'Remove this message',
+            // The glyph that pinned it, in the hue the complaint carries: the
+            // one thing this offers is to take it back.
+            color: Theme.marks.remove,
+            icon: Annotation.pin,
+            label: 'Unpin this message',
             select: () => keep(this.view, at),
           }),
         )
@@ -258,9 +260,15 @@ class Rail {
   }
 
   /** One control of the strip, whichever the strip is. */
-  private control(options: { icon: string; label: string; select: () => void }) {
+  private control(options: {
+    color?: string | undefined
+    icon: string
+    label: string
+    select: () => void
+  }) {
     const button = document.createElement('button')
     button.className = 'rail-control'
+    if (options.color) button.style.setProperty('--rail-color', options.color)
     button.type = 'button'
     button.title = options.label
     button.setAttribute('aria-label', options.label)

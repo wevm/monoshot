@@ -392,7 +392,7 @@
   background: none;
   border: none;
   border-radius: 6px;
-  color: var(--window-foreground);
+  color: var(--rail-color, var(--window-foreground));
   cursor: pointer;
   display: flex;
   height: 20px;
