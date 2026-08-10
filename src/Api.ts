@@ -64,73 +64,6 @@ namespace schema {
 }
 
 /**
- * One shape for every rejection, whichever route and whichever check raised
- * it: a caller reads which field was wrong and what was wrong with it.
- */
-const reject: Parameters<typeof zValidator>[2] = (result, c) => {
-  if (result.success) return undefined
-  const issue = result.error.issues[0]
-  const at = issue?.path.map(String).join('.')
-  return c.json({ error: `${at ? `${at}: ` : ''}${issue?.message ?? 'Invalid request.'}` }, 400)
-}
-
-/** What a route says about itself, carried on the middleware that guards it. */
-type Described = {
-  description: string
-  responses: Record<number, { content?: Record<string, unknown>; description: string }>
-  schema: z.ZodType
-  summary: string
-  target: 'json' | 'query'
-}
-
-/**
- * Validates a request, and remembers what it validated. The description is
- * read back off the routes, so a route and what it accepts cannot drift.
- */
-function validate<schema extends z.ZodType, const target extends 'json' | 'query'>(
-  target: target,
-  schema: schema,
-  described: Omit<Described, 'schema' | 'target'>,
-) {
-  return Object.assign(zValidator(target, schema, reject), { ...described, schema, target })
-}
-
-/** The routes as OpenAPI, built from the middleware guarding each one. */
-function describe(app: Hono): Record<string, unknown> {
-  const paths: Record<string, Record<string, unknown>> = {}
-  for (const route of app.routes) {
-    const described = route.handler as Partial<Described>
-    if (!described.schema) continue
-    const schema = z.toJSONSchema(described.schema) as {
-      properties?: Record<string, unknown>
-      required?: string[]
-    }
-    const path = (paths[route.path] ??= {})
-    path[route.method.toLowerCase()] = {
-      description: described.description,
-      responses: described.responses,
-      summary: described.summary,
-      ...(described.target === 'json'
-        ? {
-            requestBody: {
-              content: { 'application/json': { schema } },
-              required: true,
-            },
-          }
-        : {
-            parameters: Object.entries(schema.properties ?? {}).map(([name, property]) => ({
-              in: 'query',
-              name,
-              required: schema.required?.includes(name) ?? false,
-              schema: property,
-            })),
-          }),
-    }
-  }
-  return { info: { title: 'monoshot', version: '1' }, openapi: '3.1.0', paths }
-}
-
-/**
  * Creates the routes that render a frame over HTTP.
  *
  * Mount on any Hono app, or serve as a Worker's own handler. Holds a renderer
@@ -153,7 +86,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   const app = new Hono()
     .post(
       '/document',
-      validate('json', schema.body, {
+      OpenApi.validate('json', schema.body, {
         description: 'Renders a snippet to a standalone document, which runs and fetches nothing.',
         responses: {
           200: { content: { 'text/html': {} }, description: 'The document.' },
@@ -193,7 +126,7 @@ export function create(options: create.Options = {}): create.ReturnType {
     )
     .get(
       '/themes',
-      validate('query', schema.filter, {
+      OpenApi.validate('query', schema.filter, {
         description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
         responses: { 200: { description: 'The bundled themes.' } },
         summary: 'List themes',
@@ -205,7 +138,92 @@ export function create(options: create.Options = {}): create.ReturnType {
     )
 
   // Read when asked rather than when built, so every route is registered.
-  return app.get('/openapi.json', (c) => c.json(describe(app)))
+  return app.get('/openapi.json', (c) => c.json(OpenApi.describe(app)))
+}
+
+export declare namespace create {
+  type Options = {
+    /**
+     * Renderer to draw with. Defaults to one holding shiki's JavaScript
+     * engine. Pass one to share loaded grammars, or to choose the engine.
+     */
+    frame?: Frame.create.ReturnType | undefined
+  }
+
+  type ReturnType = Hono
+}
+
+/**
+ * The description a route carries, and the reading of it. A route states
+ * what it accepts once, in the middleware that enforces it.
+ */
+namespace OpenApi {
+  /**
+   * One shape for every rejection, whichever route and whichever check raised
+   * it: a caller reads which field was wrong and what was wrong with it.
+   */
+  const reject: Parameters<typeof zValidator>[2] = (result, c) => {
+    if (result.success) return undefined
+    const issue = result.error.issues[0]
+    const at = issue?.path.map(String).join('.')
+    return c.json({ error: `${at ? `${at}: ` : ''}${issue?.message ?? 'Invalid request.'}` }, 400)
+  }
+
+  /** What a route says about itself, carried on the middleware that guards it. */
+  export type Described = {
+    description: string
+    responses: Record<number, { content?: Record<string, unknown>; description: string }>
+    schema: z.ZodType
+    summary: string
+    target: 'json' | 'query'
+  }
+
+  /**
+   * Validates a request, and remembers what it validated. The description is
+   * read back off the routes, so a route and what it accepts cannot drift.
+   */
+  export function validate<schema extends z.ZodType, const target extends 'json' | 'query'>(
+    target: target,
+    schema: schema,
+    described: Omit<Described, 'schema' | 'target'>,
+  ) {
+    return Object.assign(zValidator(target, schema, reject), { ...described, schema, target })
+  }
+
+  /** The routes as OpenAPI, built from the middleware guarding each one. */
+  export function describe(app: Hono): Record<string, unknown> {
+    const paths: Record<string, Record<string, unknown>> = {}
+    for (const route of app.routes) {
+      const described = route.handler as Partial<Described>
+      if (!described.schema) continue
+      const schema = z.toJSONSchema(described.schema) as {
+        properties?: Record<string, unknown>
+        required?: string[]
+      }
+      const path = (paths[route.path] ??= {})
+      path[route.method.toLowerCase()] = {
+        description: described.description,
+        responses: described.responses,
+        summary: described.summary,
+        ...(described.target === 'json'
+          ? {
+              requestBody: {
+                content: { 'application/json': { schema } },
+                required: true,
+              },
+            }
+          : {
+              parameters: Object.entries(schema.properties ?? {}).map(([name, property]) => ({
+                in: 'query',
+                name,
+                required: schema.required?.includes(name) ?? false,
+                schema: property,
+              })),
+            }),
+      }
+    }
+    return { info: { title: 'monoshot', version: '1' }, openapi: '3.1.0', paths }
+  }
 }
 
 /**
@@ -221,15 +239,3 @@ export function create(options: create.Options = {}): create.ReturnType {
  * ```
  */
 export const route: create.ReturnType = create()
-
-export declare namespace create {
-  type Options = {
-    /**
-     * Renderer to draw with. Defaults to one holding shiki's JavaScript
-     * engine. Pass one to share loaded grammars, or to choose the engine.
-     */
-    frame?: Frame.create.ReturnType | undefined
-  }
-
-  type ReturnType = Hono
-}
