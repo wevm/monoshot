@@ -6,7 +6,7 @@ import { EditorView, keymap } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
 import type * as Twoslash from 'monoshot/twoslash'
-import { useContext, useEffect, useRef } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 
 import { completions } from '#/lib/editor/completions.js'
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
@@ -15,7 +15,7 @@ import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
 import { notations, syntax } from '#/lib/editor/notations.js'
 import { rail } from '#/lib/editor/rail.js'
-import { pins, problems } from '#/lib/editor/problems.js'
+import { overlooked, pins, problems } from '#/lib/editor/problems.js'
 import { query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 import { setTypes } from '#/lib/editor/types.js'
@@ -23,6 +23,9 @@ import type { Completion } from '#/lib/twoslash/protocol.js'
 import type { Types } from '#/lib/editor/types.js'
 
 import { Frame } from './Frame.js'
+
+/** Held still, so the editor is not rebuilt with a fresh array each render. */
+const none: readonly number[] = []
 
 const styles = stylex.create({
   root: {
@@ -33,7 +36,17 @@ const styles = stylex.create({
 
 /** The editable code surface. Colored from shiki tokens, not a CM6 grammar. */
 export function Editor(props: Editor.Props) {
-  const { code, diagnostics, language, onCodeChange, onComplete, palette, tokens, types } = props
+  const {
+    code,
+    diagnostics,
+    language,
+    onCodeChange,
+    onComplete,
+    onIgnore,
+    palette,
+    tokens,
+    types,
+  } = props
 
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView>(null)
@@ -42,6 +55,11 @@ export function Editor(props: Editor.Props) {
   onChange.current = onCodeChange
   const ask = useRef(onComplete)
   ask.current = onComplete
+  const ignored = useRef(onIgnore)
+  ignored.current = onIgnore
+  // Held here as well as reported: what is reported has to be filtered again
+  // once a complaint is waved off, and that is an effect rather than an edit.
+  const [overlooking, setOverlooking] = useState<readonly number[]>(none)
   const palettes = useRef(new Compartment()).current
   const rails = useRef(new Compartment()).current
   // Where the controls beside a line are drawn: outside the window, which clips.
@@ -85,6 +103,10 @@ export function Editor(props: Editor.Props) {
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange.current(update.state.doc.toString())
+            const waved = overlooked(update.state)
+            if (waved === overlooked(update.startState)) return
+            setOverlooking(waved)
+            ignored.current(waved)
           }),
         ],
       }),
@@ -117,7 +139,7 @@ export function Editor(props: Editor.Props) {
   useEffect(() => {
     const instance = view.current
     if (instance) instance.dispatch(problems(instance.state, diagnostics))
-  }, [diagnostics])
+  }, [diagnostics, overlooking])
 
   // A code change from outside, such as restoring a shared snippet.
   useEffect(() => {
@@ -148,6 +170,8 @@ export declare namespace Editor {
     language: string
     /** Receives every edit. */
     onCodeChange: (code: string) => void
+    /** Receives the offsets whose complaint is no longer reported. */
+    onIgnore: (offsets: readonly number[]) => void
     /** Asked what could go at the caret, whenever the menu wants entries. */
     onComplete: (code: string, position: number) => Promise<readonly Completion[]>
     /** Colors the editor to match the frame it sits in. */

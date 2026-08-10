@@ -154,7 +154,29 @@
 
   /* Beside the type's first line, just off the surface: near the word it
      describes, clear of the notch, and out of flow entirely, so nothing
-     reflows when it appears. */
+     reflows when they appear. */
+  .twoslash-controls {
+    display: flex;
+    gap: 2px;
+    /* The room the editor's inset leaves to the left of column 0, so they fit
+       there whatever column a type is pinned at. */
+    margin-right: 2px;
+    /* Out of the picture until reached for. They still take hits while they are
+       invisible, so the pointer passing over them brings them out. */
+    opacity: 0;
+    position: absolute;
+    right: 100%;
+    /* Centered on the first line: 6px of surface padding plus half a line. */
+    top: 4px;
+    /* Comes out of the surface's edge rather than appearing beside it: the
+       travel closes the gap exactly, so it never laps the type. */
+    transform: translateX(2px) scale(0.9);
+    transform-origin: right center;
+    transition:
+      opacity var(--motion-fast) var(--motion-out),
+      transform var(--motion-fast) var(--motion-out);
+  }
+
   .twoslash-pin {
     align-items: center;
     /* The surface's own composited fill, so the part hanging off the edge is
@@ -166,32 +188,15 @@
     color: inherit;
     cursor: pointer;
     display: flex;
-    height: 14px;
+    height: 18px;
     justify-content: center;
-    /* Together these are the room the editor's inset leaves to the left of
-       column 0, so the pin fits there whatever column a type is pinned at. */
-    margin-right: 2px;
-    /* Out of the picture until reached for. It still takes hits while it is
-       invisible, so the pointer passing over it brings it out. */
-    opacity: 0;
     padding: 0;
-    position: absolute;
-    right: 100%;
-    /* Centered on the first line: 6px of surface padding plus half a line. */
-    top: 6px;
-    /* Comes out of the surface's edge rather than appearing beside it: the
-       travel closes the gap exactly, so it never laps the type. */
-    transform: translateX(2px) scale(0.9);
-    transform-origin: right center;
-    transition:
-      opacity var(--motion-fast) var(--motion-out),
-      transform var(--motion-fast) var(--motion-out);
-    width: 14px;
+    width: 18px;
   }
 
   /* Reaches across the gap to the surface, so crossing it does not read as
      leaving both. */
-  .twoslash-pin::after {
+  .twoslash-controls::after {
     content: '';
     inset: 0 -2px 0 0;
     position: absolute;
@@ -211,9 +216,9 @@
   /* The hover only exists while you are pointing at the word, so its control
      is there from the start; a pinned type is part of the picture, and gives
      one up only once the pointer is on it. */
-  .cm-tooltip .twoslash-pin,
-  .twoslash:hover .twoslash-pin,
-  .twoslash-pin:focus-visible {
+  .cm-tooltip .twoslash-controls,
+  .twoslash:hover .twoslash-controls,
+  .twoslash-controls:focus-within {
     opacity: 1;
     transform: none;
   }
@@ -225,12 +230,12 @@
 
   .twoslash-pin svg {
     fill: none;
-    height: 9px;
+    height: 11px;
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 2;
-    width: 9px;
+    width: 11px;
   }
 
   /* The run between the word and its type. Transparent, and part of the
@@ -339,7 +344,7 @@
     }
   }
 
-  .twoslash-pin {
+  .twoslash-controls {
     transform: none;
   }
 }

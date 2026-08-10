@@ -5,7 +5,7 @@ import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import { keep, kept, keptUnder, objection } from './problems.js'
+import { keep, kept, keptUnder, objection, overlook } from './problems.js'
 import * as Types from './types.js'
 
 /**
@@ -75,7 +75,14 @@ export const hover: Extension = [
           const surface = Annotation.element(
             message ?? found.annotation,
             complaint
-              ? { label: 'Pin this message', select: () => keep(view, complaint.from) }
+              ? [
+                  { label: 'Pin this message', select: () => keep(view, complaint.from) },
+                  {
+                    icon: Annotation.cross,
+                    label: 'Ignore this message',
+                    select: () => overlook(view, complaint.from),
+                  },
+                ]
               : { label: 'Pin this type', select: () => toggle(view, identifier) },
           )
           let word: Rect | null = null

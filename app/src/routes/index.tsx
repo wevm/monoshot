@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
+import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
@@ -175,6 +176,8 @@ const styles = stylex.create({
 const empty: Editor.Props['types'] = []
 
 /** The same, for a document the compiler has said nothing about yet. */
+const nothing: readonly number[] = []
+
 const quiet: Editor.Props['diagnostics'] = []
 
 /** Everything on screen that a shared link carries, less the code and title. */
@@ -332,6 +335,8 @@ function Page() {
   // that did match stays until one for this document arrives. The editor maps
   // what it already holds through the edits between.
   const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
+  /** Complaints the writer waved off, which the picture leaves out too. */
+  const [ignored, setIgnored] = useState<readonly number[]>(nothing)
   // Seeded with the default snippet's types, resolved at build time: the
   // worker that resolves them carries a compiler, and a first visit would
   // download it to draw a document nobody has touched.
@@ -519,7 +524,9 @@ function Page() {
     // this document: an older answer's offsets would mark the wrong words.
     // Only a run resolved against this very document: an older one carries
     // offsets into text that is no longer here.
-    const types = resolved?.document === code ? resolved.types : undefined
+    const found = resolved?.document === code ? resolved.types : undefined
+    // What the editor stopped reporting is not in the picture either.
+    const types = found && without(found, ignored)
     const capture: Capture = { code, language, options, settings, title, types }
     const run = Promise.resolve(pending.current)
       .catch(() => {})
@@ -827,6 +834,7 @@ function Page() {
                   diagnostics={diagnostics}
                   language={language}
                   onCodeChange={setCode}
+                  onIgnore={setIgnored}
                   // A language the service cannot read has nothing to offer,
                   // and the resolver only exists once a document needed one.
                   onComplete={async (document, position) => {

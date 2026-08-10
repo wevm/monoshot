@@ -30,6 +30,20 @@ export function keep(view: EditorView, at: number): void {
   view.dispatch({ effects: pin.of(at) })
 }
 
+/**
+ * Takes a complaint out of what is reported, in the editor and in what it
+ * exports: a snippet is a fragment, and the compiler objecting to what was left
+ * outside it says nothing about the code being shown.
+ */
+export function overlook(view: EditorView, at: number): void {
+  view.dispatch({ effects: dismiss.of(at) })
+}
+
+/** Offsets whose complaint is not reported. */
+export function overlooked(state: EditorState): readonly number[] {
+  return state.field(field, false)?.ignored ?? []
+}
+
 /** Whether a complaint covering an offset is already on screen. */
 export function kept(state: EditorState, at: number): boolean {
   return state.field(field, false)?.pinned.some((offset) => offset === at) ?? false
@@ -44,18 +58,27 @@ export function keptUnder(state: EditorState, line: number): number | undefined 
 /** Pins a complaint in place, or takes back the pin at that offset. */
 const pin = StateEffect.define<number>()
 
+/** Takes a complaint out of what is reported, or reports it again. */
+const dismiss = StateEffect.define<number>()
+
 const field = StateField.define<Value>({
-  create: () => ({ decorations: Decoration.none, pinned: [] }),
+  create: () => ({ decorations: Decoration.none, ignored: [], pinned: [] }),
   update(value, transaction) {
     let pinned = value.pinned.map((at) => transaction.changes.mapPos(at))
-    for (const effect of transaction.effects)
+    let ignored = value.ignored.map((at) => transaction.changes.mapPos(at))
+    for (const effect of transaction.effects) {
+      if (effect.is(dismiss))
+        ignored = ignored.includes(effect.value)
+          ? ignored.filter((at) => at !== effect.value)
+          : [...ignored, effect.value]
       if (effect.is(pin))
         pinned = pinned.includes(effect.value)
           ? pinned.filter((at) => at !== effect.value)
           : [...pinned, effect.value]
+    }
     // Rebuilt every time rather than on a dependency: the complaints live in
     // the lint state, which is not a field this one can name.
-    return { decorations: build(transaction.state, pinned), pinned }
+    return { decorations: build(transaction.state, pinned), ignored, pinned }
   },
   provide: (self) => EditorView.decorations.from(self, (value) => value.decorations),
 })
@@ -69,6 +92,8 @@ export const pins: Extension = field
 
 type Value = {
   decorations: DecorationSet
+  /** Offsets a complaint was taken out of what is reported at. */
+  ignored: readonly number[]
   /** Offsets a complaint was pinned at, in the order they were pinned. */
   pinned: readonly number[]
 }
@@ -128,21 +153,24 @@ export function problems(
   const end = state.doc.length
   // An empty document has no character to mark, so there is nothing to draw on.
   if (end === 0) return setDiagnostics(state, [])
+  const ignored = overlooked(state)
   return setDiagnostics(
     state,
-    diagnostics.map((diagnostic) => {
-      // At least one character wide, so a zero-length range still shows. An
-      // unfinished snippet puts its complaint at the very end, past the last
-      // character, and that marker takes the character before it rather than
-      // being dropped for having nowhere to sit.
-      const to = Math.min(Math.max(diagnostic.to, diagnostic.from + 1), end)
-      return {
-        from: Math.max(0, Math.min(diagnostic.from, to - 1)),
-        message: diagnostic.text,
-        severity: severity[diagnostic.level],
-        to,
-      }
-    }),
+    diagnostics
+      .filter((diagnostic) => !ignored.some((at) => at >= diagnostic.from && at <= diagnostic.to))
+      .map((diagnostic) => {
+        // At least one character wide, so a zero-length range still shows. An
+        // unfinished snippet puts its complaint at the very end, past the last
+        // character, and that marker takes the character before it rather than
+        // being dropped for having nowhere to sit.
+        const to = Math.min(Math.max(diagnostic.to, diagnostic.from + 1), end)
+        return {
+          from: Math.max(0, Math.min(diagnostic.from, to - 1)),
+          message: diagnostic.text,
+          severity: severity[diagnostic.level],
+          to,
+        }
+      }),
   )
 }
 
