@@ -6,6 +6,7 @@ import type {
   BundledLanguage,
   BundledTheme,
   Highlighter,
+  RegexEngine,
   ShikiTransformer,
   ThemeRegistrationResolved,
   ThemedToken,
@@ -28,7 +29,7 @@ import type {
  * ```
  */
 export function create(options: create.Options = {}): create.ReturnType {
-  const { langs = [], themes = [] } = options
+  const { engine, langs = [], themes = [] } = options
 
   // Holds a TypeScript compiler, so it is built once for the renderer rather
   // than per render, and only when a render actually asks for types.
@@ -96,12 +97,14 @@ export function create(options: create.Options = {}): create.ReturnType {
     const { lang, theme } = parameters
     // A rejected promise must not be cached, or one transient failure would
     // poison every later render on this renderer.
-    highlighter ??= createHighlighter({ langs: [...langs], themes: [...themes] }).catch(
-      (cause: unknown) => {
-        highlighter = undefined
-        throw cause
-      },
-    )
+    highlighter ??= createHighlighter({
+      ...(engine ? { engine } : {}),
+      langs: [...langs],
+      themes: [...themes],
+    }).catch((cause: unknown) => {
+      highlighter = undefined
+      throw cause
+    })
     const instance = await highlighter
     await Promise.all([
       instance.getLoadedThemes().includes(theme) ? undefined : instance.loadTheme(theme),
@@ -189,6 +192,20 @@ export function create(options: create.Options = {}): create.ReturnType {
 
 export declare namespace create {
   type Options = {
+    /**
+     * How the grammars are matched. Defaults to shiki's own, which compiles
+     * WebAssembly at runtime and so cannot start where that is disallowed. A
+     * Cloudflare Worker passes shiki's JavaScript engine instead.
+     *
+     * @example
+     * ```ts twoslash
+     * import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
+     * import { Frame } from 'monoshot'
+     *
+     * const frame = Frame.create({ engine: createJavaScriptRegexEngine() })
+     * ```
+     */
+    engine?: RegexEngine | undefined
     /** Languages to preload. Anything else loads on first use. */
     langs?: readonly BundledLanguage[] | undefined
     /** Themes to preload. Anything else loads on first use. */

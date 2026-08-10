@@ -130,6 +130,23 @@ describe('tokens', () => {
   })
 })
 
+describe('create', () => {
+  test('matches grammars with the engine it is given', async () => {
+    // The JavaScript engine is what a runtime that forbids compiling
+    // WebAssembly has to use, and it must produce the same markup.
+    const { createJavaScriptRegexEngine } = await import('shiki/engine/javascript')
+    const code = 'const greeting = "hello"\n'
+    const standard = Frame.create()
+    const javascript = Frame.create({ engine: createJavaScriptRegexEngine() })
+    const [a, b] = await Promise.all([
+      standard.render({ code, lang: 'ts', theme: 'vitesse-dark' }),
+      javascript.render({ code, lang: 'ts', theme: 'vitesse-dark' }),
+    ])
+    await Promise.all([standard.dispose(), javascript.dispose()])
+    expect(b.html).toBe(a.html)
+  })
+})
+
 describe('render with twoslash', () => {
   const query = 'const greeting = "hello"\n//    ^?\n'
 
