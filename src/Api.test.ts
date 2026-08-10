@@ -238,7 +238,7 @@ describe('create', () => {
     expect(status).toBe(400)
     expect(body).toMatchInlineSnapshot(`
       {
-        "error": "theme: \`nope\` is not bundled.",
+        "error": "theme: \`nope\` is not offered.",
       }
     `)
   })

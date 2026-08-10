@@ -2,12 +2,17 @@ import { converter, formatCss, parse } from 'culori'
 import { bundledThemesInfo } from 'shiki'
 import type { BundledTheme, ThemeRegistrationResolved } from 'shiki'
 
-/** Every theme shiki bundles, as pickable metadata. Carries no theme payload. */
+/**
+ * The themes a frame offers, as pickable metadata. Carries no theme payload.
+ *
+ * A chosen few rather than everything shiki bundles: a picker is a decision to
+ * make, and sixty of them is a list to read.
+ */
 export function list(): readonly Info[] {
   return infos
 }
 
-/** Metadata for one theme, or `undefined` when the name is not bundled. */
+/** Metadata for one theme, or `undefined` when it is not one offered. */
 export function info(name: string): Info | undefined {
   return byName.get(name)
 }
@@ -57,8 +62,8 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const fg = toOklch(foreground)!
   const accent = pickAccent(theme)
 
-  // Achromatic themes (min-light, vesper, ...) have no hue to rotate, so the
-  // backdrop stays neutral rather than emitting `oklch(... NaN)`.
+  // An achromatic theme has no hue to rotate, so the backdrop stays neutral
+  // rather than emitting `oklch(... NaN)`.
   const hue = accent?.h
   const chroma = hue === undefined ? 0 : type === 'dark' ? 0.09 : 0.06
   // Symmetric magnitude in both directions so the window always separates from
@@ -146,14 +151,35 @@ export type Info = {
 // `Theme.test.ts` is what keeps this narrowing honest.
 // The container is frozen as well as its entries: `list()` hands out this very
 // array, so an ordinary `sort()` would reorder it for every later caller.
+/** The themes offered, in the order a picker walks them. */
+const offered: readonly string[] = [
+  'aurora-x',
+  'dracula',
+  'github-dark',
+  'github-dark-default',
+  'github-light',
+  'gruvbox-light-soft',
+  'horizon',
+  'horizon-bright',
+  'houston',
+  'nord',
+  'poimandres',
+  'rose-pine',
+  'tokyo-night',
+  'vitesse-dark',
+  'vitesse-light',
+]
+
 const infos: readonly Info[] = Object.freeze(
-  bundledThemesInfo.map((theme) =>
-    Object.freeze({
-      displayName: theme.displayName,
-      name: theme.id as BundledTheme,
-      type: theme.type === 'light' ? 'light' : ('dark' as const),
-    }),
-  ),
+  bundledThemesInfo
+    .filter((theme) => offered.includes(theme.id))
+    .map((theme) =>
+      Object.freeze({
+        displayName: theme.displayName,
+        name: theme.id as BundledTheme,
+        type: theme.type === 'light' ? 'light' : ('dark' as const),
+      }),
+    ),
 )
 
 const byName = new Map(infos.map((entry) => [entry.name as string, entry]))

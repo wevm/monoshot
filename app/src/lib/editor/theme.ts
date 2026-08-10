@@ -220,17 +220,19 @@ export function theme(palette: Theme.derive.Result): Extension {
         padding: 0,
       },
       '.cm-diagnostic': { borderLeft: 'none', padding: '6px 10px' },
-      // A pinned complaint reads the way the exported frame draws one: prose a
-      // step under the code, dimmed, in the code's own color.
+      // A pinned complaint reads the way the exported frame draws one: a row of
+      // the window in the hue a removal carries, since that is what it is about.
       '.cm-objection': {
+        ...mark(Theme.marks.remove),
         alignItems: 'flex-start',
-        color: palette.window.foreground,
+        color: Theme.marks.remove,
         display: 'flex',
         fontSize: 'var(--code-annotation-size)',
         gap: '6px',
-        lineHeight: 1.5,
-        opacity: 0.75,
-        paddingBottom: '4px',
+        lineHeight: 'var(--code-line-height)',
+        marginInline: 'calc(-1 * var(--editor-inset))',
+        minHeight: 'var(--code-line-height)',
+        paddingInline: 'var(--editor-inset)',
         whiteSpace: 'pre-wrap',
       },
       '.cm-objection:hover .twoslash-pin': { opacity: 1, transform: 'none' },

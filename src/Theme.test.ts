@@ -8,13 +8,30 @@ import * as Theme from './Theme.js'
 const frame = Frame.create()
 
 describe('list', () => {
-  test('covers every theme shiki bundles', () => {
-    const bundled = Object.keys(bundledThemes).sort()
-    expect(
-      Theme.list()
-        .map((entry) => entry.name)
-        .sort(),
-    ).toEqual(bundled)
+  test('offers a chosen few of what shiki bundles', () => {
+    // Every one is a theme shiki has, and the picker walks them in this order.
+    expect(Theme.list().map((entry) => entry.name)).toMatchInlineSnapshot(`
+      [
+        "aurora-x",
+        "dracula",
+        "github-dark",
+        "github-dark-default",
+        "github-light",
+        "gruvbox-light-soft",
+        "horizon",
+        "horizon-bright",
+        "houston",
+        "nord",
+        "poimandres",
+        "rose-pine",
+        "tokyo-night",
+        "vitesse-dark",
+        "vitesse-light",
+      ]
+    `)
+    expect(Theme.list().every((entry) => Object.keys(bundledThemes).includes(entry.name))).toBe(
+      true,
+    )
   })
 
   test('groups into light and dark', () => {
@@ -60,7 +77,7 @@ describe('derive', () => {
     expect(parse(result.window.foreground)).toBeDefined()
   })
 
-  test.for(Object.keys(bundledThemes) as BundledTheme[])(
+  test.for(Theme.list().map((entry) => entry.name))(
     'emits parseable, separated colors for %s',
     async (name) => {
       const rendered = await frame.render({ code: 'const a = 1', lang: 'ts', theme: name })
@@ -87,6 +104,8 @@ describe('derive', () => {
   )
 
   test('keeps achromatic themes neutral instead of emitting NaN hues', async () => {
+    // Not a theme the picker offers, which a palette is derived from all the
+    // same: what is drawn is whatever shiki resolved.
     const rendered = await frame.render({ code: 'a', lang: 'ts', theme: 'min-light' })
     const result = Theme.derive(rendered.theme)
     expect(result.backdrop.from).not.toContain('NaN')

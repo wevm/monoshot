@@ -279,13 +279,7 @@ export function annotations(palette: Theme.derive.Result): string {
   display: block;
   padding: 6px 10px;
 }
-.twoslash-error-line {
-  color: ${palette.window.foreground};
-  font-size: var(--code-annotation-size);
-  opacity: 0.75;
-  padding-bottom: 4px;
-  white-space: pre-wrap;
-}`
+`
 }
 
 /**
@@ -295,7 +289,7 @@ export function annotations(palette: Theme.derive.Result): string {
  * no reason to become.
  */
 export function marked(html: string): boolean {
-  return /has-(diff|focused|highlighted)|twoslash-tag-line/.test(html)
+  return /has-(diff|focused|highlighted)|twoslash-(tag|error)-line/.test(html)
 }
 
 export function marks(palette: Theme.derive.Result) {
@@ -324,6 +318,7 @@ export function marks(palette: Theme.derive.Result) {
   position: relative;
 }
 .shiki .line,
+.twoslash-error-line,
 .twoslash-tag-line {
 ${row}
 }
@@ -365,7 +360,9 @@ ${mark(Theme.marks.remove)}
   content: '-';
 }
 /* A tag is prose the snippet carries, so it reads in the hue it was tagged
-   with rather than in the code's own colors. */
+   with rather than in the code's own colors. A complaint the compiler made is
+   the same kind of row, so it reads the same way. */
+.twoslash-error-line,
 .twoslash-tag-line {
   align-items: center;
   display: flex;
@@ -383,6 +380,7 @@ ${mark(Theme.marks.remove)}
   color: ${Theme.marks.log};
 ${mark(Theme.marks.log)}
 }
+.twoslash-error-line,
 .twoslash-tag-error-line {
   color: ${Theme.marks.remove};
 ${mark(Theme.marks.remove)}
