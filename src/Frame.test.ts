@@ -263,6 +263,21 @@ describe('render with twoslash', () => {
     `)
   })
 
+  test('marks the code block, which a bare `.twoslash` rule would frame', async () => {
+    // The renderer puts `twoslash` on the `pre` itself. Anything styling that
+    // class unqualified draws a surface and a notch around the whole block,
+    // which is what a consumer's own annotation styles are likely to do.
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: query,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect(result.html.slice(0, result.html.indexOf('>') + 1)).toContain('twoslash')
+  })
+
   test('annotates again after the renderer is disposed', async () => {
     // Disposal releases the compiler, so the next annotated render rebuilds it.
     const frame = Frame.create()
