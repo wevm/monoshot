@@ -1,12 +1,11 @@
-import { rendererRich, transformerTwoslash } from '@shikijs/twoslash'
 import { createHighlighter } from 'shiki'
-import { createTwoslasher } from 'twoslash'
 import * as Document from './internal/Document.js'
 import * as Theme from './Theme.js'
 import type {
   BundledLanguage,
   BundledTheme,
   Highlighter,
+  ShikiTransformer,
   ThemeRegistrationResolved,
   ThemedToken,
 } from 'shiki'
@@ -32,7 +31,32 @@ export function create(options: create.Options = {}): create.ReturnType {
 
   // Holds a TypeScript compiler, so it is built once for the renderer rather
   // than per render, and only when a render actually asks for types.
-  let twoslasher: ReturnType<typeof createTwoslasher> | undefined
+  let annotator: Promise<ShikiTransformer> | undefined
+
+  /**
+   * Imported here rather than at the top of the module: the compiler is
+   * megabytes, `Frame` is what a browser reaches for to highlight, and a
+   * static import would put one in every bundle that holds the other.
+   */
+  function annotate(): Promise<ShikiTransformer> {
+    return (annotator ??= (async () => {
+      const [{ rendererRich, transformerTwoslash }, { createTwoslasher }] = await Promise.all([
+        import('@shikijs/twoslash'),
+        import('twoslash'),
+      ])
+      return transformerTwoslash({
+        // A snippet in an editor is half-typed most of the time, and code that
+        // does not compile still has types worth drawing.
+        throws: false,
+        renderer: rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
+        twoslasher: createTwoslasher({
+          // Twoslash otherwise insists every compiler error be declared in the
+          // source and gives up on the whole snippet when one is not.
+          handbookOptions: { noErrorValidation: true },
+        }),
+      })
+    })())
+  }
 
   // Kept as a promise so concurrent renders share one creation rather than
   // racing to build a highlighter each.
@@ -60,7 +84,10 @@ export function create(options: create.Options = {}): create.ReturnType {
   // renderer has no receiver to resolve.
   async function highlight(parameters: render.Options): Promise<render.ReturnType> {
     const { code, lang, theme, twoslash = false } = parameters
-    const instance = await resolve({ lang, theme })
+    const [instance, annotations] = await Promise.all([
+      resolve({ lang, theme }),
+      twoslash ? annotate() : undefined,
+    ])
     return {
       html: instance.codeToHtml(code, {
         lang,
@@ -79,22 +106,7 @@ export function create(options: create.Options = {}): create.ReturnType {
               }
             },
           },
-          ...(twoslash
-            ? [
-                transformerTwoslash({
-                  // A snippet in an editor is half-typed most of the time, and
-                  // code that does not compile still has types worth drawing.
-                  throws: false,
-                  renderer: rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
-                  twoslasher: (twoslasher ??= createTwoslasher({
-                    // Twoslash otherwise insists every compiler error be
-                    // declared in the source and gives up on the whole
-                    // snippet, annotations included, when one is not.
-                    handbookOptions: { noErrorValidation: true },
-                  })),
-                }),
-              ]
-            : []),
+          ...(annotations ? [annotations] : []),
         ],
       }),
       // Detached: the registry entry is shared, so handing it out would let
@@ -106,6 +118,9 @@ export function create(options: create.Options = {}): create.ReturnType {
   return {
     async dispose() {
       const instance = await highlighter?.catch(() => undefined)
+      // The compiler and its virtual file system go with it: a renderer kept
+      // after disposal rebuilds both on the next render that wants them.
+      annotator = undefined
       highlighter = undefined
       instance?.dispose()
     },

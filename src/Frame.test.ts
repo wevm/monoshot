@@ -175,6 +175,21 @@ describe('render with twoslash', () => {
     `)
   })
 
+  test('annotates again after the renderer is disposed', async () => {
+    // Disposal releases the compiler, so the next annotated render rebuilds it.
+    const frame = Frame.create()
+    await frame.render({ code: query, lang: 'ts', theme: 'vitesse-dark', twoslash: true })
+    await frame.dispose()
+    const result = await frame.render({
+      code: query,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect(result.html).toContain('twoslash-query-line')
+  })
+
   test('still resolves types for code the compiler objects to', async () => {
     const frame = Frame.create()
     const result = await frame.render({
