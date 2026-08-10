@@ -8,6 +8,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
+import { dialects } from '#/lib/twoslash/options.js'
+import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import { text } from '#/theme/text.js'
@@ -174,9 +176,6 @@ const empty: Editor.Props['types'] = []
 /** The same, for a document the compiler has said nothing about yet. */
 const quiet: Editor.Props['diagnostics'] = []
 
-/** The dialect the language service should read a document as. */
-const dialects = { javascript: 'js', jsx: 'jsx', tsx: 'tsx', typescript: 'ts' } as const
-
 /** Everything on screen that a shared link carries, less the code and title. */
 type Settings = Toolbar.State & { padding: number; radius: number; width: number }
 
@@ -329,7 +328,12 @@ function Page() {
   // that did match stays until one for this document arrives. The editor maps
   // what it already holds through the edits between.
   const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
-  const [resolved, setResolved] = useState<Twoslash.Resolved>()
+  // Seeded with the default snippet's types, resolved at build time: the
+  // worker that resolves them carries a compiler, and a first visit would
+  // download it to draw a document nobody has touched.
+  const [resolved, setResolved] = useState<Twoslash.Resolved | undefined>(() =>
+    code === sample ? { document: sample, ...Sample.types } : undefined,
+  )
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
   const [error, setError] = useState<Error>()
   // Export failures speak for themselves: sharing `error` would swap the
@@ -351,7 +355,11 @@ function Page() {
     return () => clearTimeout(timer)
   }, [code, settings.language])
 
-  const language = settings.language === 'auto' ? detected : settings.language
+  // The sample was resolved as one language at build time, and reads as that
+  // one whatever detection makes of it. Detection still owns every other
+  // document, including one it cannot place, which stays TypeScript.
+  const language =
+    settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
 
   // The fragment is the only place state is kept, so it is written on every
   // change, debounced: a keystroke should not push a history entry, and the
@@ -396,11 +404,19 @@ function Page() {
       return
     }
     // A failure leaves the types belonging to a document that is no longer on
-    // screen, so they go rather than stand in for the current one.
+    // screen, so they go rather than stand in for the current one. Built even
+    // for a document that needs no resolving, because a caret asking for
+    // completions reaches through it and the worker inside is what is lazy.
     resolver.current ??= Twoslash.create({
       onError: () => setResolved(undefined),
       onResult: setResolved,
     })
+    // Already resolved, and by something other than the worker: an untouched
+    // visit never spawns it.
+    if (code === sample && dialect === Sample.types.lang) {
+      setResolved({ document: sample, ...Sample.types })
+      return
+    }
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
     return () => clearTimeout(timer)
   }, [code, language])
