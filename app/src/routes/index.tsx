@@ -49,6 +49,14 @@ const styles = stylex.create({
     backgroundColor: surface.background,
     color: surface.foreground,
   }),
+  // The artwork's own picture, carried across the shell under a wash of the
+  // page's color: the same picture at full strength either side of the
+  // artwork's edge would leave nothing to see that edge by.
+  canvasPicture: (picture: { scrim: string; source: string }) => ({
+    backgroundImage: `linear-gradient(${picture.scrim}, ${picture.scrim}), url("${picture.source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+  }),
   header: {
     alignItems: 'center',
     display: 'flex',
@@ -707,7 +715,18 @@ function Page() {
   })()
 
   return (
-    <main {...stylex.props(styles.page, canvas ? styles.canvasColor(canvas) : null)}>
+    <main
+      {...stylex.props(
+        styles.page,
+        canvas ? styles.canvasColor(canvas) : null,
+        canvas && wallpaper
+          ? styles.canvasPicture({
+              scrim: `color-mix(in oklab, ${canvas.background} 82%, transparent)`,
+              source: wallpaper,
+            })
+          : null,
+      )}
+    >
       {rect && (
         // With a backdrop the guides stop at the artwork; with nothing to
         // respect at that edge they run the full screen.
