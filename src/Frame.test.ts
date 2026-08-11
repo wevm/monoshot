@@ -234,6 +234,22 @@ describe('render with notations', () => {
     expect(result.html).not.toContain('@log:')
   })
 
+  test('draws a tag in a language no compiler reads', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: ['# @warn: careful', 'print(1)', ''].join('\n'),
+      lang: 'python',
+      theme: 'vitesse-dark',
+    })
+    await frame.dispose()
+    // Nothing resolved the run, so the tag is the snippet's own mark: without
+    // it the row stays an ordinary comment and the editor disagrees.
+    expect(result.html).toContain('twoslash-tag-warn-line">careful<')
+    expect(result.html).not.toContain('@warn:')
+    // Rows the tag needs, which a caller embedding the markup reads from here.
+    expect(result.css).toContain('.twoslash-tag-warn-line')
+  })
+
   test('draws the marks only for a snippet that carries some', async () => {
     const frame = Frame.create()
     const settings = {

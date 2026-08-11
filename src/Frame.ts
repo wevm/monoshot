@@ -7,7 +7,7 @@ import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
 import * as Document from './internal/Document.js'
 import * as Marks from './internal/Marks.js'
-import { tags } from './internal/Tags.js'
+import * as Tags from './internal/Tags.js'
 import * as Theme from './Theme.js'
 import type {
   BundledLanguage,
@@ -93,7 +93,7 @@ export function create<const themes extends Themes = []>(
   async function compiler() {
     const { createTwoslasher } = await import('twoslash')
     return createTwoslasher({
-      customTags: [...tags],
+      customTags: [...Tags.tags],
       compilerOptions: {
         // Twoslash compiles strict, which marks every untyped parameter: a
         // missing annotation rather than a mistake, in a snippet that left its
@@ -195,7 +195,9 @@ export function create<const themes extends Themes = []>(
             }
           },
         },
-        ...(annotations ? [annotations] : []),
+        // A resolved run draws the snippet's tags itself, so this stands in
+        // only where there is none.
+        ...(annotations ? [annotations] : [Tags.transformer()]),
         // Presentation the snippet carries itself, the way a `^?` query
         // does: `[!code focus]`, `[!code hl]`, and `[!code ++]` mark lines
         // and are taken back out of what is drawn.
@@ -396,8 +398,9 @@ export declare namespace render {
 
   type ReturnType = {
     /**
-     * Styles the annotated markup needs, which draw the query blocks and keep
-     * the hover popovers out of flow. Absent unless `twoslash` was asked for.
+     * Styles the markup needs, which draw the query blocks, the rows a mark or
+     * a tag reads as, and keep the hover popovers out of flow. Absent only
+     * where the snippet carries nothing of the kind and no run was asked for.
      */
     css?: string | undefined
     /** Highlighted markup: a `pre.shiki` whose lines carry `data-line`. */

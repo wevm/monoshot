@@ -3,6 +3,7 @@ import { createTwoslasher } from 'twoslash'
 import { tags } from './internal/Tags.js'
 
 export { cut, unchecked } from './internal/Marks.js'
+import { unchecked } from './internal/Marks.js'
 export { tags } from './internal/Tags.js'
 
 /** A type the language service resolved for a span of the source. */
@@ -67,7 +68,10 @@ export function create(): create.ReturnType {
   return {
     run(code, options = {}) {
       return annotate(
-        twoslasher(code, options.lang ?? 'ts', {
+        // Blanked as the frame blanks it: a line the snippet marks as removed is
+        // not code it is claiming, and compiling it reports the conflict between
+        // a declaration and its replacement rather than a mistake in either.
+        twoslasher(unchecked(code), options.lang ?? 'ts', {
           // Half-typed code is the normal case in an editor, and twoslash
           // otherwise insists every compiler error be declared in the source
           // with an `@errors` tag, throwing when it is not. A snippet that
