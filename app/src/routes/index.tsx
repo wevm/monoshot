@@ -235,7 +235,7 @@ const fallback: Settings = {
   language: 'auto',
   padding: 64,
   radius: 12,
-  theme: 'vitesse-dark',
+  theme: 'golden-gate-dark',
   titleBar: true,
   types: true,
   width: 640,
@@ -352,6 +352,9 @@ function Page() {
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
+    // Nothing shared, nothing to restore: the codec answers with its own
+    // defaults for an empty fragment, and those know only what shiki bundles.
+    if (!window.location.hash.replace('#', '')) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
     setSettings(shared.settings)

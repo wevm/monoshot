@@ -126,7 +126,9 @@ const styles = stylex.create({
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
   rows: { display: 'flex', flexDirection: 'column', gap: 4, padding: 4 },
-  rowTitle: { color: color.onChromeSecondary, paddingInline: 2 },
+  // Started where the row below it starts: the rows take different insets, and a
+  // label set to one of them hangs off the other.
+  rowTitle: (inset: number) => ({ color: color.onChromeSecondary, paddingInline: inset }),
   // A selected swatch's ring is drawn outside it and a hovered one grows past
   // its box, both of which a scrolling row counts as somewhere to scroll to:
   // the padding is the room they take instead. Enough for a swatch that is both
@@ -461,7 +463,9 @@ export function Toolbar(props: Toolbar.Props) {
                 <div {...stylex.props(styles.rows)}>
                   {sections.map((section) => (
                     <div key={section.title}>
-                      <span {...stylex.props(styles.rowTitle, text.label12)}>{section.title}</span>
+                      <span {...stylex.props(styles.rowTitle(6), text.label12)}>
+                        {section.title}
+                      </span>
                       <div {...stylex.props(styles.themeGrid)}>
                         {section.entries.map((entry) => {
                           const shown = Themes.swatch(entry.name)
@@ -531,7 +535,7 @@ export function Toolbar(props: Toolbar.Props) {
               ) : panel === 'background' ? (
                 <div {...stylex.props(styles.rows)}>
                   <div>
-                    <span {...stylex.props(styles.rowTitle, text.label12)}>Wallpapers</span>
+                    <span {...stylex.props(styles.rowTitle(10), text.label12)}>Wallpapers</span>
                     <div {...stylex.props(styles.pictureRow)}>
                       {Wallpapers.list.map((wallpaper) => {
                         const value = Wallpapers.background(wallpaper.id)
@@ -555,7 +559,7 @@ export function Toolbar(props: Toolbar.Props) {
                       })}
                     </div>
                   </div>
-                  <span {...stylex.props(styles.rowTitle, text.label12)}>Colors</span>
+                  <span {...stylex.props(styles.rowTitle(10), text.label12)}>Colors</span>
                   <div {...stylex.props(styles.colorRow)}>
                     <button
                       aria-pressed={background === 'default'}
@@ -679,7 +683,8 @@ export declare namespace Toolbar {
     background: string
     /** A pinned language, or `auto` to read it from the code. */
     language: BundledLanguage | 'auto'
-    theme: Theme.Info['name']
+    /** A bundled theme's name, or one of the themes composed here. */
+    theme: string
     /** Whether the window shows its title bar. */
     titleBar: boolean
     /** Whether the snippet is type checked, which only a TypeScript one can be. */

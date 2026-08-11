@@ -5,15 +5,21 @@ import { swatches } from './swatches.js'
 import * as Wallpapers from './wallpapers.js'
 
 /**
+ * A theme on offer, which is one shiki bundles or one composed here: the name
+ * is a plain string for that reason, where the library's is a bundled one.
+ */
+export type Info = { displayName: string; name: string; type: 'dark' | 'light' }
+
+/**
  * The themes on offer: the ones shiki bundles, and one made from the colors of
  * each wallpaper, so a snippet can be dressed in the picture behind it.
  */
-export function list(): readonly Theme.Info[] {
+export function list(): readonly Info[] {
   return offered
 }
 
 /** Metadata for one theme, or nothing when it is not one offered. */
-export function info(name: string): Theme.Info | undefined {
+export function info(name: string): Info | undefined {
   return byName.get(name)
 }
 
@@ -66,18 +72,18 @@ const drawn = new Map<string, Swatch>([
   }),
 ])
 
-const offered: readonly Theme.Info[] = [
+const offered: readonly Info[] = [
   ...Theme.list(),
+  // Composed rather than bundled, which only the renderer needs to know: this
+  // list is what a picker walks, and it walks both the same way.
   ...palettes.map((palette) => ({
     displayName: named(palette.id),
-    // Composed rather than bundled, which the renderer is what knows: this list
-    // is what a picker walks, and it walks both the same way.
-    name: palette.id as Theme.Info['name'],
+    name: palette.id,
     type: palette.type,
   })),
 ]
 
-const byName = new Map(offered.map((entry) => [entry.name as string, entry]))
+const byName = new Map(offered.map((entry) => [entry.name, entry]))
 
 /** What a picture's theme is called, which is what the picture is called. */
 function named(id: string) {
