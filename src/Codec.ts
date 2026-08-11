@@ -16,7 +16,6 @@ export const schema = z.object({
   code: z.string().catch(''),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
-  /** Whether the snippet is numbered down its left edge. */
   /** Space around the window, in pixels. */
   padding: z.number().int().min(0).max(256).catch(64),
   /** Corner radius of the window, in pixels. */
@@ -27,6 +26,8 @@ export const schema = z.object({
   title: z.string().catch(''),
   /** Whether the window wears a title bar. */
   titleBar: z.boolean().catch(true),
+  /** Whether the snippet is type checked, which only a TypeScript one can be. */
+  types: z.boolean().catch(true),
   /** Width of the window, in pixels. */
   width: z.number().int().min(320).max(1600).catch(640),
 })
@@ -47,6 +48,7 @@ const keys = {
   theme: 't',
   title: 'i',
   titleBar: 'y',
+  types: 's',
   width: 'w',
 } as const satisfies Record<keyof State, string>
 

@@ -6,6 +6,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
+import { dialects } from '#/lib/twoslash/options.js'
 import { text } from '#/theme/text.js'
 import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -17,6 +18,7 @@ const shortcuts = {
   language: 'a',
   theme: 't',
   titleBar: 'w',
+  types: 'y',
 } as const
 
 const styles = stylex.create({
@@ -83,6 +85,14 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   itemOpen: { backgroundColor: color.chromeHover },
+  // Still readable, since what it says about the snippet is the point of it
+  // being here at all.
+  itemDisabled: {
+    backgroundColor: 'transparent',
+    cursor: 'default',
+    opacity: 0.45,
+    transform: 'scale(1)',
+  },
   itemHeading: { alignItems: 'center', display: 'flex', gap: 6 },
   itemTitle: { color: color.onChromeSecondary },
   // The key that reaches this control, in the same cap the theme arrows use.
@@ -220,7 +230,11 @@ const styles = stylex.create({
  * and a panel opens above it, spanning its width.
  */
 export function Toolbar(props: Toolbar.Props) {
-  const { background, language, onChange, resolved, theme, titleBar } = props
+  const { background, language, onChange, resolved, theme, titleBar, types } = props
+  // Only a language the compiler reads can be checked, so for anything else the
+  // control says what is true of it rather than offering a setting it has no
+  // meaning for.
+  const checkable = resolved in dialects
   const [panel, setPanel] = useState<Panel>()
   // A hex the palette does not carry belongs to the custom picker.
   const custom = background.startsWith('#') && !backgrounds.includes(background as never)
@@ -307,7 +321,9 @@ export function Toolbar(props: Toolbar.Props) {
       else if (shortcut === shortcuts.background) toggle('background')
       else if (shortcut === shortcuts.language) toggle('language')
       else if (shortcut === shortcuts.titleBar) onChange({ titleBar: !titleBar })
-      else return
+      else if (shortcut === shortcuts.types) {
+        if (checkable) onChange({ types: !types })
+      } else return
       event.preventDefault()
     }
     window.addEventListener('keydown', press)
@@ -485,6 +501,15 @@ export function Toolbar(props: Toolbar.Props) {
             title="Title bar"
             value={titleBar ? 'On' : 'Off'}
           />
+          <Item
+            disabled={!checkable}
+            onClick={() => onChange({ types: !types })}
+            pressed={checkable && types}
+            shortcut={shortcuts.types}
+            up
+            title="Types"
+            value={checkable && types ? 'On' : 'Off'}
+          />
         </m.div>
       </div>
     </MotionConfig>
@@ -509,6 +534,8 @@ export declare namespace Toolbar {
     theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
     titleBar: boolean
+    /** Whether the snippet is type checked, which only a TypeScript one can be. */
+    types: boolean
   }
 }
 
@@ -675,6 +702,8 @@ const swatches = { dark: '#1c1c1c', light: '#f5f5f5' }
 function Item(props: {
   /** Rolls each character on its own, for values that read as a number. */
   digits?: boolean | undefined
+  /** Set when the setting has no meaning for what is on screen. */
+  disabled?: boolean | undefined
   onClick: () => void
   open?: boolean
   pressed?: boolean
@@ -685,7 +714,7 @@ function Item(props: {
   up: boolean
   value: string
 }) {
-  const { digits, onClick, open, pressed, shortcut, title, up, value } = props
+  const { digits, disabled, onClick, open, pressed, shortcut, title, up, value } = props
   return (
     <m.button
       // Two stacked spans would otherwise read as one run-together name.
@@ -693,11 +722,12 @@ function Item(props: {
       aria-keyshortcuts={shortcut}
       aria-label={`${title}: ${value}`}
       aria-pressed={pressed}
+      disabled={disabled}
       layout
       onClick={onClick}
       transition={morph}
       type="button"
-      {...stylex.props(styles.item, open && styles.itemOpen)}
+      {...stylex.props(styles.item, open && styles.itemOpen, disabled && styles.itemDisabled)}
     >
       <span {...stylex.props(styles.itemHeading)}>
         <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>

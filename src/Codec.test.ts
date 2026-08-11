@@ -11,6 +11,7 @@ const state = {
   theme: 'github-dark',
   title: 'highlight.ts',
   titleBar: false,
+  types: false,
   width: 720,
 } satisfies Codec.State
 
@@ -30,6 +31,7 @@ describe('serialize', () => {
         "theme": "vitesse-dark",
         "title": "",
         "titleBar": true,
+        "types": true,
         "width": 640,
       }
     `)
@@ -86,6 +88,7 @@ describe('deserialize', () => {
         "theme": "vitesse-dark",
         "title": "",
         "titleBar": true,
+        "types": true,
         "width": 640,
       }
     `)

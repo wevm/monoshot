@@ -27,6 +27,7 @@ describe('deserialize', () => {
       theme: string
       title: string
       titleBar: boolean
+      types: boolean
       width: number
     }>()
   })

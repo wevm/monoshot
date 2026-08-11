@@ -221,6 +221,7 @@ const fallback: Settings = {
   radius: 12,
   theme: 'vitesse-dark',
   titleBar: true,
+  types: true,
   width: 640,
 }
 
@@ -247,6 +248,7 @@ function restore(hash: string) {
       radius: state.radius,
       theme,
       titleBar: state.titleBar,
+      types: state.types,
       width: state.width,
     } satisfies Settings,
     title: state.title,
@@ -265,6 +267,7 @@ function share(parameters: { code: string; settings: Settings; title: string }) 
     theme: settings.theme,
     title,
     titleBar: settings.titleBar,
+    types: settings.types,
     width: settings.width,
   })
 }
@@ -408,7 +411,9 @@ function Page() {
     // dropped here rather than when its replacement goes out: the debounce is
     // long enough for a stale answer to land inside it.
     resolver.current?.invalidate()
-    const dialect = dialects[language as keyof typeof dialects]
+    // Turned off, the snippet is read as text: the compiler is what draws the
+    // types, the squiggles, and the blocks a `^?` leaves behind.
+    const dialect = settings.types ? dialects[language as keyof typeof dialects] : undefined
     if (!dialect) {
       setResolved(undefined)
       return
@@ -429,7 +434,7 @@ function Page() {
     }
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
     return () => clearTimeout(timer)
-  }, [code, language])
+  }, [code, language, settings.types])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 
@@ -839,7 +844,9 @@ function Page() {
                   // A language the service cannot read has nothing to offer,
                   // and the resolver only exists once a document needed one.
                   onComplete={async (document, position) => {
-                    const dialect = dialects[language as keyof typeof dialects]
+                    const dialect = settings.types
+                      ? dialects[language as keyof typeof dialects]
+                      : undefined
                     if (!dialect) return []
                     return (await resolver.current?.complete(document, dialect, position)) ?? []
                   }}
