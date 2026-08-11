@@ -83,7 +83,10 @@ async function complete(request: Complete) {
     if (request.id !== asked) return reply({ completions: [], id: request.id, kind: 'complete' })
     reply({
       completions: completions.at({
-        code: request.code,
+        // Blanked as the annotations are, so a declaration the snippet marks as
+        // removed is not suggested as one that is still there. Length-preserving,
+        // so the caret still points at what it pointed at.
+        code: Twoslash.unchecked(request.code),
         lang: request.lang,
         position: request.position,
       }),

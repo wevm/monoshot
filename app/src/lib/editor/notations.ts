@@ -52,6 +52,11 @@ const blocks: Readonly<Record<string, Syntax>> = {
   xml: { close: '-->', open: '<!--' },
 }
 
+/** Languages writing a line comment with something other than `//` or `#`. */
+const dashes = new Set(['haskell', 'lua', 'sql'])
+const semicolons = new Set(['clojure', 'lisp'])
+const percents = new Set(['erlang', 'latex', 'matlab'])
+
 /** Languages writing a line comment with `#`. */
 const hashes = new Set([
   'bash',
@@ -83,7 +88,14 @@ const hashes = new Set([
  * highlights is C-like, which is what anything unlisted falls back to.
  */
 export function syntax(language: string): Syntax {
-  return blocks[language] ?? (hashes.has(language) ? { open: '#' } : { open: '//' })
+  const found = blocks[language]
+  if (found) return found
+  if (hashes.has(language)) return { open: '#' }
+  if (dashes.has(language)) return { open: '--' }
+  if (semicolons.has(language)) return { open: ';' }
+  if (percents.has(language)) return { open: '%' }
+  // Anything unlisted is C-like, which most of what the picker offers is.
+  return { open: '//' }
 }
 
 /**
@@ -93,13 +105,17 @@ export function syntax(language: string): Syntax {
  * Every one on the line, not just the last: shiki reads them all, so a line
  * carrying two would otherwise show one of them as code.
  */
-const pattern = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+([\w+-]+)(?::(\d+))?\][ \t]*(?:\*\/|-->)?/g
+const pattern =
+  /(?:\/\/|\/\*|#|<!--|--|;|%)[ \t]*\[!code[ \t]+([\w+-]+)(?::(\d+))?\][ \t]*(?:\*\/|-->)?/g
 
 /**
  * A twoslash tag, which is prose the snippet carries about the line after it.
  * The export draws it as a row of its own; here it stays where it was written.
  */
-const tags = /^[ \t]*(?:\/\/|#|\/\*)[ \t]*@(annotate|error|log|warn):[ \t]?/
+const tags = /^[ \t]*(?:\/\/|#|--|;|%|\/\*|<!--)[ \t]*@(annotate|error|log|warn):[ \t]?/
+
+/** How a block comment ends, which a tag written in one carries. */
+const closing = /[ \t]*(?:\*\/|-->)[ \t]*$/
 
 const kinds: Readonly<Record<string, Kind>> = {
   '++': 'add',
@@ -198,7 +214,14 @@ export function toggle(
   // A mark of this line's own axis, written above it, goes from there.
   for (const notation of carried)
     if (notation.alone && notation.kind !== 'focus') changes.push(away(state, notation))
-  const code = text.text.replace(pattern, '').replace(/[ \t]+$/, '')
+  // Only the marks of this line's own axis come off. A comment this does not
+  // recognize is the writer's, and a focus written here is a different question
+  // from what the line is marked as: neither is this press's to delete.
+  const code = text.text
+    .replaceAll(pattern, (match, name: string) =>
+      kinds[name] && kinds[name] !== 'focus' ? '' : match,
+    )
+    .replace(/[ \t]+$/, '')
   changes.push({ from: text.from, to: text.to, insert: own ? code : `${code} ${comment(kind)}` })
   return changes
 
@@ -240,6 +263,7 @@ function build(state: EditorState): Value {
   const ranges = []
   const concealed = []
   const removed: number[] = []
+  const tagged = new Set<number>()
   for (let number = 1; number <= doc.lines; number++) {
     const line = doc.line(number)
     const tag = tags.exec(line.text)
@@ -247,7 +271,15 @@ function build(state: EditorState): Value {
       // What names the tag is not part of what it says, so it reads as the
       // prose the export draws rather than as a comment.
       concealed.push(Decoration.replace({}).range(line.from, line.from + tag[0].length))
+      // A tag written in a block comment closes it, and the closer is no more
+      // part of the prose than the opener is.
+      const closed = closing.exec(line.text)
+      if (closed)
+        concealed.push(
+          Decoration.replace({}).range(line.from + closed.index, line.from + line.text.length),
+        )
       ranges.push(Decoration.line({ class: `cm-tag-${tag[1]}` }).range(line.from))
+      tagged.add(number)
       continue
     }
     const written = [...line.text.matchAll(pattern)].filter((match) => match[1] && kinds[match[1]])
@@ -287,7 +319,9 @@ function build(state: EditorState): Value {
     const kinds = marked.get(number)
     const { from } = doc.line(number)
     // A line carrying a mark of its own keeps it: the mark is the louder claim.
-    if (focused && !kinds?.size) {
+    // A tag is prose about the code rather than code that fell out of focus,
+    // and the export draws it undimmed whatever the snippet focuses.
+    if (focused && !kinds?.size && !tagged.has(number)) {
       ranges.push(line('blur').range(from))
     }
     if (!kinds) continue

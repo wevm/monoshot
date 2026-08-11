@@ -123,7 +123,9 @@ function build(state: EditorState, pinned: readonly number[]): DecorationSet {
   forEachDiagnostic(state, (diagnostic, from, to) => {
     // The offset the pin was taken at can have moved into the middle of the
     // complaint's span, and a complaint can cover more than one pin.
-    if (!pinned.some((at) => at >= from && at <= to)) return
+    // Exclusive at the end: a pin sitting where one complaint stops belongs to
+    // the one that starts there.
+    if (!pinned.some((at) => at >= from && at < Math.max(to, from + 1))) return
     const line = state.doc.lineAt(from)
     if (drawn.has(line.number)) return
     drawn.add(line.number)

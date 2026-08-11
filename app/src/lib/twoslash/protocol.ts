@@ -114,7 +114,9 @@ export function without(run: Run, ignored: readonly number[]): Run {
     nodes: run.nodes.filter(
       (node) =>
         node.type !== 'error' ||
-        !marks.some((at) => at >= node.start && at <= node.start + node.length),
+        // The end is where the complaint stops rather than its last character,
+        // so a mark sitting there belongs to whatever comes next.
+        !marks.some((at) => at >= node.start && at < node.start + node.length),
     ),
   }
 }

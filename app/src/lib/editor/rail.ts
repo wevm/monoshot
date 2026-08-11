@@ -235,6 +235,9 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
    */
   function carry(event: MouseEvent) {
     if (!painting) return
+    // Let go outside the window, the release never reached the page: the first
+    // move back in with nothing held is where the press ended.
+    if (!(event.buttons & 1)) return drop()
     const height = event.clientY - view.documentTop
     const block = view.lineBlockAtHeight(Math.min(Math.max(height, 0), view.contentHeight - 1))
     spread(view.state.doc.lineAt(block.from).number)
@@ -477,6 +480,10 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // Ahead of the click: the editor would otherwise take focus and drop the
     // caret on whatever the control sits over.
     button.addEventListener('mousedown', (event) => {
+      // A right or middle press opens a menu or pastes; a modified one is the
+      // platform's. Only a plain left press writes to the snippet.
+      if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+        return
       event.preventDefault()
       options.hold?.()
     })
@@ -547,10 +554,10 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // of its own would be taken away along with it.
     if (line > state.doc.lines || !Notations.takesMark(state, line)) return undefined
     const transaction = state.update({
-      changes: Notations.toggle(state, { kind, line, syntax: syntax }),
-      // The caret stays where the writer left it rather than jumping to the mark
-      // they set.
-      selection: state.selection,
+      changes: Notations.toggle(state, { kind, line, syntax }),
+      // No selection of its own: the caret stays where the writer left it, and
+      // one supplied here would be read against the changed document, landing
+      // it wherever the offsets happened to point after the mark was written.
     })
     view.dispatch(transaction)
     // Setting focus writes a line, so what a press is holding onto moves: the
