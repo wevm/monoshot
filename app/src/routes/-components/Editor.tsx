@@ -104,7 +104,10 @@ export function Editor(props: Editor.Props) {
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange.current(update.state.doc.toString())
             const waved = overlooked(update.state)
-            if (waved === overlooked(update.startState)) return
+            const before = overlooked(update.startState)
+            // By what they are rather than by which array they are: mapping
+            // them through an edit makes a new one saying the same thing.
+            if (waved.length === before.length && waved.every((at, i) => at === before[i])) return
             setOverlooking(waved)
             ignored.current(waved)
           }),

@@ -75,8 +75,15 @@ const dismiss = StateEffect.define<number>()
 const field = StateField.define<Value>({
   create: () => ({ decorations: Decoration.none, ignored: [], pinned: [] }),
   update(value, transaction) {
-    let pinned = value.pinned.map((at) => transaction.changes.mapPos(at))
-    let ignored = value.ignored.map((at) => transaction.changes.mapPos(at))
+    // Mapped only when the document moved: a fresh array every transaction
+    // reads as a change to whatever is watching this, and answering that with
+    // another transaction never ends.
+    let pinned = transaction.docChanged
+      ? value.pinned.map((at) => transaction.changes.mapPos(at))
+      : value.pinned
+    let ignored = transaction.docChanged
+      ? value.ignored.map((at) => transaction.changes.mapPos(at))
+      : value.ignored
     for (const effect of transaction.effects) {
       if (effect.is(dismiss))
         ignored = ignored.includes(effect.value)

@@ -83,6 +83,16 @@ export declare namespace rail {
   }
 }
 
+/** A press held down the rows, and what it has done on the way. */
+type Painting = {
+  kind: Notations.Kind
+  /** Where the press started, so the rows it covers are the ones between. */
+  origin: number
+  /** Where a row was changed, so sliding back off it puts the row back. */
+  changed: Set<number>
+  set: boolean
+}
+
 /** What a row on screen offers: marks for a line of code, or one way out. */
 type Row = {
   /** Where a kept complaint was taken from, on a row that draws one. */
@@ -113,7 +123,7 @@ class Rail {
   /** The row the strip is built for, so it is rebuilt only when it moves. */
   private showing: string | undefined
   /** The mark a press is carrying down the rows, while it is held. */
-  private painting: { kind: Notations.Kind; set: boolean } | undefined
+  private painting: Painting | undefined
   /** Whether this has been replaced, which a measure already asked for outlives. */
   private gone = false
 
@@ -277,10 +287,10 @@ class Rail {
     cover.style.setProperty('--rail-gap', `${gap}px`)
     cover.addEventListener('mouseenter', () => {
       this.reach(key)
-      // A press held from another row carries its mark onto this one, so a run
-      // of lines takes it in one gesture.
+      // A press held from another row reaches this one, so a run of lines takes
+      // the mark in one gesture.
       const line = this.rows.get(key)?.line
-      if (this.painting && line !== undefined) this.apply(line, this.painting)
+      if (this.painting && line !== undefined) this.spread(line)
     })
     this.container.appendChild(cover)
     return cover
@@ -309,9 +319,14 @@ class Rail {
         active: row.takes === true && row.carried?.includes(kind) === true,
         hold: () => {
           // What the press decides for the row it started on is what it carries
-          // to every row it is dragged over, rather than flipping each in turn.
-          this.painting = { kind, set: row.carried?.includes(kind) !== true }
-          this.apply(line, this.painting)
+          // to every row it reaches, rather than flipping each in turn.
+          this.painting = {
+            changed: new Set(),
+            kind,
+            origin: this.view.state.doc.line(line).from,
+            set: row.carried?.includes(kind) !== true,
+          }
+          this.spread(line)
         },
         icon: icons[kind],
         label: row.takes === true ? labels[kind] : blank,
@@ -354,13 +369,41 @@ class Rail {
     return button
   }
 
-  /** Sets or clears a mark on a row, leaving one already that way alone. */
-  private apply(line: number, painting: { kind: Notations.Kind; set: boolean }) {
+  /**
+   * Marks the rows the press now covers, and puts back the ones it has slid off:
+   * a drag says which rows, and dragging back over them takes them out again.
+   */
+  private spread(line: number) {
+    const painting = this.painting
+    if (!painting) return
+    const { doc } = this.view.state
+    const origin = doc.lineAt(painting.origin).number
+    const from = Math.min(origin, line)
+    const to = Math.max(origin, line)
+    for (const at of [...painting.changed]) {
+      const number = doc.lineAt(at).number
+      if (number >= from && number <= to) continue
+      painting.changed.delete(at)
+      this.apply(number, painting.kind, !painting.set)
+    }
+    for (let number = from; number <= to; number++) {
+      const at = this.view.state.doc.line(number).from
+      if (painting.changed.has(at)) continue
+      if (this.apply(number, painting.kind, painting.set)) painting.changed.add(at)
+    }
+  }
+
+  /**
+   * Sets or clears a mark on a row, leaving one already that way alone. Says
+   * whether it changed anything, since only what changed is put back.
+   */
+  private apply(line: number, kind: Notations.Kind, set: boolean) {
     const { state } = this.view
-    if (line > state.doc.lines || !Notations.takesMark(state, line)) return
-    const carries = Notations.at(state, line).some((notation) => notation.kind === painting.kind)
-    if (carries === painting.set) return
-    this.toggle(line, painting.kind)
+    if (line > state.doc.lines || !Notations.takesMark(state, line)) return false
+    const carries = Notations.at(state, line).some((notation) => notation.kind === kind)
+    if (carries === set) return false
+    this.toggle(line, kind)
+    return true
   }
 
   private toggle(line: number, kind: Notations.Kind) {
@@ -368,11 +411,20 @@ class Rail {
     // Refused here rather than only on the control: a blank line carrying a mark
     // of its own would be taken away along with it.
     if (line > state.doc.lines || !Notations.takesMark(state, line)) return
-    this.view.dispatch({
+    const transaction = state.update({
       changes: Notations.toggle(state, { kind, line, syntax: this.syntax }),
       // The caret stays where the writer left it rather than jumping to the mark
       // they set.
       selection: state.selection,
     })
+    this.view.dispatch(transaction)
+    // Setting focus writes a line, so what a press is holding onto moves: the
+    // rows it covers are the same rows at their new offsets.
+    const painting = this.painting
+    if (!painting) return
+    painting.origin = transaction.changes.mapPos(painting.origin)
+    const changed = [...painting.changed].map((at) => transaction.changes.mapPos(at))
+    painting.changed.clear()
+    for (const at of changed) painting.changed.add(at)
   }
 }
