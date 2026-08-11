@@ -178,12 +178,7 @@ export namespace Tooltip {
 
 /** The hint for whatever a {@link Tooltip} wraps. */
 function Wrapped() {
-  const [open, setOpen] = useState(false)
-  return (
-    <Base.Root handle={shared} onOpenChange={setOpen}>
-      {({ payload }) => <Pill label={payload ?? ''} open={open} />}
-    </Base.Root>
-  )
+  return <Base.Root handle={shared}>{({ payload }) => <Pill label={payload ?? ''} />}</Base.Root>
 }
 
 /** The hint for whatever {@link Tooltip.point} was last pointed at. */
@@ -210,7 +205,7 @@ function Aimed() {
   }, [shown])
   return (
     <Base.Root open={aimed !== undefined}>
-      <Pill anchor={anchor} label={shown?.label ?? ''} open={aimed !== undefined} />
+      <Pill anchor={anchor} label={shown?.label ?? ''} />
     </Base.Root>
   )
 }
@@ -227,23 +222,44 @@ function Aimed() {
 function Pill(props: {
   anchor?: Element | { getBoundingClientRect: () => DOMRect } | undefined
   label: string
-  open: boolean
 }) {
-  const { anchor, label, open } = props
+  const { anchor, label } = props
   const still = useReducedMotion()
-  // What it was last saying, which is how a move between two controls is told
-  // apart from a pill being placed: a pill being placed has no transform to move
-  // from, so moving it means moving it out of the corner the page begins at.
-  const said = useRef<string | undefined>(undefined)
-  const moving = open && said.current !== undefined && said.current !== label
-  said.current = open ? label : undefined
+  // Held as state rather than a ref, so this runs when the pill is put on the
+  // page: it is mounted by the library a commit or two after being asked for.
+  const [standing, setStanding] = useState<HTMLElement | null>(null)
+  const [placed, setPlaced] = useState(false)
+  useEffect(() => {
+    const node = standing
+    if (!node) return
+    // A pill being placed has no transform to move from, so moving it means
+    // moving it out of the corner the page begins at. Once it stands somewhere,
+    // every placement after that is a move between two controls. Told to move
+    // after it has been placed rather than before, so the placement itself is
+    // not something to animate.
+    const settle = () => {
+      // Base UI holds an unplaced pill at nothing until it knows where to put
+      // it, whichever properties it ends up placing it with.
+      if (node.style.opacity === '0') return
+      watcher.disconnect()
+      setPlaced(true)
+    }
+    const watcher = new MutationObserver(settle)
+    watcher.observe(node, { attributeFilter: ['style'] })
+    settle()
+    return () => {
+      watcher.disconnect()
+      setPlaced(false)
+    }
+  }, [standing])
   return (
     <Base.Portal>
       <Base.Positioner
         anchor={anchor}
+        ref={setStanding}
         side="top"
         sideOffset={6}
-        style={{ transition: still || !moving ? 'none' : travel }}
+        style={{ transition: still || !placed ? 'none' : travel }}
         {...stylex.props(styles.positioner)}
       >
         <Base.Popup {...stylex.props(styles.popup, text.label13)}>
