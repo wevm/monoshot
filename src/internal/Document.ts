@@ -270,7 +270,8 @@ export function marks(palette: Theme.derive.Result) {
   /** A row's bar and wash, from one Theme.marks. */
   const mark = (
     color: string,
-  ) => `  background-color: color-mix(in oklab, ${color} 16%, transparent);
+    strength = 16,
+  ) => `  background-color: color-mix(in oklab, ${color} ${strength}%, transparent);
   box-shadow: inset 3px 0 0 ${color};`
   return `.shiki code {
   /* Rows, so a mark reaches the window rather than the text on the line. */
@@ -293,7 +294,7 @@ export function marks(palette: Theme.derive.Result) {
 ${row}
 }
 .shiki .line.highlighted {
-${mark(palette.window.foreground)}
+${mark(palette.window.foreground, 8)}
 }
 /* Focus says which lines matter, so the rest recede rather than being marked.
    A line carrying a mark of its own keeps it: the mark is the louder claim. */

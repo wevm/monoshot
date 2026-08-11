@@ -1,4 +1,4 @@
-import type { Extension } from '@codemirror/state'
+import type { EditorState, Extension } from '@codemirror/state'
 import { completionStatus } from '@codemirror/autocomplete'
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import type { Rect } from '@codemirror/view'
@@ -65,9 +65,47 @@ export const hover: Extension = [
       // caret line asked for: a hover would only cover what it is about.
       if (complaint ? kept(view.state, complaint.from) : pinned(view, identifier)) return null
       const message = complaint && prose(complaint.message)
-      // A complaint waved off is no longer reported, so the only thing left
-      // saying it was ever there is the offer to hear it again.
-      const waved = complaint ? undefined : overlookedAt(view.state, identifier)
+      const annotation = found.annotation
+      /**
+       * What the surface is showing, so a change behind it is noticed: waving a
+       * complaint off leaves the type in its place, and the popover the press
+       * landed in becomes that rather than closing.
+       */
+      const showing = (state: EditorState) => {
+        const found = objection(state, identifier)
+        return `${found?.message ?? ''}|${overlookedAt(state, identifier) ?? ''}`
+      }
+      /** The surface for whatever the state is now: a complaint, or a type. */
+      const draw = (state: EditorState) => {
+        const found = objection(state, identifier)
+        // A complaint waved off is no longer reported, so the only thing left
+        // saying it was ever there is the offer to hear it again.
+        const waved = found ? undefined : overlookedAt(state, identifier)
+        return Annotation.element(
+          found ? prose(found.message) : annotation,
+          found
+            ? [
+                { label: 'Pin this message', select: () => keep(view, found.from) },
+                {
+                  icon: Annotation.cross,
+                  label: 'Ignore this message',
+                  select: () => overlook(view, found.from),
+                },
+              ]
+            : [
+                { label: 'Pin this type', select: () => toggle(view, identifier) },
+                ...(waved === undefined
+                  ? []
+                  : [
+                      {
+                        icon: Annotation.back,
+                        label: 'Report this message again',
+                        select: () => overlook(view, waved),
+                      },
+                    ]),
+              ],
+        )
+      }
       return {
         // Below the identifier, where pinning will leave it, so hovering
         // previews the pinned block in place rather than somewhere else. It
@@ -76,33 +114,26 @@ export const hover: Extension = [
         // flips it back if there is no room up there.
         above: covered(view, identifier, (message ?? found.annotation).length),
         create: () => {
-          const surface = Annotation.element(
-            message ?? found.annotation,
-            complaint
-              ? [
-                  { label: 'Pin this message', select: () => keep(view, complaint.from) },
-                  {
-                    icon: Annotation.cross,
-                    label: 'Ignore this message',
-                    select: () => overlook(view, complaint.from),
-                  },
-                ]
-              : [
-                  { label: 'Pin this type', select: () => toggle(view, identifier) },
-                  ...(waved === undefined
-                    ? []
-                    : [
-                        {
-                          icon: Annotation.back,
-                          label: 'Report this message again',
-                          select: () => overlook(view, waved),
-                        },
-                      ]),
-                ],
-          )
           let word: Rect | null = null
+          let shape = showing(view.state)
+          let surface = draw(view.state)
+          const root = bridge(surface)
+          /**
+           * Points the notch at the word. Runs after placement, which is the
+           * only point at which where the surface actually landed is known: a
+           * tooltip wider than the room to its right is clamped into the
+           * viewport, and a notch pinned at a fixed inset would then point
+           * somewhere left of its word.
+           */
+          const point = () => {
+            if (!word) return
+            const box = surface.getBoundingClientRect()
+            const limit = Math.max(inset, box.width - inset - notch)
+            const left = Math.min(Math.max(word.left - box.left, inset), limit)
+            surface.style.setProperty('--twoslash-notch', `${left}px`)
+          }
           return {
-            dom: bridge(surface),
+            dom: root,
             // The measure phase is the one place a tooltip may ask CodeMirror
             // where a position sits, so the word is taken here and read back
             // once the surface has been placed.
@@ -123,16 +154,14 @@ export const hover: Extension = [
             // Back by the reach as well, so widening the tooltip leftwards
             // leaves the surface itself where it was.
             offset: { x: -inset - reach, y: 0 },
-            // Runs after placement, which is the only point at which where the
-            // surface actually landed is known: a tooltip wider than the room
-            // to its right is clamped into the viewport, and a notch pinned at
-            // a fixed inset would then point somewhere left of its word.
-            positioned() {
-              if (!word) return
-              const box = surface.getBoundingClientRect()
-              const limit = Math.max(inset, box.width - inset - notch)
-              const left = Math.min(Math.max(word.left - box.left, inset), limit)
-              surface.style.setProperty('--twoslash-notch', `${left}px`)
+            positioned: point,
+            update(update) {
+              const next = showing(update.state)
+              if (next === shape) return
+              shape = next
+              surface = draw(update.state)
+              root.replaceChildren(surface)
+              point()
             },
           }
         },

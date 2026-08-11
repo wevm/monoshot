@@ -362,13 +362,15 @@
 .rail {
   align-items: center;
   background-color: color-mix(in oklab, var(--window-surface) 85%, transparent);
+  /* The controls' own corner plus the padding around them, so the two are
+     concentric. Even padding, since one radius cannot be that on two axes. */
   border-radius: 8px;
   display: flex;
   gap: 2px;
-  height: var(--code-line-height);
+  height: calc(20px + 6px);
   left: var(--rail-left, 0);
   opacity: 0;
-  padding-inline: 3px;
+  padding: 3px;
   /* Hit-testable while invisible: the strips tile the side of the window, so
      running down them keeps a line under the pointer the whole way. */
   pointer-events: auto;
@@ -403,7 +405,7 @@
   align-items: center;
   background: none;
   border: none;
-  /* Concentric with the strip: its corner less the padding around this. */
+  /* The strip's corner less the padding around this. */
   border-radius: 5px;
   color: var(--rail-color, var(--window-foreground));
   cursor: pointer;

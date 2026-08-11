@@ -5,9 +5,9 @@ import { Theme } from 'monoshot'
 import { color, motion } from '../../theme/tokens.stylex.js'
 
 /** A row's bar and wash, from one hue. */
-function mark(color: string) {
+function mark(color: string, strength = 16) {
   return {
-    backgroundColor: `color-mix(in oklab, ${color} 16%, transparent)`,
+    backgroundColor: `color-mix(in oklab, ${color} ${strength}%, transparent)`,
     boxShadow: `inset 3px 0 0 ${color}`,
   }
 }
@@ -45,6 +45,9 @@ export function theme(palette: Theme.derive.Result): Extension {
       },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: palette.window.foreground },
       // Every line reaches past the inset the code is held at, so a marked one
+      // A notation is not a line of the snippet, so the row it sat on closes up
+      // the way the exported frame closes it.
+      '.cm-line.cm-gone': { display: 'none' },
       // reads as a row of the window the way the exported image draws it. All of
       // them and not only the marked ones: the box a line's controls are placed
       // against would otherwise move the moment it took a mark.
@@ -77,7 +80,7 @@ export function theme(palette: Theme.derive.Result): Extension {
       '.cm-line[class*="cm-tag-"] span': { color: 'inherit !important' },
       // Focus says which lines matter, so the rest recede.
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
-      '.cm-line.cm-mark-highlight': mark(palette.window.foreground),
+      '.cm-line.cm-mark-highlight': mark(palette.window.foreground, 8),
       '.cm-line.cm-mark-remove': mark(Theme.marks.remove),
       // The code being replaced reads as code that is gone: its own colors would
       // still be claiming it. Drained rather than recolored, so what the syntax

@@ -89,13 +89,12 @@ describe('notations', () => {
     `)
   })
 
-  test('reads every notation on a line, not just the last', () => {
-    // Shiki reads them all, so a line carrying two would otherwise show one of
-    // them as code.
+  test('marks a line by the last notation on it, as shiki reads it', () => {
+    // Every one is still taken out of view: none of them is code, whether or
+    // not it is the one that marks the line.
     expect(marked('const a = 1 // [!code hl] // [!code ++]\n')).toMatchInlineSnapshot(`
       {
         "1": [
-          "cm-mark-highlight",
           "cm-mark-add",
         ],
       }
@@ -215,11 +214,20 @@ describe('toggle', () => {
     `)
   })
 
-  test('takes off the mark a line already carried', () => {
-    // A line reads as one thing at a time.
+  test('writes focus above the line, which keeps the mark it carries', () => {
+    // Shiki reads one notation per line, so a line carrying both would lose one.
     expect(pressed('const a = 1 // [!code hl]\n', { kind: 'focus', line: 1, syntax: line }))
       .toMatchInlineSnapshot(`
-      "const a = 1 // [!code focus]
+      "// [!code focus]
+      const a = 1 // [!code hl]
+      "
+    `)
+  })
+
+  test('takes off the mark of the axis the line owns', () => {
+    expect(pressed('const a = 1 // [!code hl]\n', { kind: 'add', line: 1, syntax: line }))
+      .toMatchInlineSnapshot(`
+      "const a = 1 // [!code ++]
       "
     `)
   })
