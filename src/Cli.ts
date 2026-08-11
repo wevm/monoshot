@@ -3,11 +3,12 @@ import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { text } from 'node:stream/consumers'
 import { Cli } from 'incur'
-import type { BundledLanguage, BundledTheme } from 'shiki'
+import type { BundledLanguage } from 'shiki'
 import { bundledLanguagesInfo } from 'shiki'
 import * as z from 'zod'
 
 import * as Codec from './Codec.js'
+import type * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
@@ -215,7 +216,7 @@ function frame(
   file: string | undefined,
   code: string,
   options: z.output<typeof settings>,
-): { state: Codec.State & { lang: BundledLanguage; theme: string } } | Failure {
+): { state: Codec.State & { lang: BundledLanguage; theme: Frame.Name } } | Failure {
   const state = Codec.schema.parse({ ...options, code })
   // The codec falls back rather than failing, which a half-edited URL needs
   // and a command does not: a flag that was replaced was never understood.

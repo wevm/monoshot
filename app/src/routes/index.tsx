@@ -470,11 +470,17 @@ function Page() {
     return () => clearTimeout(timer)
   }, [code, language, settings.types])
 
+  // The picture the artwork stands on, by name: what the effect below watches.
+  const picture = backdrop(settings)?.id
+
   useEffect(() => {
-    const named = backdrop(settings)
-    if (!named) return setWallpaper(undefined)
+    // Cleared first: the artwork would otherwise keep the picture it is holding
+    // while the next one loads, which is the last theme's backdrop under this
+    // theme's colors.
+    setWallpaper(undefined)
+    if (!picture) return
     let active = true
-    void Wallpapers.embed(named.id).then(
+    void Wallpapers.embed(picture).then(
       (source) => {
         if (active) setWallpaper({ source })
       },
@@ -484,13 +490,19 @@ function Page() {
     )
     // Behind the picture rather than before it: the shell takes the picture's
     // color once it has been read, and stands on the theme's own until then.
-    void Wallpapers.color(named.id).then((color) => {
-      if (active) setWallpaper((current) => (current ? { ...current, color } : current))
-    })
+    // A picture that will not decode still hangs on the wall.
+    void Wallpapers.color(picture).then(
+      (color) => {
+        if (active) setWallpaper((current) => (current ? { ...current, color } : current))
+      },
+      () => {},
+    )
     return () => {
       active = false
     }
-  }, [settings])
+    // The picture is what this loads; every other setting leaves it alone, and
+    // a drag on the padding would otherwise reload it on every frame.
+  }, [picture])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 

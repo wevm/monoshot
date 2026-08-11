@@ -203,6 +203,20 @@ describe('compose', () => {
     expect(background - Math.max(...tokens)).toBeGreaterThan(0.2)
   })
 
+  test('leaves a palette with no hue without one', () => {
+    const theme = Theme.compose({
+      colors: ['#808080', '#b0b0b0'],
+      displayName: 'Grey',
+      name: 'grey',
+      type: 'dark',
+    })
+    const written = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => rule.settings.foreground as string)
+    // Every channel equal is grey; a chroma floor would have made these red.
+    expect(written.every((color) => /^#(\w\w)\1\1$/.test(color))).toBe(true)
+  })
+
   test('fills the roles a picture is too plain to fill itself', () => {
     const theme = Theme.compose({
       colors: ['oklch(0.5 0.05 250)'],

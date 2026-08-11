@@ -292,7 +292,7 @@ const styles = stylex.create({
     position: 'relative',
     transform: {
       default: 'scale(1)',
-      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.08)' },
+      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.14)' },
       ':active': 'scale(0.97)',
     },
     transitionDuration: motion.fast,
@@ -313,7 +313,7 @@ const styles = stylex.create({
   themeStroke: (paint: string) => ({
     backgroundColor: paint,
     borderRadius: 3,
-    boxShadow: '0 0 0 1px #ffffff',
+    boxShadow: `0 0 0 1px ${color.onArtwork}`,
   }),
   swatch: (background: string) => ({
     backgroundColor: background,
@@ -401,18 +401,17 @@ export function Toolbar(props: Toolbar.Props) {
           ?.focus()
       return
     }
-    const step =
-      event.key === 'ArrowDown' || event.key === 'ArrowRight'
-        ? 1
-        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
-          ? -1
-          : 0
+    const along = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+    const down = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     const options = [...(surface.current?.querySelectorAll<HTMLElement>('[data-option]') ?? [])]
     const index = options.indexOf(document.activeElement as HTMLElement)
-    if (!step || index < 0) return
+    if ((!along && !down) || index < 0) return
     event.preventDefault()
     event.stopPropagation()
-    options[(index + step + options.length) % options.length]?.focus()
+    const landed = down
+      ? below(options, index, down)
+      : (index + along + options.length) % options.length
+    options[landed]?.focus()
   }
 
   useEffect(() => {
@@ -487,9 +486,7 @@ export function Toolbar(props: Toolbar.Props) {
                                   <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
                                 ))}
                               </span>
-                              {entry.name === theme && (
-                                <Ring row={section.title} travel={themeTravel} />
-                              )}
+                              {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
                             </button>
                           )
                         })}
@@ -553,7 +550,7 @@ export function Toolbar(props: Toolbar.Props) {
                             )}
                           >
                             <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
-                            {background === value && <Ring row="pictures" travel={travel} />}
+                            {background === value && <Ring row="backgrounds" travel={travel} />}
                           </button>
                         )
                       })}
@@ -570,7 +567,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                     >
                       <span {...stylex.props(styles.srOnly)}>Default</span>
-                      {background === 'default' && <Ring row="colors" travel={travel} />}
+                      {background === 'default' && <Ring row="backgrounds" travel={travel} />}
                     </button>
                     <button
                       aria-pressed={background === 'none'}
@@ -581,7 +578,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchNone)}
                     >
                       <span {...stylex.props(styles.srOnly)}>None</span>
-                      {background === 'none' && <Ring row="colors" travel={travel} />}
+                      {background === 'none' && <Ring row="backgrounds" travel={travel} />}
                     </button>
                     <div {...stylex.props(styles.divider)} />
                     {backgrounds.map((value) => (
@@ -595,7 +592,7 @@ export function Toolbar(props: Toolbar.Props) {
                         {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
                       >
                         <span {...stylex.props(styles.srOnly)}>{value}</span>
-                        {background === value && <Ring row="colors" travel={travel} />}
+                        {background === value && <Ring row="backgrounds" travel={travel} />}
                       </button>
                     ))}
                     <div {...stylex.props(styles.divider)} />
@@ -610,7 +607,7 @@ export function Toolbar(props: Toolbar.Props) {
                         value={background.startsWith('#') ? background : '#3b82d6'}
                         {...stylex.props(styles.colorInput)}
                       />
-                      {custom && <Ring row="colors" travel={travel} />}
+                      {custom && <Ring row="backgrounds" travel={travel} />}
                     </label>
                   </div>
                 </div>
@@ -683,8 +680,8 @@ export declare namespace Toolbar {
     background: string
     /** A pinned language, or `auto` to read it from the code. */
     language: BundledLanguage | 'auto'
-    /** A bundled theme's name, or one of the themes composed here. */
-    theme: string
+    /** A bundled theme's name, or one of the themes composed in the library. */
+    theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
     titleBar: boolean
     /** Whether the snippet is type checked, which only a TypeScript one can be. */
@@ -827,6 +824,32 @@ function Ring(props: { row: string; travel: number }) {
 
 /** One swatch plus its gap: the distance the ring covers per position. */
 const swatchStride = 29
+
+/**
+ * The option a row up or down from this one, by where the two are drawn rather
+ * than by how far apart they are in the list: the themes wrap into a grid, and
+ * the one after this one is beside it.
+ *
+ * Focusing an option picks it, so a key that reads as down has to land below.
+ */
+function below(options: readonly HTMLElement[], index: number, direction: number): number {
+  const from = options[index]?.getBoundingClientRect()
+  if (!from) return index
+  const rows = options
+    .map((option, at) => ({ at, box: option.getBoundingClientRect() }))
+    // Anything sharing this one's row is beside it, whichever way it is drawn.
+    .filter(({ box }) => (direction > 0 ? box.top > from.top + 1 : box.top < from.top - 1))
+  if (!rows.length) return (index + direction + options.length) % options.length
+  const next =
+    direction > 0
+      ? Math.min(...rows.map((row) => row.box.top))
+      : Math.max(...rows.map((row) => row.box.top))
+  const row = rows.filter(({ box }) => Math.abs(box.top - next) < 1)
+  // Nearest along the row, so the column is kept where the grid allows it.
+  return row.reduce((nearest, entry) =>
+    Math.abs(entry.box.left - from.left) < Math.abs(nearest.box.left - from.left) ? entry : nearest,
+  ).at
+}
 
 /** One theme box plus its gap: the distance the ring covers per position. */
 const themeStride = 58

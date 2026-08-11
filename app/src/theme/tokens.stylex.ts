@@ -85,6 +85,9 @@ export const color = stylex.defineVars({
   // Floating tools over the artwork read as their own dark surface in both
   // schemes, the way Apple's markup bar does, so they never invert with the app.
   chrome: '#1c1c1e',
+  // Holds a swatch off whatever picture is behind it, which has no scheme of
+  // its own: the same in both, and a token so the policy stays in one place.
+  onArtwork: 'light-dark(#ffffff, #ffffff)',
   chromeTranslucent: '#1c1c1e99',
   onChrome: '#f5f5f7',
   onChromeSecondary: '#98989d',

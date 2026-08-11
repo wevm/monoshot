@@ -173,7 +173,9 @@ export declare namespace derive {
  * // ^?
  * ```
  */
-export function compose(options: compose.Options): ThemeRegistrationRaw {
+export function compose<const name extends string>(
+  options: compose.Options<name>,
+): ThemeRegistrationRaw & { name: name } {
   const { colors, displayName, name, type } = options
   const parsed = colors.map((color) => toOklch(color)).filter((color) => color !== undefined)
   const dominant = parsed[0]
@@ -203,7 +205,11 @@ export function compose(options: compose.Options): ThemeRegistrationRaw {
   /** A picture's color as text on this theme's background. */
   const token = (color: Oklch, weight = 1) =>
     hex({
-      c: clamp(color.c * 1.4, type === 'dark' ? 0.06 : 0.05, type === 'dark' ? 0.17 : 0.15),
+      // A color with no hue stays without one: a floor on the chroma would
+      // turn a grey picture's tokens red, which is the hue zero stands for.
+      c: Number.isFinite(color.h)
+        ? clamp(color.c * 1.4, type === 'dark' ? 0.06 : 0.05, type === 'dark' ? 0.17 : 0.15)
+        : 0,
       h: color.h,
       l: type === 'dark' ? clamp(0.78 * weight, 0.5, 0.92) : clamp(0.46 / weight, 0.24, 0.6),
     })
@@ -223,10 +229,12 @@ export function compose(options: compose.Options): ThemeRegistrationRaw {
   })
   return {
     bg: background,
+    // Carried as the literal it was given, so a renderer built with this theme
+    // accepts its name where it accepts a bundled one.
+    name,
     colors: { 'editor.background': background, 'editor.foreground': foreground },
     displayName,
     fg: foreground,
-    name,
     // One list, under the name the format gives it: `tokenColors` is the same
     // field by another name, and a theme carrying both has one of them ignored.
     // The unscoped rule leads, as what every token falls back to.
@@ -279,13 +287,13 @@ export function compose(options: compose.Options): ThemeRegistrationRaw {
 }
 
 export declare namespace compose {
-  type Options = {
+  type Options<name extends string = string> = {
     /** The colors the theme is made of, the most telling of them first. */
     colors: readonly string[]
     /** Human-readable name, for a picker. */
     displayName: string
     /** Name the theme is loaded and rendered by. */
-    name: string
+    name: name
     /** Whether the theme reads as a light or a dark one. */
     type: 'dark' | 'light'
   }
@@ -299,10 +307,13 @@ export type Info = {
    * Identifier accepted by `Frame.render`: one shiki bundles, or one of the
    * themes {@link composed} here.
    */
-  readonly name: BundledTheme | (string & {})
+  readonly name: BundledTheme | Composed
   /** Whether the theme is a light or dark scheme. */
   readonly type: 'light' | 'dark'
 }
+
+/** The name of a theme composed here, as opposed to one shiki bundles. */
+export type Composed = (typeof palettes)[number]['id']
 
 /**
  * The themes composed here rather than bundled by shiki, made from the colors
@@ -358,13 +369,13 @@ const infos: readonly Info[] = Object.freeze([
   ...palettes.map((palette) =>
     Object.freeze({
       displayName: palette.displayName,
-      name: palette.id,
+      name: palette.id as Composed,
       type: palette.type,
     }),
   ),
 ])
 
-const byName = new Map(infos.map((entry) => [entry.name, entry]))
+const byName = new Map<string, Info>(infos.map((entry) => [entry.name, entry]))
 
 const fallbackBg = { dark: '#101010', light: '#ffffff' }
 const fallbackFg = { dark: '#ededed', light: '#171717' }
