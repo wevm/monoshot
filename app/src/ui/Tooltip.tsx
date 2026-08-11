@@ -39,15 +39,14 @@ const styles = stylex.create({
  * library writes `transition: none` there for the frame it mounts, which only a
  * style of its own outranks.
  */
-const travel = `transform ${motion.fast} ${motion.out}`
+const travel = `transform ${motion.fast} ${motion.inOut}`
 
 /**
- * The same, over no time worth seeing, for the frame the pill is first placed in.
+ * The same, over no time worth seeing, until the pill has been placed.
  *
- * A pill opening has nowhere to travel from: it is put where it belongs, and
- * without this it would arrive there from the corner of the page. Written rather
- * than left out, since the library reads the transition to decide how to hold the
- * pill, and holding it one way to open and another to travel is a jump.
+ * A pill opening has nowhere to travel from, and is placed by a transform it did
+ * not have a moment ago: travelling to its first control means travelling from
+ * the corner the page begins at.
  */
 const placing = `transform 1ms linear`
 
@@ -191,19 +190,26 @@ function Pill(props: {
 }) {
   const { anchor, label, open } = props
   const still = useReducedMotion()
+  const standing = useRef<HTMLDivElement | null>(null)
   const [placed, setPlaced] = useState(false)
   useEffect(() => {
-    if (!open) return
-    let corrected = 0
-    // Two frames after opening: one places the pill, and the next corrects that
-    // placement once the pill has been measured. Travelling from here is
-    // travelling between controls rather than into the first one.
-    const frame = requestAnimationFrame(() => {
-      corrected = requestAnimationFrame(() => setPlaced(true))
-    })
+    const node = standing.current
+    if (!open || !node) return
+    let frame = 0
+    // Once it has somewhere to be rather than a frame or two after opening: the
+    // placement is worked out off the main thread and lands whenever it lands,
+    // and travelling before it does is travelling from the corner it starts at.
+    const settle = () => {
+      if (!node.style.transform) return
+      watcher.disconnect()
+      frame = requestAnimationFrame(() => setPlaced(true))
+    }
+    const watcher = new MutationObserver(settle)
+    watcher.observe(node, { attributeFilter: ['style'] })
+    settle()
     return () => {
+      watcher.disconnect()
       cancelAnimationFrame(frame)
-      cancelAnimationFrame(corrected)
       setPlaced(false)
     }
   }, [open])
@@ -211,6 +217,7 @@ function Pill(props: {
     <Base.Portal>
       <Base.Positioner
         anchor={anchor}
+        ref={standing}
         side="top"
         sideOffset={6}
         // Nothing while it goes: closing takes the placement away with it, and a
