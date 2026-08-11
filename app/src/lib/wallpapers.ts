@@ -50,6 +50,11 @@ export function at(background: string): Wallpaper | undefined {
   return list.find((wallpaper) => wallpaper.id === id)
 }
 
+/** Whether a background names a wallpaper, whether or not one answers to it. */
+export function names(background: string): boolean {
+  return background.startsWith(prefix)
+}
+
 /** The wallpaper of that id, or nothing when it names none. */
 export function byId(id: string): Wallpaper | undefined {
   return list.find((wallpaper) => wallpaper.id === id)

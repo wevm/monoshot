@@ -254,7 +254,9 @@ export function Frame(props: Frame.Props) {
             // The theme's own backdrop, which also stands in while a picture
             // loads: naming one never leaves the artwork on nothing. Out of the
             // way once the picture is here, since both paint the same property.
-            !wallpaper && (background === 'default' || Wallpapers.at(background))
+            // Every picture, not only the ones there are: a fragment naming one
+            // that has since gone would otherwise leave the canvas transparent.
+            !wallpaper && (background === 'default' || Wallpapers.names(background))
               ? styles.backdrop
               : null,
             background.startsWith('#') ? styles.fill(background) : null,
