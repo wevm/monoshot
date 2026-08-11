@@ -2,6 +2,7 @@ import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
 import { useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
+import { useState } from 'react'
 
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
@@ -14,9 +15,15 @@ import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 const shared = Base.createHandle<string>()
 
 const styles = stylex.create({
-  // Over whatever it is about, including the surfaces that float: a hint about a
-  // control inside a popover is drawn on top of the popover.
-  positioner: { zIndex: 20 },
+  positioner: {
+    // The size the pill was measured to be, so what gets centred over a control
+    // is the pill rather than the point it grows from.
+    height: 'var(--positioner-height)',
+    width: 'var(--positioner-width)',
+    // Over whatever it is about, including the surfaces that float: a hint about
+    // a control inside a popover is drawn on top of the popover.
+    zIndex: 20,
+  },
   popup: {
     backgroundColor: color.background,
     borderRadius: radius.control,
@@ -38,19 +45,30 @@ const styles = stylex.create({
   },
 })
 
+/** What moving from one control to another changes: where the pill is, and how
+ * wide it has to be to say what it says. */
+const moves = ['bottom', 'height', 'left', 'right', 'top', 'width']
+
 /**
  * How the pill travels from the control it was over to the one it is over now.
  *
- * The placement itself, since that is what Base UI writes, and inline because it
- * writes `transition: none` there for the frame the pill mounts. Only a style of
- * its own outranks that, and the library reads the transition to decide which
- * edge to hold the pill by: without one it anchors the first placement by `top`
- * and every later one by `bottom`, leaving the first move with nothing to
- * interpolate.
+ * The placement itself, since that is what Base UI writes rather than a
+ * transform, and inline because it writes `transition: none` there for the frame
+ * the pill mounts, which only a style of its own outranks.
  */
-const travel = ['bottom', 'left', 'right', 'top']
-  .map((side) => `${side} ${motion.fast} ${motion.out}`)
-  .join(', ')
+const travel = moves.map((property) => `${property} ${motion.fast} ${motion.out}`).join(', ')
+
+/**
+ * The same, over no time worth seeing, for the frame the pill is first placed in:
+ * a pill opening has nowhere to travel from, and would otherwise arrive from
+ * wherever the page begins.
+ *
+ * Written rather than left out, because the library reads the transition to
+ * decide which edge to hold the pill by: with none it holds the first placement
+ * by `top` and every later one by `bottom`, leaving the first move between two
+ * values that cannot be interpolated.
+ */
+const placing = moves.map((property) => `${property} 1ms linear`).join(', ')
 
 /**
  * Hover and focus tooltip around a single focusable child. Reaches the one
@@ -71,14 +89,27 @@ export namespace Tooltip {
    */
   export function Surface() {
     const still = useReducedMotion()
+    const [placed, setPlaced] = useState(false)
     return (
-      <Base.Root handle={shared}>
+      <Base.Root
+        handle={shared}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPlaced(false)
+            return
+          }
+          // Two frames after opening: one places the pill, and the next corrects
+          // that placement once the pill has been measured. Travelling from here
+          // is travelling between controls rather than into the first one.
+          requestAnimationFrame(() => requestAnimationFrame(() => setPlaced(true)))
+        }}
+      >
         {({ payload }) => (
           <Base.Portal>
             <Base.Positioner
               side="top"
               sideOffset={6}
-              style={{ transition: still ? 'none' : travel }}
+              style={{ transition: still ? 'none' : placed ? travel : placing }}
               {...stylex.props(styles.positioner)}
             >
               <Base.Popup {...stylex.props(styles.popup, text.label13)}>
