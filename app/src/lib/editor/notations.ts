@@ -248,7 +248,7 @@ function build(state: EditorState): Value {
     })
     concealed.push(...conceal(state, { alone, line, written }))
     // A row emptied rather than replaced still takes a line's height.
-    if (alone && line.from === 0) ranges.push(gone.range(line.from))
+    if (alone) ranges.push(gone.range(line.from))
   }
   const focused = [...marked].some(([, kinds]) => kinds.has('focus'))
   for (let number = 1; number <= doc.lines; number++) {
@@ -284,11 +284,10 @@ function conceal(
   },
 ) {
   const { alone, line, written } = options
-  // The break before it rather than the one after: a range reaching into the
-  // next line swallows the mark that line was given. At the document's start
-  // there is no break to take, so the row is emptied and closed by its own rule.
-  if (alone && line.from > 0)
-    return [Decoration.replace({ block: true }).range(line.from - 1, line.to)]
+  // Emptied and closed by a rule of its own rather than replaced across a line
+  // break: the break before it belongs to the line above, which is left with no
+  // row of its own when it holds nothing, and the break after belongs to the
+  // line this marks, which loses its mark along with it.
   if (alone) return [Decoration.replace({}).range(line.from, line.to)]
   // The gap each comment sat behind goes too, so the code does not end in one.
   return written.map((match) => {
