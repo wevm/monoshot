@@ -301,8 +301,8 @@ function share(parameters: { code: string; settings: Settings; title: string }) 
 }
 
 // One renderer for the page: it caches the themes and languages already loaded.
-const renderer = Core.create({ langs: ['tsx'], themes: Themes.composed })
-const themes = Themes.list()
+const renderer = Core.create({ langs: ['tsx'] })
+const themes = Theme.list()
 const names = themes.map((entry) => entry.name)
 
 /**

@@ -1,6 +1,9 @@
 /**
- * The colors each wallpaper is made of, read from the pictures themselves by
- * `scripts/wallpaper-palettes.ts`. Generated: edit the script, not this.
+ * The colors each of the default macOS wallpapers is made of, read from the
+ * pictures by `scripts/wallpaper-palettes.ts`. Colors read off a picture, not
+ * the picture: what a theme is composed from is a handful of numbers.
+ *
+ * Generated: edit the script, not this.
  */
 export const palettes = [
   {
@@ -8,6 +11,7 @@ export const palettes = [
       'oklch(0.2880062918590588 0.0419659763111926 273.16136901713605)',
       'oklch(0.2799845160592323 0.03817349087152278 283.77192138175207)',
     ],
+    displayName: 'Golden Gate Dark',
     id: 'golden-gate-dark',
     type: 'dark',
   },
@@ -20,6 +24,7 @@ export const palettes = [
       'oklch(0.5807603001016909 0.029494888019387343 250.55812524545442)',
       'oklch(0.5732649879009346 0.03518429205599788 270.92723610394273)',
     ],
+    displayName: 'Golden Gate Light',
     id: 'golden-gate-light',
     type: 'light',
   },
@@ -31,6 +36,7 @@ export const palettes = [
       'oklch(0.7772240439766291 0.02410950890969021 103.97833181245409)',
       'oklch(0.6810222284233103 0.02222101053785051 217.40338041125344)',
     ],
+    displayName: 'Mountain Lion',
     id: 'mountain-lion',
     type: 'dark',
   },
@@ -40,6 +46,7 @@ export const palettes = [
       'oklch(0.34872244877603087 0.10414197374874141 260.9709522898253)',
       'oklch(0.7015041422953651 0.08888323442201412 237.60168785593214)',
     ],
+    displayName: 'Panther',
     id: 'panther',
     type: 'dark',
   },
@@ -52,6 +59,7 @@ export const palettes = [
       'oklch(0.7063357786729695 0.09107588107169537 192.32901463947402)',
       'oklch(0.6203201379228047 0.1235313883191967 230.78085722987737)',
     ],
+    displayName: 'Sequoia Dark',
     id: 'sequoia-dark',
     type: 'dark',
   },
@@ -64,6 +72,7 @@ export const palettes = [
       'oklch(0.6989454057845317 0.10776962778480079 32.30398472467391)',
       'oklch(0.6243797615958082 0.08892185747732628 309.59849697037527)',
     ],
+    displayName: 'Sequoia Light',
     id: 'sequoia-light',
     type: 'light',
   },
@@ -76,6 +85,7 @@ export const palettes = [
       'oklch(0.17996576942088763 0.05939859413081994 275.93732588001353)',
       'oklch(0.06913816316517891 0.02396302627549675 256.36513734834097)',
     ],
+    displayName: 'Snow Leopard',
     id: 'snow-leopard',
     type: 'dark',
   },
@@ -84,6 +94,7 @@ export const palettes = [
       'oklch(0.38570905269632516 0.15670106907447728 268.42242940208126)',
       'oklch(0.4961189046807783 0.18490163421174613 282.7231167653288)',
     ],
+    displayName: 'Tahoe Dark',
     id: 'tahoe-dark',
     type: 'dark',
   },
@@ -96,11 +107,13 @@ export const palettes = [
       'oklch(0.8675772970991553 0.03865186212708513 98.90963324788106)',
       'oklch(0.7845044156890002 0.041340502206629166 191.4549991908109)',
     ],
+    displayName: 'Tahoe Light',
     id: 'tahoe-light',
     type: 'light',
   },
 ] as const satisfies readonly {
   colors: readonly string[]
+  displayName: string
   id: string
   type: 'dark' | 'light'
 }[]

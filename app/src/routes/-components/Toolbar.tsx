@@ -12,7 +12,7 @@ import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
-const themes = Themes.list()
+const themes = Theme.list()
 
 /** The key that reaches each control from anywhere on the page. */
 const shortcuts = {
@@ -346,7 +346,7 @@ export function Toolbar(props: Toolbar.Props) {
   // Measured as the colors below are: how far the ring has to go, so its
   // overshoot stays the same few pixels wherever in the grid it lands.
   const themeTravel = Math.abs(themeIndex - previousThemeIndex) * themeStride
-  const selected = Themes.info(theme)
+  const selected = Theme.info(theme)
   const sections = [
     { entries: themes.filter((entry) => Themes.curated(entry.name)), title: 'Curated' },
     { entries: themes.filter((entry) => !Themes.curated(entry.name)), title: 'Other' },

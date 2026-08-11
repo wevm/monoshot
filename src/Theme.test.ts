@@ -6,9 +6,23 @@ import * as Theme from './Theme.js'
 
 const frame = Frame.create()
 
+/** The themes this package makes rather than takes from shiki. */
+const composed = [
+  'golden-gate-dark',
+  'golden-gate-light',
+  'mountain-lion',
+  'panther',
+  'sequoia-dark',
+  'sequoia-light',
+  'snow-leopard',
+  'tahoe-dark',
+  'tahoe-light',
+]
+
 describe('list', () => {
-  test('offers a chosen few of what shiki bundles', () => {
-    // Every one is a theme shiki has, and the picker walks them in this order.
+  test('offers a chosen few of what shiki bundles, then the ones made here', () => {
+    // The picker walks them in this order: what shiki brought, then what was
+    // composed from the wallpapers.
     expect(Theme.list().map((entry) => entry.name)).toMatchInlineSnapshot(`
       [
         "aurora-x",
@@ -26,11 +40,22 @@ describe('list', () => {
         "tokyo-night",
         "vitesse-dark",
         "vitesse-light",
+        "golden-gate-dark",
+        "golden-gate-light",
+        "mountain-lion",
+        "panther",
+        "sequoia-dark",
+        "sequoia-light",
+        "snow-leopard",
+        "tahoe-dark",
+        "tahoe-light",
       ]
     `)
-    expect(Theme.list().every((entry) => Object.keys(bundledThemes).includes(entry.name))).toBe(
-      true,
-    )
+    const bundled = Theme.list().filter((entry) => !composed.includes(entry.name))
+    expect(bundled.every((entry) => Object.keys(bundledThemes).includes(entry.name))).toBe(true)
+    // Everything else is one this package composes, and the renderer loads it
+    // by the same name a picker offers.
+    expect(Theme.composed.map((theme) => theme.name)).toEqual(composed)
   })
 
   test('groups into light and dark', () => {

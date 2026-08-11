@@ -188,7 +188,7 @@ export function create() {
       },
     })
     .command('themes', {
-      description: 'List the bundled themes.',
+      description: 'List the themes on offer.',
       mcp: { annotations: { readOnlyHint: true } },
       output: z.array(
         z.object({
@@ -215,7 +215,7 @@ function frame(
   file: string | undefined,
   code: string,
   options: z.output<typeof settings>,
-): { state: Codec.State & { lang: BundledLanguage; theme: BundledTheme } } | Failure {
+): { state: Codec.State & { lang: BundledLanguage; theme: string } } | Failure {
   const state = Codec.schema.parse({ ...options, code })
   // The codec falls back rather than failing, which a half-edited URL needs
   // and a command does not: a flag that was replaced was never understood.
@@ -232,7 +232,7 @@ function frame(
   if (theme === undefined)
     return {
       code: 'unknown_theme',
-      message: `\`${state.theme}\` is not a bundled theme. \`monoshot themes\` lists every name.`,
+      message: `\`${state.theme}\` is not a theme on offer. \`monoshot themes\` lists every name.`,
     }
   return { state: { ...state, lang, theme: theme.name } }
 }

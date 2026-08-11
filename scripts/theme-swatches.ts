@@ -32,8 +32,10 @@ const toOklch = converter('oklch')
 const swatches = Object.fromEntries(
   await Promise.all(
     Theme.list().map(async (info) => {
-      const load = bundledThemes[info.name]
-      const theme = (await load()).default as ThemeRegistration
+      // A composed theme is already a theme; a bundled one is a name to load.
+      const made = Theme.composed.find((one) => one.name === info.name)
+      const load = bundledThemes[info.name as keyof typeof bundledThemes]
+      const theme = (made ?? ((await load()).default as ThemeRegistration)) as ThemeRegistration
       // The backdrop the frame would draw for it, so a swatch is the artwork in
       // miniature rather than a color chart.
       const palette = Theme.derive(theme as ThemeRegistrationResolved)

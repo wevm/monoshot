@@ -24,7 +24,7 @@ const wanted = 6
 const grid = { height: 60, width: 96 }
 
 const directory = path.join(import.meta.dirname, '..', 'app', 'public', 'wallpapers')
-const output = path.join(import.meta.dirname, '..', 'app', 'src', 'lib', 'palettes.ts')
+const output = path.join(import.meta.dirname, '..', 'src', 'internal', 'palettes.ts')
 const toOklch = converter('oklch')
 
 const palettes = fs
@@ -37,17 +37,26 @@ const palettes = fs
     // A picture that comes as a pair says which of the two it is; one that
     // stands alone is read for how dark it is.
     const paired = id.endsWith('-light') ? 'light' : id.endsWith('-dark') ? 'dark' : undefined
-    return { colors: strongest(pixels), id, type: paired ?? (dark(pixels) ? 'dark' : 'light') }
+    return {
+      colors: strongest(pixels),
+      displayName: titled(id),
+      id,
+      type: paired ?? (dark(pixels) ? 'dark' : 'light'),
+    }
   })
 
 fs.writeFileSync(
   output,
   `/**
- * The colors each wallpaper is made of, read from the pictures themselves by
- * \`scripts/wallpaper-palettes.ts\`. Generated: edit the script, not this.
+ * The colors each of the default macOS wallpapers is made of, read from the
+ * pictures by \`scripts/wallpaper-palettes.ts\`. Colors read off a picture, not
+ * the picture: what a theme is composed from is a handful of numbers.
+ *
+ * Generated: edit the script, not this.
  */
 export const palettes = ${JSON.stringify(palettes, null, 2)} as const satisfies readonly {
   colors: readonly string[]
+  displayName: string
   id: string
   type: 'dark' | 'light'
 }[]
@@ -55,6 +64,14 @@ export const palettes = ${JSON.stringify(palettes, null, 2)} as const satisfies 
 )
 
 console.log(`Wrote ${palettes.length} palettes to ${path.relative(process.cwd(), output)}`)
+
+/** What a wallpaper's theme is called, which is what the release is called. */
+function titled(id: string): string {
+  return id
+    .split('-')
+    .map((part) => (part === 'gate' ? 'Gate' : part[0]?.toUpperCase() + part.slice(1)))
+    .join(' ')
+}
 
 /** A picture's pixels, decoded to raw bytes through ImageMagick. */
 function read(file: string): Uint8Array {

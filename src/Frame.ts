@@ -118,12 +118,13 @@ export function create(options: create.Options = {}): create.ReturnType {
     })
     const instance = await highlighter
     await Promise.all([
-      // A theme composed for this renderer is already loaded under its own
-      // name; anything else has to be one shiki bundles, which is what the
-      // load rejects on when it is not.
+      // Loaded already, or composed rather than bundled, or one shiki has:
+      // whatever is none of those is what the load rejects on.
       instance.getLoadedThemes().includes(theme)
         ? undefined
-        : instance.loadTheme(theme as BundledTheme),
+        : instance.loadTheme(
+            Theme.composed.find((one) => one.name === theme) ?? (theme as BundledTheme),
+          ),
       instance.getLoadedLanguages().includes(lang) ? undefined : instance.loadLanguage(lang),
     ])
     return instance

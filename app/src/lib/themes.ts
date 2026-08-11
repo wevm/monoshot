@@ -1,37 +1,7 @@
 import { Theme } from 'monoshot'
 
-import { palettes } from './palettes.js'
 import { swatches } from './swatches.js'
 import * as Wallpapers from './wallpapers.js'
-
-/**
- * A theme on offer, which is one shiki bundles or one composed here: the name
- * is a plain string for that reason, where the library's is a bundled one.
- */
-export type Info = { displayName: string; name: string; type: 'dark' | 'light' }
-
-/**
- * The themes on offer: the ones shiki bundles, and one made from the colors of
- * each wallpaper, so a snippet can be dressed in the picture behind it.
- */
-export function list(): readonly Info[] {
-  return offered
-}
-
-/** Metadata for one theme, or nothing when it is not one offered. */
-export function info(name: string): Info | undefined {
-  return byName.get(name)
-}
-
-/** The themes the renderer is built with, which the bundled ones are not. */
-export const composed = palettes.map((palette) =>
-  Theme.compose({
-    colors: palette.colors,
-    displayName: named(palette.id),
-    name: palette.id,
-    type: palette.type,
-  }),
-)
 
 /** What a theme is shown as: the backdrop it draws, and the colors on it. */
 export type Swatch = {
@@ -45,47 +15,18 @@ export function swatch(name: string): Swatch {
   return drawn.get(name) ?? { backdrop: '#101010', colors: ['#888888', '#aaaaaa', '#cccccc'] }
 }
 
-/** Whether a theme was made here from a picture rather than bundled by shiki. */
+/** Whether a theme was made from a picture rather than bundled by shiki. */
 export function curated(name: string): boolean {
-  return palettes.some((palette) => palette.id === name)
+  return Wallpapers.byId(name) !== undefined
 }
 
-const drawn = new Map<string, Swatch>([
-  ...Object.entries(swatches),
-  // A composed theme is known by what it paints rather than by what it was made
-  // from: the picture's colors are held to a lightness before they become text,
-  // and the swatch shows the text.
-  ...composed.map((theme) => {
-    const painted = (theme.settings ?? [])
-      .filter((rule) => rule.scope)
-      .map((rule) => rule.settings.foreground)
-      .filter((color) => color !== undefined)
-    // Past the comment, which every theme paints quietest and none is known by.
-    // The picture it stands on, which is the backdrop it is drawn against.
-    return [
-      theme.name as string,
-      {
-        backdrop: `url("${Wallpapers.thumbnail(theme.name as string)}")`,
-        colors: painted.slice(1, 4),
-      },
-    ] as const
-  }),
-])
-
-const offered: readonly Info[] = [
-  ...Theme.list(),
-  // Composed rather than bundled, which only the renderer needs to know: this
-  // list is what a picker walks, and it walks both the same way.
-  ...palettes.map((palette) => ({
-    displayName: named(palette.id),
-    name: palette.id,
-    type: palette.type,
-  })),
-]
-
-const byName = new Map(offered.map((entry) => [entry.name, entry]))
-
-/** What a picture's theme is called, which is what the picture is called. */
-function named(id: string) {
-  return Wallpapers.list.find((wallpaper) => wallpaper.id === id)?.name ?? id
-}
+const drawn = new Map<string, Swatch>(
+  Object.entries(swatches).map(([name, shown]) => [
+    name,
+    {
+      // A theme made from a picture is shown standing on it, as it renders.
+      backdrop: curated(name) ? `url("${Wallpapers.thumbnail(name)}")` : shown.backdrop,
+      colors: shown.colors,
+    },
+  ]),
+)

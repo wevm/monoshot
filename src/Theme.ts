@@ -1,5 +1,11 @@
 import { clampChroma, converter, formatCss, formatHex, parse } from 'culori'
 import { bundledThemesInfo } from 'shiki'
+
+import { palettes } from './internal/palettes.js'
+
+// Declared before anything module scope reads it: the composed themes are
+// built as this module loads, and they are read through here.
+const oklch = converter('oklch')
 import type { BundledTheme, ThemeRegistrationRaw, ThemeRegistrationResolved } from 'shiki'
 
 /**
@@ -285,15 +291,34 @@ export declare namespace compose {
   }
 }
 
-/** Theme metadata as published by shiki. Frozen: callers share one instance. */
+/** Theme metadata. Frozen: callers share one instance. */
 export type Info = {
   /** Human-readable name for a picker. */
   readonly displayName: string
-  /** Identifier accepted by `Frame.render`. */
-  readonly name: BundledTheme
+  /**
+   * Identifier accepted by `Frame.render`: one shiki bundles, or one of the
+   * themes {@link composed} here.
+   */
+  readonly name: BundledTheme | (string & {})
   /** Whether the theme is a light or dark scheme. */
   readonly type: 'light' | 'dark'
 }
+
+/**
+ * The themes composed here rather than bundled by shiki, made from the colors
+ * of the default macOS wallpapers.
+ *
+ * A renderer loads one of these by name the way it loads a bundled theme; this
+ * is what it loads.
+ */
+export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) =>
+  compose({
+    colors: palette.colors,
+    displayName: palette.displayName,
+    name: palette.id,
+    type: palette.type,
+  }),
+)
 
 // `bundledThemesInfo` types `id` as a plain string; the set-equality test in
 // `Theme.test.ts` is what keeps this narrowing honest.
@@ -318,8 +343,8 @@ const offered: readonly string[] = [
   'vitesse-light',
 ]
 
-const infos: readonly Info[] = Object.freeze(
-  bundledThemesInfo
+const infos: readonly Info[] = Object.freeze([
+  ...bundledThemesInfo
     .filter((theme) => offered.includes(theme.id))
     .map((theme) =>
       Object.freeze({
@@ -328,9 +353,18 @@ const infos: readonly Info[] = Object.freeze(
         type: theme.type === 'light' ? 'light' : ('dark' as const),
       }),
     ),
-)
+  // The composed ones after, so a picker walks what shiki brought before what
+  // was made here.
+  ...palettes.map((palette) =>
+    Object.freeze({
+      displayName: palette.displayName,
+      name: palette.id,
+      type: palette.type,
+    }),
+  ),
+])
 
-const byName = new Map(infos.map((entry) => [entry.name as string, entry]))
+const byName = new Map(infos.map((entry) => [entry.name, entry]))
 
 const fallbackBg = { dark: '#101010', light: '#ffffff' }
 const fallbackFg = { dark: '#ededed', light: '#171717' }
@@ -340,8 +374,6 @@ function pick(candidates: readonly (string | undefined)[], fallback: string): st
   for (const candidate of candidates) if (candidate && toOklch(candidate)) return candidate
   return fallback
 }
-
-const oklch = converter('oklch')
 
 type Oklch = { c: number; h?: number | undefined; l: number }
 

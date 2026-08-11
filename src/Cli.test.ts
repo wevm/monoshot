@@ -142,7 +142,7 @@ describe('create', () => {
       expect((output as { code: string }).code).toMatchInlineSnapshot(`"no_snippet"`)
     })
 
-    test('refuses a theme that is not bundled, rather than encoding it', async () => {
+    test('refuses a theme that is not offered, rather than encoding it', async () => {
       // The app replaces an unknown theme on restore, so the link would open
       // something other than what was asked for.
       const source = await file('demo.ts')
@@ -232,14 +232,14 @@ describe('create', () => {
   })
 
   describe('render', () => {
-    test('refuses a theme that is not bundled, before starting a browser', async () => {
+    test('refuses a theme that is not offered, before starting a browser', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['render', source, '--theme', 'nope'])
       expect(exit).toBe(1)
       expect(output).toMatchInlineSnapshot(`
         {
           "code": "unknown_theme",
-          "message": "\`nope\` is not a bundled theme. \`monoshot themes\` lists every name.",
+          "message": "\`nope\` is not a theme on offer. \`monoshot themes\` lists every name.",
         }
       `)
     })

@@ -78,4 +78,49 @@ export const swatches: Record<string, { backdrop: string; colors: readonly strin
       'linear-gradient(140deg, oklch(0.8400000000000002 0.09 357.95425674254057), oklch(0.7800000000000002 0.09 47.954256742540565))',
     colors: ['#999999', '#b56959', '#ab5959'],
   },
+  'golden-gate-dark': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.3298851572288469 0.06 254.82522131258952), oklch(0.26988515722884693 0.06 304.8252213125895))',
+    colors: ['#dcdee5', '#aab5df', '#cfc0ea'],
+  },
+  'golden-gate-light': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.8095122908461104 0.03974700223278115 49.45327402199899), oklch(0.7495122908461105 0.03974700223278115 99.453274021999))',
+    colors: ['#2c2824', '#70512d', '#435a73'],
+  },
+  'mountain-lion': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.32920532962904925 0.06 199.89975274023232), oklch(0.26920532962904925 0.06 249.89975274023232))',
+    colors: ['#d9dfe4', '#93bed9', '#c4b78c'],
+  },
+  panther: {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.3301133756691475 0.11443603524147639 229.2307272430728), oklch(0.2701133756691475 0.11443603524147639 279.2307272430728))',
+    colors: ['#d9dfe5', '#7cbdff', '#61c3fd'],
+  },
+  'sequoia-dark': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.3298851572288469 0.129149999494787 173.29335647763173), oklch(0.26988515722884693 0.129149999494787 223.29335647763173))',
+    colors: ['#dbdee5', '#00cee4', '#9db4ff'],
+  },
+  'sequoia-light': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.809262718781545 0.07023232413051649 234.90145979712804), oklch(0.749262718781545 0.07023232413051649 284.90145979712804))',
+    colors: ['#26292e', '#894100', '#2951aa'],
+  },
+  'snow-leopard': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.32903140450935076 0.15 297.28159569065974), oklch(0.26903140450935076 0.15 347.28159569065974))',
+    colors: ['#e2dce1', '#b7a9ff', '#f28cec'],
+  },
+  'tahoe-dark': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.3298851572288469 0.12646640706172305 263.14879298264907), oklch(0.26988515722884693 0.12646640706172305 313.14879298264907))',
+    colors: ['#dbdee5', '#adaeff', '#99b5ff'],
+  },
+  'tahoe-light': {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.809262718781545 0.06858151993379337 234.39768583741227), oklch(0.749262718781545 0.06858151993379337 284.39768583741227))',
+    colors: ['#26292e', '#2a51aa', '#15607f'],
+  },
 }
