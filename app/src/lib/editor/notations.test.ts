@@ -33,6 +33,9 @@ describe('notations', () => {
   test('marks the line a notation of its own precedes', () => {
     expect(marked('// [!code ++]\nconst a = 1\n')).toMatchInlineSnapshot(`
       {
+        "1": [
+          "cm-gone",
+        ],
         "2": [
           "cm-mark-add",
         ],
@@ -44,6 +47,9 @@ describe('notations', () => {
     expect(marked('// [!code hl:2]\nconst a = 1\nconst b = 2\nconst c = 3\n'))
       .toMatchInlineSnapshot(`
         {
+          "1": [
+            "cm-gone",
+          ],
           "2": [
             "cm-mark-highlight",
           ],
