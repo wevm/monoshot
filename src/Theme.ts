@@ -395,6 +395,15 @@ function toOklch(value: string): Oklch | undefined {
   return { c: converted.c, h: converted.h, l: converted.l }
 }
 
+/** How wide a hue reads as one hue, in degrees either side of it. */
+const reach = 15
+
+/** How far apart two hues are, the short way around the circle. */
+function apart(one: number, other: number): number {
+  const gap = Math.abs(one - other) % 360
+  return gap > 180 ? 360 - gap : gap
+}
+
 /**
  * The theme's identity hue: a chroma-weighted circular mean over its token
  * colors. Averaging beats picking the most saturated token, which is usually
@@ -441,15 +450,6 @@ function pickAccent(theme: ThemeRegistrationResolved): Oklch | undefined {
     h: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360,
     l: 0.5,
   }
-}
-
-/** How wide a hue reads as one hue, in degrees either side of it. */
-const reach = 15
-
-/** How far apart two hues are, the short way around the circle. */
-function apart(one: number, other: number): number {
-  const gap = Math.abs(one - other) % 360
-  return gap > 180 ? 360 - gap : gap
 }
 
 /** How much of a theme a rule paints, as the number of scopes it names. */
