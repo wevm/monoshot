@@ -253,6 +253,48 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   optionSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
+  // Wide enough that three colors read as a palette rather than as a smudge,
+  // and small enough that two dozen themes are one panel rather than a scroll.
+  themeGrid: {
+    display: 'grid',
+    gap: 6,
+    gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))',
+    padding: 6,
+  },
+  themeBox: (canvas: string) => ({
+    alignItems: 'center',
+    backgroundColor: canvas,
+    borderRadius: 8,
+    borderStyle: 'none',
+    // A hairline edge, so a near-black canvas still reads against the panel.
+    boxShadow: {
+      default: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)',
+      ':focus-visible': shadow.focusRing,
+    },
+    cursor: 'pointer',
+    display: 'flex',
+    gap: 3,
+    height: 32,
+    justifyContent: 'center',
+    outline: 'none',
+    padding: 0,
+    position: 'relative',
+    transform: {
+      default: 'scale(1)',
+      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.08)' },
+      ':active': 'scale(0.97)',
+    },
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
+  }),
+  // The colors as a snippet wears them: a few strokes on the theme's own canvas.
+  themeStroke: (paint: string) => ({
+    backgroundColor: paint,
+    borderRadius: 999,
+    height: 14,
+    width: 4,
+  }),
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 4,
@@ -282,6 +324,10 @@ export function Toolbar(props: Toolbar.Props) {
   const themeIndex = themes.findIndex((entry) => entry.name === theme)
   const previousThemeIndex = usePrevious(themeIndex)
   const selected = Themes.info(theme)
+  const sections = [
+    { entries: themes.filter((entry) => Themes.curated(entry.name)), title: 'Curated' },
+    { entries: themes.filter((entry) => !Themes.curated(entry.name)), title: 'Other' },
+  ]
 
   // Clicking the open control closes it, so the bar is its own dismiss target.
   const toggle = (next: Panel) => setPanel((current) => (current === next ? undefined : next))
@@ -390,25 +436,35 @@ export function Toolbar(props: Toolbar.Props) {
               )}
             >
               {panel === 'theme' ? (
-                <div {...stylex.props(styles.list)}>
-                  {themes.map((entry) => (
-                    <button
-                      aria-pressed={entry.name === theme}
-                      data-option={entry.name === theme ? 'selected' : ''}
-                      key={entry.name}
-                      onClick={() => onChange({ theme: entry.name })}
-                      onFocus={() => onChange({ theme: entry.name })}
-                      ref={entry.name === theme ? reveal : null}
-                      type="button"
-                      {...stylex.props(
-                        styles.option,
-                        text.copy13,
-                        entry.name === theme && styles.optionSelected,
-                      )}
-                    >
-                      <span {...stylex.props(styles.swatch(swatches[entry.type]))} />
-                      {entry.displayName}
-                    </button>
+                <div {...stylex.props(styles.rows)}>
+                  {sections.map((section) => (
+                    <div key={section.title}>
+                      <span {...stylex.props(styles.rowTitle, text.label12)}>{section.title}</span>
+                      <div {...stylex.props(styles.themeGrid)}>
+                        {section.entries.map((entry) => {
+                          const shown = Themes.swatch(entry.name)
+                          return (
+                            <button
+                              aria-pressed={entry.name === theme}
+                              data-option={entry.name === theme ? 'selected' : ''}
+                              key={entry.name}
+                              onClick={() => onChange({ theme: entry.name })}
+                              onFocus={() => onChange({ theme: entry.name })}
+                              ref={entry.name === theme ? reveal : null}
+                              title={entry.displayName}
+                              type="button"
+                              {...stylex.props(styles.themeBox(shown.background))}
+                            >
+                              <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
+                              {shown.colors.map((paint) => (
+                                <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
+                              ))}
+                              {entry.name === theme && <Ring row={section.title} travel={travel} />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : panel === 'language' ? (

@@ -1,6 +1,7 @@
 import { Theme } from 'monoshot'
 
 import { palettes } from './palettes.js'
+import { swatches } from './swatches.js'
 import * as Wallpapers from './wallpapers.js'
 
 /**
@@ -25,6 +26,37 @@ export const composed = palettes.map((palette) =>
     type: palette.type,
   }),
 )
+
+/** What a theme is shown as in the picker: its canvas, and the colors on it. */
+export type Swatch = { background: string; colors: readonly string[] }
+
+/** The colors a theme is known by, for a picker to show it as. */
+export function swatch(name: string): Swatch {
+  return drawn.get(name) ?? { background: '#101010', colors: ['#888888', '#aaaaaa', '#cccccc'] }
+}
+
+/** Whether a theme was made here from a picture rather than bundled by shiki. */
+export function curated(name: string): boolean {
+  return palettes.some((palette) => palette.id === name)
+}
+
+const drawn = new Map<string, Swatch>([
+  ...Object.entries(swatches),
+  // A composed theme is known by what it paints rather than by what it was made
+  // from: the picture's colors are held to a lightness before they become text,
+  // and the swatch shows the text.
+  ...composed.map((theme) => {
+    const painted = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => rule.settings.foreground)
+      .filter((color) => color !== undefined)
+    // Past the comment, which every theme paints quietest and none is known by.
+    return [
+      theme.name as string,
+      { background: theme.bg ?? '#101010', colors: painted.slice(1, 4) },
+    ] as const
+  }),
+])
 
 const offered: readonly Theme.Info[] = [
   ...Theme.list(),
