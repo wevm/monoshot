@@ -271,6 +271,18 @@ function restore(hash: string) {
   }
 }
 
+/**
+ * The picture the artwork stands on: the one chosen as a backdrop, or the one a
+ * theme is made of. `default` is the theme's own backdrop, and a theme made
+ * from a picture has that picture for one.
+ */
+function backdrop(settings: Settings) {
+  return (
+    Wallpapers.at(settings.background) ??
+    (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
+  )
+}
+
 /** The fragment a link carries for the state on screen. */
 function share(parameters: { code: string; settings: Settings; title: string }) {
   const { code, settings, title } = parameters
@@ -456,21 +468,26 @@ function Page() {
   }, [code, language, settings.types])
 
   useEffect(() => {
-    const named = Wallpapers.at(settings.background)
+    const named = backdrop(settings)
     if (!named) return setWallpaper(undefined)
     let active = true
     void Wallpapers.embed(named.id).then(
-      (picture) => {
-        if (active) setWallpaper(picture)
+      (source) => {
+        if (active) setWallpaper({ source })
       },
       (cause: Error) => {
         if (active) setNotice(cause.message)
       },
     )
+    // Behind the picture rather than before it: the shell takes the picture's
+    // color once it has been read, and stands on the theme's own until then.
+    void Wallpapers.color(named.id).then((color) => {
+      if (active) setWallpaper((current) => (current ? { ...current, color } : current))
+    })
     return () => {
       active = false
     }
-  }, [settings.background])
+  }, [settings])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 
@@ -518,7 +535,7 @@ function Page() {
       theme,
       ...(types ? { twoslash: types } : {}),
     })
-    const named = Wallpapers.at(settings.background)
+    const named = backdrop(settings)
     const picture = named ? await Wallpapers.embed(named.id) : undefined
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
@@ -528,7 +545,7 @@ function Page() {
         palette: Theme.derive(rendered.theme),
         settings,
         title,
-        wallpaper: picture?.source,
+        wallpaper: picture,
       }),
     )
     try {
@@ -717,7 +734,7 @@ function Page() {
         foreground: frame.palette.page.foreground,
       }
     // A picture owns the surface the same way, in the strongest color it holds.
-    if (wallpaper)
+    if (wallpaper?.color)
       return {
         background: `color-mix(in oklab, ${wallpaper.color} 22%, #08080a)`,
         foreground: frame.palette.page.foreground,

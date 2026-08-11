@@ -247,9 +247,10 @@ export function Frame(props: Frame.Props) {
               title: palette.window.title,
               to: palette.backdrop.to,
             }),
-            // The theme's own backdrop also stands in while a picture loads, so
-            // naming one never leaves the artwork on nothing.
-            background === 'default' || (Wallpapers.at(background) && !wallpaper)
+            // The theme's own backdrop, which also stands in while a picture
+            // loads: naming one never leaves the artwork on nothing. Out of the
+            // way once the picture is here, since both paint the same property.
+            !wallpaper && (background === 'default' || Wallpapers.at(background))
               ? styles.backdrop
               : null,
             background.startsWith('#') ? styles.fill(background) : null,

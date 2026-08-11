@@ -16,8 +16,11 @@ export type Wallpaper = { id: string; name: string }
 
 /** A loaded wallpaper: the image itself, and the color it reads as. */
 export type Picture = {
-  /** The strongest color in the picture, for whatever is tinted to match it. */
-  color: string
+  /**
+   * The strongest color in the picture, for whatever is tinted to match it.
+   * Absent until it has been read, which the picture does not wait for.
+   */
+  color?: string | undefined
   /** The image as a `data:` URL. */
   source: string
 }
@@ -47,32 +50,53 @@ export function at(background: string): Wallpaper | undefined {
   return list.find((wallpaper) => wallpaper.id === id)
 }
 
+/** The wallpaper of that id, or nothing when it names none. */
+export function byId(id: string): Wallpaper | undefined {
+  return list.find((wallpaper) => wallpaper.id === id)
+}
+
 /** The small copy a swatch is drawn from. */
 export function thumbnail(id: string) {
   return `/wallpapers/${id}-thumb.webp`
 }
 
-const embedded = new Map<string, Promise<Picture>>()
+const embedded = new Map<string, Promise<string>>()
+const cast = new Map<string, Promise<string>>()
 
 /**
  * The picture as data, which is how it reaches both the artwork on screen and
  * the copy an export captures: a capture reads the styles it finds, and a URL
  * there would leave the backdrop to a fetch the capture never waits for.
  */
-export function embed(id: string): Promise<Picture> {
+export function embed(id: string): Promise<string> {
   const held = embedded.get(id)
   if (held) return held
   const loading = (async () => {
     const response = await fetch(`/wallpapers/${id}.webp`)
     if (!response.ok) throw new Error(`Wallpaper ${id} is not here (${response.status}).`)
-    const source = await read(await response.blob(), id)
-    return { color: await strongest(source), source }
+    return await read(await response.blob(), id)
   })()
   // Held only while it stands: a failed load is worth trying again, and holding
   // the rejection would fail every later attempt without asking.
   loading.catch(() => embedded.delete(id))
   embedded.set(id, loading)
   return loading
+}
+
+/**
+ * The strongest color in the picture, read once the picture is here.
+ *
+ * Asked for apart from the picture rather than with it: reading the color means
+ * decoding the image, and a backdrop that waited for that would be held back by
+ * work nothing on screen is waiting for.
+ */
+export function color(id: string): Promise<string> {
+  const held = cast.get(id)
+  if (held) return held
+  const reading = embed(id).then((source) => strongest(source))
+  reading.catch(() => cast.delete(id))
+  cast.set(id, reading)
+  return reading
 }
 
 function read(blob: Blob, id: string) {
