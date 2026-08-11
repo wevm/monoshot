@@ -40,6 +40,7 @@ catalog:
   puppeteer-core: ^25.5.0
   react: ^19.2.5
   react-dom: ^19.2.5
+  react-scan: ^0.5.7
   shiki: 4.4.2
   tsx: ^4.20.0
   twoslash: 0.3.9

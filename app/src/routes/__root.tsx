@@ -3,6 +3,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 
+import * as Scan from '#/lib/scan.js'
 import * as Scheme from '#/lib/scheme.js'
 import appCss from '#/styles.css?url'
 import { motion } from '../theme/tokens.stylex.js'
@@ -30,6 +31,7 @@ export const Route = createRootRoute({
 function Layout() {
   // Every route reads the stored scheme, not just the one that can change it.
   useEffect(() => Scheme.hydrate(), [])
+  useEffect(() => void Scan.start(), [])
   return (
     <>
       <StylexDevReload />

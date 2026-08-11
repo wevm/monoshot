@@ -53,6 +53,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
+    "react-scan": "catalog:",
     "typescript": "catalog:",
     "unplugin": "catalog:",
     "vite-plus": "catalog:",
