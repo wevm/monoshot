@@ -97,6 +97,10 @@ function pace() {
   const moved = () => {
     resting = false
     clearTimeout(settling)
+    // Out of the way while the pointer is going somewhere. The strip travels
+    // with it, so sliding along the code keeps the same control under the
+    // pointer the whole way down: without this the hint rides along.
+    if (aim) aimAt(undefined)
     settling = setTimeout(() => {
       resting = true
       if (pending) aimAt(pending)
