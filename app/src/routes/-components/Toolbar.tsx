@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
 import { text } from '#/theme/text.js'
-import { color, motion, shadow } from '../../theme/tokens.stylex.js'
+import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const themes = Theme.list()
 
@@ -45,8 +45,7 @@ const styles = stylex.create({
       default: color.chromeTranslucent,
       '@media (prefers-reduced-transparency: reduce)': color.chrome,
     },
-    // Square, like the artwork it controls.
-    borderRadius: 0,
+    borderRadius: radius.floating,
     boxShadow: shadow.floating,
     overflow: 'hidden',
   },
@@ -66,7 +65,7 @@ const styles = stylex.create({
     alignItems: 'flex-start',
     backgroundColor: { default: 'transparent', ':hover': color.chromeHover },
     borderStyle: 'none',
-    borderRadius: 0,
+    borderRadius: radius.control,
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
     color: color.onChrome,
     cursor: 'pointer',
@@ -91,6 +90,7 @@ const styles = stylex.create({
     alignItems: 'center',
     backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
     borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
+    borderRadius: 4,
     borderStyle: 'solid',
     borderWidth: 1,
     color: color.onChromeSecondary,
@@ -184,7 +184,7 @@ const styles = stylex.create({
     alignItems: 'center',
     backgroundColor: { default: 'transparent', ':hover': color.chromeHover },
     borderStyle: 'none',
-    borderRadius: 0,
+    borderRadius: radius.control,
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
     color: color.onChromeSecondary,
     cursor: 'pointer',
@@ -203,7 +203,7 @@ const styles = stylex.create({
   optionSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
   swatch: (background: string) => ({
     backgroundColor: background,
-    borderRadius: 0,
+    borderRadius: 4,
     boxShadow: '0 0 0 1px #ffffff24',
     flexShrink: 0,
     height: 12,

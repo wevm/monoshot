@@ -149,6 +149,7 @@ const styles = stylex.create({
     alignItems: 'center',
     backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
     borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
+    borderRadius: 4,
     borderStyle: 'solid',
     borderWidth: 1,
     display: 'flex',

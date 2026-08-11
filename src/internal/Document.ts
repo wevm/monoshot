@@ -213,7 +213,7 @@ export function annotations(palette: Theme.derive.Result): string {
   /* Composited onto the window rather than left translucent, so the arrow
      hanging off the surface does not show the code through itself. */
   background: ${surface};
-  border-radius: 8px;
+  border-radius: 4px;
   box-shadow: inset 0 0 0 1px ${palette.window.border};
   display: block;
   font-size: var(--code-annotation-size);
