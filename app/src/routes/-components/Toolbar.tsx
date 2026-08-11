@@ -175,10 +175,14 @@ const styles = stylex.create({
   list: {
     display: 'flex',
     flexDirection: 'column',
+    // A row of its own, so one reads as a thing to press rather than a band of
+    // a longer surface.
+    gap: 2,
     maxHeight: 260,
     overflowY: 'auto',
     overscrollBehavior: 'contain',
-    paddingBlock: 6,
+    // Even, so an item's corner is the surface's own less what surrounds it.
+    padding: 6,
   },
   option: {
     alignItems: 'center',
@@ -192,7 +196,7 @@ const styles = stylex.create({
     gap: 10,
     outline: 'none',
     paddingBlock: 8,
-    paddingInline: 16,
+    paddingInline: 10,
     textAlign: 'start',
     transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
     transitionDuration: motion.fast,
