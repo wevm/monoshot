@@ -6,6 +6,9 @@ import { text } from '#/theme/text.js'
 import { color, font, radius, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
+  // Over whatever it is about, including the surfaces that float: a hint about a
+  // control inside a popover is drawn on top of the popover.
+  positioner: { zIndex: 20 },
   popup: {
     backgroundColor: color.background,
     borderRadius: radius.control,
@@ -31,7 +34,7 @@ export function Tooltip(props: Tooltip.Props) {
     <Base.Root>
       <Base.Trigger render={children} />
       <Base.Portal>
-        <Base.Positioner side="top" sideOffset={6}>
+        <Base.Positioner side="top" sideOffset={6} {...stylex.props(styles.positioner)}>
           <Base.Popup {...stylex.props(styles.popup, text.label13)}>{label}</Base.Popup>
         </Base.Positioner>
       </Base.Portal>
@@ -39,9 +42,15 @@ export function Tooltip(props: Tooltip.Props) {
   )
 }
 
-export declare namespace Tooltip {
+export namespace Tooltip {
+  /**
+   * Shares one delay across the tooltips inside. A row of swatches reads as one
+   * row: once a hint has been waited for, the ones beside it answer at once.
+   */
+  export const Provider = Base.Provider
+
   /** Props for {@link Tooltip}. */
-  type Props = {
+  export type Props = {
     /** The focusable control the tooltip describes. */
     children: ReactElement
     /** Hint text shown on hover and focus. */

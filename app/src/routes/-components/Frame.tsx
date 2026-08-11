@@ -13,6 +13,7 @@ import * as Identifier from '#/lib/editor/identifier.js'
 import { ignore } from '#/lib/export.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
+import { Tooltip } from '#/ui/Tooltip.js'
 import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const styles = stylex.create({
@@ -440,30 +441,32 @@ function Handle(props: Handle.Props) {
   }
 
   return (
-    <button
-      aria-label={label}
-      aria-valuemax={max}
-      aria-valuemin={min}
-      aria-valuenow={value}
-      onKeyDown={nudge}
-      onPointerDown={begin}
-      aria-orientation={axis === 'x' ? 'horizontal' : 'vertical'}
-      role="slider"
-      type="button"
-      {...stylex.props(
-        styles.handle,
-        axis === 'xy' ? styles.handleCorner : null,
-        axis === 'x' ? styles.handleX : axis === 'y' ? styles.handleY : null,
-        axis === 'xy' ? null : edge === 'start' ? styles.handleStart : styles.handleEnd,
-      )}
-    >
-      <span
+    <Tooltip label={label}>
+      <button
+        aria-label={label}
+        aria-valuemax={max}
+        aria-valuemin={min}
+        aria-valuenow={value}
+        onKeyDown={nudge}
+        onPointerDown={begin}
+        aria-orientation={axis === 'x' ? 'horizontal' : 'vertical'}
+        role="slider"
+        type="button"
         {...stylex.props(
-          axis === 'xy' ? styles.gripCorner(value) : styles.grip,
-          axis === 'x' ? styles.gripX : axis === 'y' ? styles.gripY : null,
+          styles.handle,
+          axis === 'xy' ? styles.handleCorner : null,
+          axis === 'x' ? styles.handleX : axis === 'y' ? styles.handleY : null,
+          axis === 'xy' ? null : edge === 'start' ? styles.handleStart : styles.handleEnd,
         )}
-      />
-    </button>
+      >
+        <span
+          {...stylex.props(
+            axis === 'xy' ? styles.gripCorner(value) : styles.grip,
+            axis === 'x' ? styles.gripX : axis === 'y' ? styles.gripY : null,
+          )}
+        />
+      </button>
+    </Tooltip>
   )
 }
 

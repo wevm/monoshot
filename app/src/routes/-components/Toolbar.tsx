@@ -10,6 +10,7 @@ import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
+import { Tooltip } from '#/ui/Tooltip.js'
 import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const themes = Theme.list()
@@ -469,25 +470,28 @@ export function Toolbar(props: Toolbar.Props) {
                         {section.entries.map((entry) => {
                           const shown = Themes.swatch(entry.name)
                           return (
-                            <button
-                              aria-pressed={entry.name === theme}
-                              data-option={entry.name === theme ? 'selected' : ''}
-                              key={entry.name}
-                              onClick={() => onChange({ theme: entry.name })}
-                              onFocus={() => onChange({ theme: entry.name })}
-                              ref={entry.name === theme ? reveal : null}
-                              title={entry.displayName}
-                              type="button"
-                              {...stylex.props(styles.themeBox(shown.backdrop))}
-                            >
-                              <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
-                              <span {...stylex.props(styles.themeStripes)}>
-                                {shown.colors.map((paint) => (
-                                  <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
-                                ))}
-                              </span>
-                              {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
-                            </button>
+                            <Tooltip key={entry.name} label={entry.displayName}>
+                              <button
+                                aria-pressed={entry.name === theme}
+                                data-option={entry.name === theme ? 'selected' : ''}
+                                onClick={() => onChange({ theme: entry.name })}
+                                onFocus={() => onChange({ theme: entry.name })}
+                                ref={entry.name === theme ? reveal : null}
+                                type="button"
+                                {...stylex.props(styles.themeBox(shown.backdrop))}
+                              >
+                                <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
+                                <span {...stylex.props(styles.themeStripes)}>
+                                  {shown.colors.map((paint) => (
+                                    <span
+                                      key={paint}
+                                      {...stylex.props(styles.themeStroke(paint))}
+                                    />
+                                  ))}
+                                </span>
+                                {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
+                              </button>
+                            </Tooltip>
                           )
                         })}
                       </div>
@@ -537,78 +541,86 @@ export function Toolbar(props: Toolbar.Props) {
                       {Wallpapers.list.map((wallpaper) => {
                         const value = Wallpapers.background(wallpaper.id)
                         return (
-                          <button
-                            aria-pressed={background === value}
-                            data-option={background === value ? 'selected' : ''}
-                            key={wallpaper.id}
-                            onClick={() => onChange({ background: value })}
-                            onFocus={() => onChange({ background: value })}
-                            type="button"
-                            {...stylex.props(
-                              styles.swatchButton,
-                              styles.swatchPicture(Wallpapers.thumbnail(wallpaper.id)),
-                            )}
-                          >
-                            <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
-                            {background === value && <Ring row="backgrounds" travel={travel} />}
-                          </button>
+                          <Tooltip key={wallpaper.id} label={wallpaper.name}>
+                            <button
+                              aria-pressed={background === value}
+                              data-option={background === value ? 'selected' : ''}
+                              onClick={() => onChange({ background: value })}
+                              onFocus={() => onChange({ background: value })}
+                              type="button"
+                              {...stylex.props(
+                                styles.swatchButton,
+                                styles.swatchPicture(Wallpapers.thumbnail(wallpaper.id)),
+                              )}
+                            >
+                              <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
+                              {background === value && <Ring row="backgrounds" travel={travel} />}
+                            </button>
+                          </Tooltip>
                         )
                       })}
                     </div>
                   </div>
                   <span {...stylex.props(styles.rowTitle(10), text.label12)}>Colors</span>
                   <div {...stylex.props(styles.colorRow)}>
-                    <button
-                      aria-pressed={background === 'default'}
-                      data-option={background === 'default' ? 'selected' : ''}
-                      onClick={() => onChange({ background: 'default' })}
-                      onFocus={() => onChange({ background: 'default' })}
-                      type="button"
-                      {...stylex.props(styles.swatchButton, styles.swatchDefault)}
-                    >
-                      <span {...stylex.props(styles.srOnly)}>Default</span>
-                      {background === 'default' && <Ring row="backgrounds" travel={travel} />}
-                    </button>
-                    <button
-                      aria-pressed={background === 'none'}
-                      data-option={background === 'none' ? 'selected' : ''}
-                      onClick={() => onChange({ background: 'none' })}
-                      onFocus={() => onChange({ background: 'none' })}
-                      type="button"
-                      {...stylex.props(styles.swatchButton, styles.swatchNone)}
-                    >
-                      <span {...stylex.props(styles.srOnly)}>None</span>
-                      {background === 'none' && <Ring row="backgrounds" travel={travel} />}
-                    </button>
+                    <Tooltip label="Default">
+                      <button
+                        aria-pressed={background === 'default'}
+                        data-option={background === 'default' ? 'selected' : ''}
+                        onClick={() => onChange({ background: 'default' })}
+                        onFocus={() => onChange({ background: 'default' })}
+                        type="button"
+                        {...stylex.props(styles.swatchButton, styles.swatchDefault)}
+                      >
+                        <span {...stylex.props(styles.srOnly)}>Default</span>
+                        {background === 'default' && <Ring row="backgrounds" travel={travel} />}
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="None">
+                      <button
+                        aria-pressed={background === 'none'}
+                        data-option={background === 'none' ? 'selected' : ''}
+                        onClick={() => onChange({ background: 'none' })}
+                        onFocus={() => onChange({ background: 'none' })}
+                        type="button"
+                        {...stylex.props(styles.swatchButton, styles.swatchNone)}
+                      >
+                        <span {...stylex.props(styles.srOnly)}>None</span>
+                        {background === 'none' && <Ring row="backgrounds" travel={travel} />}
+                      </button>
+                    </Tooltip>
                     <div {...stylex.props(styles.divider)} />
                     {backgrounds.map((value) => (
-                      <button
-                        aria-pressed={background === value}
-                        data-option={background === value ? 'selected' : ''}
-                        key={value}
-                        onClick={() => onChange({ background: value })}
-                        onFocus={() => onChange({ background: value })}
-                        type="button"
-                        {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
-                      >
-                        <span {...stylex.props(styles.srOnly)}>{value}</span>
-                        {background === value && <Ring row="backgrounds" travel={travel} />}
-                      </button>
+                      <Tooltip key={value} label={value}>
+                        <button
+                          aria-pressed={background === value}
+                          data-option={background === value ? 'selected' : ''}
+                          onClick={() => onChange({ background: value })}
+                          onFocus={() => onChange({ background: value })}
+                          type="button"
+                          {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
+                        >
+                          <span {...stylex.props(styles.srOnly)}>{value}</span>
+                          {background === value && <Ring row="backgrounds" travel={travel} />}
+                        </button>
+                      </Tooltip>
                     ))}
                     <div {...stylex.props(styles.divider)} />
-                    <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
-                      <span {...stylex.props(styles.srOnly)}>Custom color</span>
-                      <input
-                        aria-pressed={custom}
-                        data-option={custom ? 'selected' : ''}
-                        onChange={(event) => onChange({ background: event.target.value })}
-                        onFocus={(event) => onChange({ background: event.target.value })}
-                        type="color"
-                        value={background.startsWith('#') ? background : '#3b82d6'}
-                        {...stylex.props(styles.colorInput)}
-                      />
-                      {custom && <Ring row="backgrounds" travel={travel} />}
-                    </label>
+                    <Tooltip label="Custom color">
+                      <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
+                        <span {...stylex.props(styles.srOnly)}>Custom color</span>
+                        <input
+                          aria-pressed={custom}
+                          data-option={custom ? 'selected' : ''}
+                          onChange={(event) => onChange({ background: event.target.value })}
+                          onFocus={(event) => onChange({ background: event.target.value })}
+                          type="color"
+                          value={background.startsWith('#') ? background : '#3b82d6'}
+                          {...stylex.props(styles.colorInput)}
+                        />
+                        {custom && <Ring row="backgrounds" travel={travel} />}
+                      </label>
+                    </Tooltip>
                   </div>
                 </div>
               ) : null}
