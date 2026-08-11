@@ -121,9 +121,28 @@ const styles = stylex.create({
   rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
-  rows: { display: 'flex', flexDirection: 'column', gap: 10, padding: 12 },
+  rows: { display: 'flex', flexDirection: 'column', gap: 8, padding: 8 },
   rowTitle: { color: color.onChromeSecondary, paddingInline: 2 },
-  colorRow: { alignItems: 'center', display: 'flex', gap: 5, overflowX: 'auto' },
+  // A selected swatch's ring is drawn outside it and a hovered one grows past
+  // its box, both of which a scrolling row counts as somewhere to scroll to:
+  // the padding is the room they take instead.
+  colorRow: {
+    alignItems: 'center',
+    display: 'flex',
+    gap: 5,
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    padding: 4,
+  },
+  // Every picture takes an equal share, so the set spans the width the colors
+  // below it ask for. Narrow enough and they scroll, as the colors do.
+  pictureRow: {
+    display: 'flex',
+    gap: 5,
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    padding: 4,
+  },
   swatchButton: {
     borderStyle: 'none',
     borderRadius: 6,
@@ -164,7 +183,12 @@ const styles = stylex.create({
     backgroundImage: `url("${source}")`,
     backgroundPosition: 'center',
     backgroundSize: 'cover',
-    width: 40,
+    flexBasis: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    height: 28,
+    minWidth: 28,
+    width: 'auto',
   }),
   // Stands for the theme's own gradient rather than a flat color.
   swatchDefault: { backgroundImage: 'linear-gradient(140deg, #6f5233, #2a1c0f)' },
@@ -423,7 +447,7 @@ export function Toolbar(props: Toolbar.Props) {
                 <div {...stylex.props(styles.rows)}>
                   <div>
                     <span {...stylex.props(styles.rowTitle, text.label12)}>Wallpapers</span>
-                    <div {...stylex.props(styles.colorRow)}>
+                    <div {...stylex.props(styles.pictureRow)}>
                       {Wallpapers.list.map((wallpaper) => {
                         const value = Wallpapers.background(wallpaper.id)
                         return (
@@ -440,7 +464,7 @@ export function Toolbar(props: Toolbar.Props) {
                             )}
                           >
                             <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
-                            {background === value && <Ring travel={travel} />}
+                            {background === value && <Ring row="pictures" travel={travel} />}
                           </button>
                         )
                       })}
@@ -457,7 +481,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                     >
                       <span {...stylex.props(styles.srOnly)}>Default</span>
-                      {background === 'default' && <Ring travel={travel} />}
+                      {background === 'default' && <Ring row="colors" travel={travel} />}
                     </button>
                     <button
                       aria-pressed={background === 'none'}
@@ -468,7 +492,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchNone)}
                     >
                       <span {...stylex.props(styles.srOnly)}>None</span>
-                      {background === 'none' && <Ring travel={travel} />}
+                      {background === 'none' && <Ring row="colors" travel={travel} />}
                     </button>
                     <div {...stylex.props(styles.divider)} />
                     {backgrounds.map((value) => (
@@ -482,7 +506,7 @@ export function Toolbar(props: Toolbar.Props) {
                         {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
                       >
                         <span {...stylex.props(styles.srOnly)}>{value}</span>
-                        {background === value && <Ring travel={travel} />}
+                        {background === value && <Ring row="colors" travel={travel} />}
                       </button>
                     ))}
                     <div {...stylex.props(styles.divider)} />
@@ -497,7 +521,7 @@ export function Toolbar(props: Toolbar.Props) {
                         value={background.startsWith('#') ? background : '#3b82d6'}
                         {...stylex.props(styles.colorInput)}
                       />
-                      {custom && <Ring travel={travel} />}
+                      {custom && <Ring row="colors" travel={travel} />}
                     </label>
                   </div>
                 </div>
@@ -698,10 +722,13 @@ function Roll(props: {
  * The selection ring. One element shared across every swatch, so choosing a
  * color slides it from the old swatch to the new rather than blinking across.
  */
-function Ring(props: { travel: number }) {
+function Ring(props: { row: string; travel: number }) {
   return (
     <m.span
-      layoutId="swatch-ring"
+      // One ring per row: it travels between the swatches of a row, and a jump
+      // between rows is a selection moving from one kind of backdrop to
+      // another rather than a distance to cover.
+      layoutId={`swatch-ring-${props.row}`}
       transition={ring(props.travel)}
       {...stylex.props(styles.swatchRing)}
     />
