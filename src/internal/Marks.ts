@@ -1,6 +1,9 @@
 /** A notation asking for a line to read as removed, in any comment syntax. */
 const removal = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+--(?::(\d+))?\][ \t]*(?:\*\/|-->)?/
 
+/** Any notation, which is what a line carries besides the code on it. */
+const notation = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+[\w+-]+(?::\d+)?\][ \t]*(?:\*\/|-->)?/g
+
 /**
  * Blanks the lines a snippet marks as removed, keeping every offset it had.
  *
@@ -16,8 +19,9 @@ export function unchecked(code: string): string {
     const match = removal.exec(line)
     if (!match) continue
     // A notation alone on a line addresses what follows it; one trailing code
-    // addresses the line it sits on.
-    const alone = line.replace(removal, '').trim() === ''
+    // addresses the line it sits on. Every notation off the line, not just this
+    // one: a line carrying two of them still holds no code.
+    const alone = line.replace(notation, '').trim() === ''
     const first = alone ? index + 1 : index
     if (alone) blanked.add(index)
     // Held to the lines there are: a snippet asking for a billion of them, or

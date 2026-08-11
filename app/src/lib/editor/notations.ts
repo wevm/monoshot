@@ -179,7 +179,11 @@ export function at(state: EditorState, line: number): readonly Notation[] {
  * Nor can a line that is already only a notation, which is not code either.
  */
 export function takesMark(state: EditorState, line: number): boolean {
-  return state.doc.line(line).text.replace(pattern, '').trim() !== ''
+  const { text } = state.doc.line(line)
+  // A tag is prose about the code and a `^?` is a question about it: neither is
+  // a line a mark reads on, and a marker written into one stays as it was typed.
+  if (tags.test(text) || Identifier.caretColumn(text) !== undefined) return false
+  return text.replace(pattern, '').trim() !== ''
 }
 
 /**
@@ -210,10 +214,15 @@ export function toggle(
   // once: shiki reads one notation per line, and two would cost it one of them.
   if (kind === 'focus')
     return own ? away(state, own) : { from: text.from, insert: `${comment(kind)}\n` }
-  const changes: ChangeSpec[] = []
-  // A mark of this line's own axis, written above it, goes from there.
-  for (const notation of carried)
-    if (notation.alone && notation.kind !== 'focus') changes.push(away(state, notation))
+  // A mark of this line's own axis, written above it, goes from there. Taken as
+  // whole lines rather than one comment at a time: two on neighbouring lines
+  // each claim the break between them, and overlapping ranges apply to nothing.
+  const changes: ChangeSpec[] = emptied(
+    state,
+    carried
+      .filter((notation) => notation.alone && notation.kind !== 'focus')
+      .map((notation) => state.doc.lineAt(notation.from).number),
+  )
   // Only the marks of this line's own axis come off. A comment this does not
   // recognize is the writer's, and a focus written here is a different question
   // from what the line is marked as: neither is this press's to delete.
@@ -229,6 +238,29 @@ export function toggle(
     const close = syntax.close ? ` ${syntax.close}` : ''
     return `${syntax.open} [!code ${names[kind]}]${close}`
   }
+}
+
+/**
+ * The lines taken away, one range per run of neighbours: a run takes a single
+ * line break with it however many lines it holds.
+ */
+function emptied(state: EditorState, lines: readonly number[]) {
+  const sorted = [...new Set(lines)].sort((a, b) => a - b)
+  const runs: number[][] = []
+  for (const number of sorted) {
+    const last = runs.at(-1)
+    if (last && number === (last.at(-1) as number) + 1) last.push(number)
+    else runs.push([number])
+  }
+  return runs.map((run) => {
+    const first = state.doc.line(run[0] as number)
+    const last = state.doc.line(run.at(-1) as number)
+    // The break before the run rather than the one after, which the line this
+    // leaves behind is rewritten from.
+    if (first.from > 0) return { from: first.from - 1, to: last.to }
+    if (last.to < state.doc.length) return { from: first.from, to: last.to + 1 }
+    return { from: first.from, to: last.to }
+  })
 }
 
 /**

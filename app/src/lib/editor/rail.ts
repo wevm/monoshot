@@ -26,8 +26,8 @@ const labels: Readonly<Record<Notations.Kind, string>> = {
 
 const order = ['focus', 'highlight', 'add', 'remove'] as const
 
-/** Why a blank line offers no marks, since its controls cannot say so. */
-const blank = 'A blank line takes no mark'
+/** Why a row offers no marks, since its controls cannot say so themselves. */
+const unmarkable = 'This row takes no mark'
 
 /**
  * How far the controls stand off the window's edge: past the grip that resizes
@@ -450,7 +450,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
           spread(line)
         },
         icon: icons[kind],
-        label: row.takes === true ? labels[kind] : blank,
+        label: row.takes === true ? labels[kind] : unmarkable,
         select: () => toggle(line, kind),
       })
       button.dataset['kind'] = kind
@@ -472,6 +472,9 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     const button = document.createElement('button')
     button.className = 'rail-control'
     if (options.active) button.dataset['active'] = ''
+    // What `data-active` draws, said out loud: without it every control reads as
+    // the same button whether pressing it writes a mark or takes one away.
+    button.setAttribute('aria-pressed', String(options.active === true))
     if (options.color) button.style.setProperty('--rail-color', options.color)
     button.type = 'button'
     button.title = options.label
