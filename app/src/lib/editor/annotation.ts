@@ -1,3 +1,4 @@
+import { Tooltip } from '#/ui/Tooltip.js'
 import type { Token } from './highlight.js'
 
 /** A type, tokenized so it can be painted in the same colors as the code. */
@@ -86,7 +87,10 @@ function control(action: Action): HTMLElement {
   button.className = 'twoslash-pin'
   button.type = 'button'
   button.ariaLabel = action.label
-  button.title = action.label
+  // The hint every other control in the app draws, asked for by hand: a button
+  // written rather than rendered has nothing for a trigger to wrap.
+  button.addEventListener('pointerenter', () => Tooltip.point({ at: button, label: action.label }))
+  button.addEventListener('pointerleave', () => Tooltip.point())
   button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${action.icon ?? pin}"/></svg>`
   // Pointer down rather than click: the editor would otherwise take the focus
   // back and dismiss the hover before the click landed. Plain primary presses
