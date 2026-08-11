@@ -297,22 +297,22 @@ const styles = stylex.create({
     transitionProperty: 'transform',
     transitionTimingFunction: motion.out,
   }),
-  // The colors sit in a well of the panel's own material rather than on the
-  // picture: what separates them is the toolbar showing through the picture,
-  // the way a cut would, not a stroke drawn over it.
   themeStripes: {
-    backgroundColor: color.chrome,
-    borderRadius: 4,
     display: 'grid',
-    gap: 2,
+    gap: 4,
     gridAutoColumns: '1fr',
     gridAutoFlow: 'column',
     height: '100%',
-    padding: 1,
     width: '100%',
   },
-  // The well's corner less the padding around these, so the two are concentric.
-  themeStroke: (paint: string) => ({ backgroundColor: paint, borderRadius: 3 }),
+  // Each bar cut into the picture: the edge is the toolbar's own material,
+  // opaque, so it reads as the picture stopping rather than as a line drawn on
+  // it. The picture keeps the space between and around them.
+  themeStroke: (paint: string) => ({
+    backgroundColor: paint,
+    borderRadius: 3,
+    boxShadow: `0 0 0 1px ${color.chrome}`,
+  }),
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 4,
