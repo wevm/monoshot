@@ -1,17 +1,15 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
-import { useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Roll } from './Roll.js'
-import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, font, radius, shadow } from '../theme/tokens.stylex.js'
 
 /**
- * The one tooltip every hint is drawn in, which is what lets a hint travel from
- * the control it was about to the next one asked about rather than blink out and
- * back a few pixels over.
+ * The one tooltip every hint is drawn in, so moving from one control to the next
+ * carries the words across rather than blinking a new pill out and back.
  */
 const shared = Base.createHandle<string>()
 
@@ -31,24 +29,6 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
 })
-
-/**
- * How the pill travels from the control it was over to the one it is over now.
- *
- * Its transform, which is where Base UI puts the pill, and inline because the
- * library writes `transition: none` there for the frame it mounts, which only a
- * style of its own outranks.
- */
-const travel = `transform ${motion.fast} ${motion.inOut}`
-
-/**
- * The same, over no time worth seeing, until the pill has been placed.
- *
- * A pill opening has nowhere to travel from, and is placed by a transform it did
- * not have a moment ago: travelling to its first control means travelling from
- * the corner the page begins at.
- */
-const placing = `transform 1ms linear`
 
 /**
  * The hint rolling to what it says next.
@@ -81,13 +61,13 @@ function aimAt(at: Aim | undefined) {
  * How long it holds on after being taken back.
  *
  * A pointer leaving one control for the next is off both for a moment, and a
- * hint that went in that moment would blink out and back rather than travel.
+ * hint that went in that moment would blink out and straight back in.
  */
 const linger = 100
 
 /**
  * Hover and focus tooltip around a single focusable child. Reaches the one
- * {@link Tooltip.Surface} the app mounts, so every hint is the same pill moving.
+ * {@link Tooltip.Surface} the app mounts, so every hint is the same pill.
  *
  * Base UI does not expose the popup text to assistive technology, so the child
  * still needs its own accessible name; treat the tooltip as a sighted-user hint.
@@ -146,12 +126,7 @@ export namespace Tooltip {
 
 /** The hint for whatever a {@link Tooltip} wraps. */
 function Wrapped() {
-  const [open, setOpen] = useState(false)
-  return (
-    <Base.Root handle={shared} onOpenChange={setOpen}>
-      {({ payload }) => <Pill label={payload ?? ''} open={open} />}
-    </Base.Root>
-  )
+  return <Base.Root handle={shared}>{({ payload }) => <Pill label={payload ?? ''} />}</Base.Root>
 }
 
 /** The hint for whatever {@link Tooltip.point} was last pointed at. */
@@ -162,13 +137,13 @@ function Aimed() {
     () => undefined,
   )
   // Held while it goes: a pill with nothing to be anchored to is placed at the
-  // page's own corner, and it would travel there to be taken away.
+  // page's own corner, which is where it would be drawn as it left.
   const last = useRef<Aim | undefined>(undefined)
   if (aimed) last.current = aimed
   const shown = aimed ?? last.current
   // Where the control is rather than the control itself, so the last place it
   // stood outlives it: the marks beside the code are taken out from under the
-  // pointer, and a control off the page is measured at the page's corner.
+  // pointer, and a control off the page measures at the page's corner.
   const anchor = useMemo(() => {
     const at = shown?.at
     if (!at) return undefined
@@ -177,74 +152,33 @@ function Aimed() {
   }, [shown])
   return (
     <Base.Root open={aimed !== undefined}>
-      <Pill anchor={anchor} label={shown?.label ?? ''} open={aimed !== undefined} />
+      <Pill anchor={anchor} label={shown?.label ?? ''} />
     </Base.Root>
   )
 }
 
-/** What a hint is drawn as, wherever it was asked for. */
+/**
+ * What a hint is drawn as, wherever it was asked for.
+ *
+ * Nothing animates where it is. Base UI holds a pill at the page's corner until
+ * it has worked out where to put it, and that lands whenever it lands: a pill
+ * that moves under its own steam sets off from the corner often enough to be the
+ * thing you notice about it. It appears where it belongs, and its words are what
+ * move.
+ */
 function Pill(props: {
   anchor?: Element | { getBoundingClientRect: () => DOMRect } | undefined
   label: string
-  open: boolean
 }) {
-  const { anchor, label, open } = props
-  const still = useReducedMotion()
-  const standing = useRef<HTMLDivElement | null>(null)
-  const [placed, setPlaced] = useState(false)
-  useEffect(() => {
-    const node = standing.current
-    if (!open || !node) return
-    let frame = 0
-    // Once it has somewhere to be rather than a frame or two after opening: the
-    // placement is worked out off the main thread and lands whenever it lands,
-    // and travelling before it does is travelling from the corner it starts at.
-    const settle = () => {
-      // Base UI holds an unplaced pill at nothing until it knows where to put
-      // it, whichever properties it ends up placing it with.
-      if (node.style.opacity === '0') return
-      watcher.disconnect()
-      frame = requestAnimationFrame(() => setPlaced(true))
-    }
-    const watcher = new MutationObserver(settle)
-    watcher.observe(node, { attributeFilter: ['style'] })
-    settle()
-    return () => {
-      watcher.disconnect()
-      cancelAnimationFrame(frame)
-      setPlaced(false)
-    }
-  }, [open])
+  const { anchor, label } = props
   return (
     <Base.Portal>
       <Base.Positioner
         anchor={anchor}
-        ref={standing}
         side="top"
         sideOffset={6}
-        // Nothing while it goes: closing takes the placement away with it, and a
-        // pill still travelling would set off for the corner the placement left
-        // behind. Read here rather than from an effect, which runs a frame after
-        // the placement has already gone.
-        style={{ transition: still || !open ? 'none' : placed ? travel : placing }}
         {...stylex.props(styles.positioner)}
       >
-        {/*
-         * The hint rolls rather than being drawn by a `Tooltip.Viewport`, which
-         * animates between two of its own containers: it takes the pill out of
-         * the flow to do that, leaving the positioner with no size until it has
-         * been measured, so the first placement is computed for a box of nothing
-         * and corrected a frame later. The correction is a pill sliding in from
-         * beside the control.
-         *
-         * Size only, since where the pill is belongs to the placement above.
-         */}
-        {/*
-         * No layout animation on the pill. It would be measured in the box the
-         * positioner starts at, which is the page's corner until the placement
-         * lands, and drawn travelling out of there once the placement makes it
-         * visible again.
-         */}
         <Base.Popup {...stylex.props(styles.popup, text.label13)}>
           <Roll transition={rolling} value={label} />
         </Base.Popup>
