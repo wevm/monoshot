@@ -200,7 +200,11 @@ function Pill(props: { anchor?: Element | undefined; label: string; open: boolea
         anchor={anchor}
         side="top"
         sideOffset={6}
-        style={{ transition: still ? 'none' : placed ? travel : placing }}
+        // Nothing while it goes: closing takes the placement away with it, and a
+        // pill still travelling would set off for the corner the placement left
+        // behind. Read here rather than from an effect, which runs a frame after
+        // the placement has already gone.
+        style={{ transition: still || !open ? 'none' : placed ? travel : placing }}
         {...stylex.props(styles.positioner)}
       >
         {/*
