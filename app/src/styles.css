@@ -402,6 +402,12 @@
   z-index: 1;
 }
 
+/* Under the pointer rather than travelling to a row: what is dragged has to
+   land on the pointer, not ease toward it. */
+.rail[data-following] {
+  transition-property: opacity;
+}
+
 .rail[data-shown],
 .rail:focus-within {
   opacity: 1;

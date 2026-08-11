@@ -124,6 +124,8 @@ class Rail {
   private showing: string | undefined
   /** The mark a press is carrying down the rows, while it is held. */
   private painting: Painting | undefined
+  /** Where the host sits, so a pointer over it can be read against the strip. */
+  private host = 0
   /** Whether this has been replaced, which a measure already asked for outlives. */
   private gone = false
 
@@ -142,6 +144,9 @@ class Rail {
     view.dom.addEventListener('mouseover', this.track)
     view.dom.addEventListener('mouseleave', this.clear)
     this.container.addEventListener('mouseleave', this.clear)
+    // Out here the strip is under the pointer rather than beside a row, so it
+    // goes where the pointer goes rather than stepping between rows.
+    this.container.addEventListener('mousemove', this.follow)
     // On the window: a press carrying a mark down the rows can be let go
     // anywhere, and the rows are not where the pointer has to be by then.
     window.addEventListener('mouseup', this.drop)
@@ -160,10 +165,31 @@ class Rail {
     this.view.dom.removeEventListener('mouseover', this.track)
     this.view.dom.removeEventListener('mouseleave', this.clear)
     this.container.removeEventListener('mouseleave', this.clear)
+    this.container.removeEventListener('mousemove', this.follow)
     window.removeEventListener('mouseup', this.drop)
     window.removeEventListener('mousemove', this.carry)
     this.container.replaceChildren()
     this.reaches.clear()
+  }
+
+  /** Where the pointer is out beside the code, which the strip sits at. */
+  private readonly follow = (event: MouseEvent) => {
+    this.strip.dataset['following'] = ''
+    const at = event.clientY - this.host
+    this.strip.style.setProperty('--rail-top', `${Math.round(at)}px`)
+    // Read from where the pointer is rather than from the cover under it: the
+    // strip travels with the pointer, and out here it is over the covers it
+    // passes, which then never notice it.
+    this.reach(this.rowAt(at))
+  }
+
+  /** The row at a height down the host, which is what the covers stand for. */
+  private rowAt(at: number) {
+    let found: string | undefined
+    // The last of them, as the covers are stacked: a complaint drawn under a
+    // line sits inside that line's own block.
+    for (const [key, row] of this.rows) if (at >= row.top && at <= row.top + row.height) found = key
+    return found
   }
 
   /**
@@ -172,6 +198,12 @@ class Rail {
    * one of them.
    */
   private readonly track = (event: MouseEvent) => {
+    // Back beside a row: over the code the strip belongs to the line it acts on
+    // rather than to the pointer.
+    if (this.strip.dataset['following'] !== undefined) {
+      delete this.strip.dataset['following']
+      this.show(this.view.state.field(reached, false))
+    }
     const target = event.target instanceof Element ? event.target.closest('.cm-objection') : null
     if (target) return this.reach(`pin:${this.lineOf(target)}`)
     const position = this.view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
@@ -218,7 +250,9 @@ class Rail {
     this.view.requestMeasure({
       read: (view) => {
         const host = this.container.getBoundingClientRect()
+        this.host = host.top
         const rows: Row[] = []
+        const closed = new Set(Notations.removed(view.state))
         for (const { from, to } of view.visibleRanges) {
           let position = from
           while (position <= to) {
@@ -226,8 +260,10 @@ class Rail {
             const block = view.lineBlockAt(line.from)
             position = line.to + 1
             // A row closed up because it holds a notation and nothing else is
-            // not on screen to be reached for.
-            if (block.height === 0) continue
+            // not on screen to be reached for. Asked of the notations rather
+            // than of the height: a measure taken while the editor is settling
+            // reads every row as nothing, and would cover none of them.
+            if (closed.has(line.number)) continue
             rows.push({
               carried: Notations.at(view.state, line.number).map((notation) => notation.kind),
               height: block.height,
@@ -287,8 +323,10 @@ class Rail {
       return
     }
     // Centred on the row rather than hung from its top: the strip is its own
-    // padding taller than the control inside it.
-    this.strip.style.setProperty('--rail-top', `${Math.round(row.top + row.height / 2)}px`)
+    // padding taller than the control inside it. Not while it is following a
+    // pointer, which is where it sits then.
+    if (this.strip.dataset['following'] === undefined)
+      this.strip.style.setProperty('--rail-top', `${Math.round(row.top + row.height / 2)}px`)
     this.strip.dataset['shown'] = ''
     if (this.showing === key) return
     this.showing = key
