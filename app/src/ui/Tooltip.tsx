@@ -63,6 +63,7 @@ const morph = { bounce: 0, duration: 0.22, type: 'spring' } as const
 type Aim = { at: Element; label: string }
 
 let aim: Aim | undefined
+let waiting: ReturnType<typeof setTimeout> | undefined
 const watching = new Set<() => void>()
 
 function watch(watcher: () => void) {
@@ -71,6 +72,22 @@ function watch(watcher: () => void) {
     watching.delete(watcher)
   }
 }
+
+function aimAt(at: Aim | undefined) {
+  aim = at
+  for (const watcher of watching) watcher()
+}
+
+/** How long a hint waits before answering, as the wrapped ones wait. */
+const wait = 300
+
+/**
+ * How long it holds on after being taken back.
+ *
+ * A pointer leaving one control for the next is off both for a moment, and a
+ * hint that went in that moment would blink out and back rather than travel.
+ */
+const linger = 100
 
 /**
  * Hover and focus tooltip around a single focusable child. Reaches the one
@@ -114,8 +131,18 @@ export namespace Tooltip {
    * the marks beside the code, and the pin on a type.
    */
   export function point(at?: Aim | undefined) {
-    aim = at
-    for (const watcher of watching) watcher()
+    clearTimeout(waiting)
+    if (!at) {
+      waiting = setTimeout(() => aimAt(undefined), linger)
+      return
+    }
+    // Already answering, so this is the hint moving rather than a new one: it
+    // travels to the control now asking, and waits again only once it has gone.
+    if (aim) {
+      aimAt(at)
+      return
+    }
+    waiting = setTimeout(() => aimAt(at), wait)
   }
 
   /** Props for {@link Tooltip}. */
