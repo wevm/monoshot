@@ -341,6 +341,9 @@ export function Toolbar(props: Toolbar.Props) {
   const travel = Math.abs(swatchIndex - previousSwatchIndex) * swatchStride
   const themeIndex = themes.findIndex((entry) => entry.name === theme)
   const previousThemeIndex = usePrevious(themeIndex)
+  // Measured as the colors below are: how far the ring has to go, so its
+  // overshoot stays the same few pixels wherever in the grid it lands.
+  const themeTravel = Math.abs(themeIndex - previousThemeIndex) * themeStride
   const selected = Themes.info(theme)
   const sections = [
     { entries: themes.filter((entry) => Themes.curated(entry.name)), title: 'Curated' },
@@ -480,7 +483,9 @@ export function Toolbar(props: Toolbar.Props) {
                                   <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
                                 ))}
                               </span>
-                              {entry.name === theme && <Ring row={section.title} travel={travel} />}
+                              {entry.name === theme && (
+                                <Ring row={section.title} travel={themeTravel} />
+                              )}
                             </button>
                           )
                         })}
@@ -817,6 +822,9 @@ function Ring(props: { row: string; travel: number }) {
 
 /** One swatch plus its gap: the distance the ring covers per position. */
 const swatchStride = 29
+
+/** One theme box plus its gap: the distance the ring covers per position. */
+const themeStride = 58
 
 /**
  * The ring overshoots its target and settles back.
