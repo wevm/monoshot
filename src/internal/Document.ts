@@ -288,9 +288,13 @@ export function marks(palette: Theme.derive.Result) {
   const prose = (color: string) =>
     palette.type === 'light' ? `color-mix(in oklab, ${color} 74%, black)` : color
   return `.shiki {
-  /* Room a diff marker needs when there is no inset to sit in: markup embedded
-     without a window holds its code at the code's own edge, and the marker
-     would otherwise land on the first token. */
+  --mark-gutter: 0px;
+}
+/* Room a diff marker needs when there is no inset to sit in: markup embedded
+   without a window holds its code at the code's own edge, and the marker would
+   otherwise land on the first token. Asked for by a diff and nothing else, so a
+   snippet only highlighting a line still sits where an unmarked one does. */
+.shiki.has-diff {
   --mark-gutter: max(0px, 15px - var(--body-inset, 0px));
 }
 .shiki code {

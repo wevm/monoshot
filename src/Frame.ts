@@ -182,6 +182,11 @@ export function create<const themes extends Themes = []>(
       lang,
       theme,
       transformers: [
+        // Ahead of the numbering, which counts the lines that survive: a tag
+        // becomes a row of prose rather than staying one of them. Ahead of the
+        // resolved run too, which strips the tags it was told about and leaves
+        // the rest: a run resolved elsewhere need not have been told at all.
+        Tags.transformer(),
         {
           // Numbered here rather than in `line`, which runs before twoslash
           // folds a query into a block and inserts its own lines: only what
@@ -195,9 +200,7 @@ export function create<const themes extends Themes = []>(
             }
           },
         },
-        // A resolved run draws the snippet's tags itself, so this stands in
-        // only where there is none.
-        ...(annotations ? [annotations] : [Tags.transformer()]),
+        ...(annotations ? [annotations] : []),
         // Presentation the snippet carries itself, the way a `^?` query
         // does: `[!code focus]`, `[!code hl]`, and `[!code ++]` mark lines
         // and are taken back out of what is drawn.

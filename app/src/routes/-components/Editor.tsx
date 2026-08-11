@@ -101,7 +101,7 @@ export function Editor(props: Editor.Props) {
           // hang it on and the squiggle would otherwise say nothing.
           linter(null, {
             tooltipFilter: (found, state) =>
-              found.filter((complaint) => !Types.at(state, complaint.from)),
+              found.filter((complaint) => !Types.over(state, complaint)),
           }),
           rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries,
