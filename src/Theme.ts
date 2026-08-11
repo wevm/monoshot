@@ -24,22 +24,6 @@ export function info(name: string): Info | undefined {
 }
 
 /**
- * Derives the frame palette from a loaded shiki theme so every bundled theme
- * produces a coherent window, backdrop, and annotation styling.
- *
- * Pure and deterministic: the same theme always yields the same palette.
- *
- * @example
- * ```ts twoslash
- * import { Frame, Theme } from 'monoshot'
- *
- * const result = await Frame.create().render({ code: 'a', lang: 'ts', theme: 'nord' })
- * const palette = Theme.derive(result.theme)
- * palette.backdrop.from
- * // ^?
- * ```
- */
-/**
  * The hues a mark carries, which mean what they mean whatever the theme: a
  * deletion reads as a deletion in every one of them.
  *
@@ -57,6 +41,22 @@ export const marks = {
   warn: 'oklch(74% 0.14 80)',
 } as const
 
+/**
+ * Derives the frame palette from a loaded shiki theme so every bundled theme
+ * produces a coherent window, backdrop, and annotation styling.
+ *
+ * Pure and deterministic: the same theme always yields the same palette.
+ *
+ * @example
+ * ```ts twoslash
+ * import { Frame, Theme } from 'monoshot'
+ *
+ * const result = await Frame.create().render({ code: 'a', lang: 'ts', theme: 'nord' })
+ * const palette = Theme.derive(result.theme)
+ * palette.backdrop.from
+ * // ^?
+ * ```
+ */
 export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const type = theme.type === 'light' ? 'light' : 'dark'
   // First parseable candidate wins: an unparseable color is as missing as an
