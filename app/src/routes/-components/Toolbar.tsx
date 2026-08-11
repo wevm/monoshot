@@ -305,13 +305,13 @@ const styles = stylex.create({
     height: '100%',
     width: '100%',
   },
-  // Each bar cut into the picture: the edge is the toolbar's own material,
-  // opaque, so it reads as the picture stopping rather than as a line drawn on
-  // it. The picture keeps the space between and around them.
+  // A white hairline holds each bar off the picture behind it, the same on every
+  // swatch: an edge taken from a theme's own colors reads on some pictures and
+  // vanishes on others.
   themeStroke: (paint: string) => ({
     backgroundColor: paint,
     borderRadius: 3,
-    boxShadow: `0 0 0 1px ${color.chrome}`,
+    boxShadow: '0 0 0 1px #ffffff',
   }),
   swatch: (background: string) => ({
     backgroundColor: background,
