@@ -1,6 +1,6 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
-import { motion as m, useReducedMotion } from 'motion/react'
+import { useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
@@ -51,12 +51,12 @@ const travel = `transform ${motion.fast} ${motion.inOut}`
 const placing = `transform 1ms linear`
 
 /**
- * The pill taking the width of what it says next, and the hint rolling to it.
+ * The hint rolling to what it says next.
  *
  * Without give: a hint is read rather than played with, and a name that settles
  * by rocking into place is a name that cannot be read until it stops.
  */
-const morph = { bounce: 0, duration: 0.22, type: 'spring' } as const
+const rolling = { bounce: 0, duration: 0.22, type: 'spring' } as const
 
 /** A hint pointed at a control the app draws rather than renders. */
 type Aim = { at: Element; label: string }
@@ -200,7 +200,9 @@ function Pill(props: {
     // placement is worked out off the main thread and lands whenever it lands,
     // and travelling before it does is travelling from the corner it starts at.
     const settle = () => {
-      if (!node.style.transform) return
+      // Base UI holds an unplaced pill at nothing until it knows where to put
+      // it, whichever properties it ends up placing it with.
+      if (node.style.opacity === '0') return
       watcher.disconnect()
       frame = requestAnimationFrame(() => setPlaced(true))
     }
@@ -237,11 +239,14 @@ function Pill(props: {
          *
          * Size only, since where the pill is belongs to the placement above.
          */}
-        <Base.Popup
-          render={<m.div layout="size" transition={morph} />}
-          {...stylex.props(styles.popup, text.label13)}
-        >
-          <Roll transition={morph} value={label} />
+        {/*
+         * No layout animation on the pill. It would be measured in the box the
+         * positioner starts at, which is the page's corner until the placement
+         * lands, and drawn travelling out of there once the placement makes it
+         * visible again.
+         */}
+        <Base.Popup {...stylex.props(styles.popup, text.label13)}>
+          <Roll transition={rolling} value={label} />
         </Base.Popup>
       </Base.Positioner>
     </Base.Portal>
