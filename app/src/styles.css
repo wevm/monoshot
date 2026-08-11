@@ -386,6 +386,8 @@
 .rail-reach {
   height: var(--rail-height, 0);
   left: calc(var(--rail-left, 0px) - var(--rail-gap, 0px));
+  /* The host takes no pointer of its own, so what covers a row asks for one. */
+  pointer-events: auto;
   position: absolute;
   top: var(--rail-top, 0);
   width: calc(var(--rail-gap, 0px) + 92px);
