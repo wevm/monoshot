@@ -2,7 +2,7 @@ import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
 import { motion as m, useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Roll } from './Roll.js'
@@ -167,15 +167,28 @@ function Aimed() {
   const last = useRef<Aim | undefined>(undefined)
   if (aimed) last.current = aimed
   const shown = aimed ?? last.current
+  // Where the control is rather than the control itself, so the last place it
+  // stood outlives it: the marks beside the code are taken out from under the
+  // pointer, and a control off the page is measured at the page's corner.
+  const anchor = useMemo(() => {
+    const at = shown?.at
+    if (!at) return undefined
+    const stood = at.getBoundingClientRect()
+    return { getBoundingClientRect: () => (at.isConnected ? at.getBoundingClientRect() : stood) }
+  }, [shown])
   return (
     <Base.Root open={aimed !== undefined}>
-      <Pill anchor={shown?.at} label={shown?.label ?? ''} open={aimed !== undefined} />
+      <Pill anchor={anchor} label={shown?.label ?? ''} open={aimed !== undefined} />
     </Base.Root>
   )
 }
 
 /** What a hint is drawn as, wherever it was asked for. */
-function Pill(props: { anchor?: Element | undefined; label: string; open: boolean }) {
+function Pill(props: {
+  anchor?: Element | { getBoundingClientRect: () => DOMRect } | undefined
+  label: string
+  open: boolean
+}) {
   const { anchor, label, open } = props
   const still = useReducedMotion()
   const [placed, setPlaced] = useState(false)
