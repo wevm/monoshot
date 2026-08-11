@@ -397,11 +397,17 @@
   transition:
     opacity 140ms cubic-bezier(0.19, 1, 0.22, 1),
     transform 160ms cubic-bezier(0.19, 1, 0.22, 1);
+  /* Over what covers the rows: they are built after this and would otherwise
+     take the presses meant for the controls. */
+  z-index: 1;
 }
 
 .rail[data-shown],
 .rail:focus-within {
   opacity: 1;
+  /* Takes the pointer only where it is: the controls are what a press is for,
+     and what covers the rows lies under them. */
+  pointer-events: auto;
 }
 
 /* The gap between the window and the controls, carried by the strip itself:
