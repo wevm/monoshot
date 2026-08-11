@@ -161,6 +161,7 @@ class Rail {
     this.view.dom.removeEventListener('mouseleave', this.clear)
     this.container.removeEventListener('mouseleave', this.clear)
     window.removeEventListener('mouseup', this.drop)
+    window.removeEventListener('mousemove', this.carry)
     this.container.replaceChildren()
     this.reaches.clear()
   }
@@ -181,6 +182,20 @@ class Rail {
 
   private readonly drop = () => {
     this.painting = undefined
+    window.removeEventListener('mousemove', this.carry)
+  }
+
+  /**
+   * The row under a press being held, read from where the pointer is rather than
+   * from what it is over: writing a notation moves the rows, and what covers
+   * them says where they were when it was last measured.
+   */
+  private readonly carry = (event: MouseEvent) => {
+    if (!this.painting) return
+    const { view } = this
+    const height = event.clientY - view.documentTop
+    const block = view.lineBlockAtHeight(Math.min(Math.max(height, 0), view.contentHeight - 1))
+    this.spread(view.state.doc.lineAt(block.from).number)
   }
 
   private reach(key: string | undefined) {
@@ -285,13 +300,7 @@ class Rail {
     const cover = document.createElement('div')
     cover.className = 'rail-reach'
     cover.style.setProperty('--rail-gap', `${gap}px`)
-    cover.addEventListener('mouseenter', () => {
-      this.reach(key)
-      // A press held from another row reaches this one, so a run of lines takes
-      // the mark in one gesture.
-      const line = this.rows.get(key)?.line
-      if (this.painting && line !== undefined) this.spread(line)
-    })
+    cover.addEventListener('mouseenter', () => this.reach(key))
     this.container.appendChild(cover)
     return cover
   }
@@ -326,6 +335,7 @@ class Rail {
             origin: this.view.state.doc.line(line).from,
             set: row.carried?.includes(kind) !== true,
           }
+          window.addEventListener('mousemove', this.carry)
           this.spread(line)
         },
         icon: icons[kind],
@@ -386,31 +396,49 @@ class Rail {
       painting.changed.delete(at)
       this.apply(number, painting.kind, !painting.set)
     }
-    for (let number = from; number <= to; number++) {
-      const at = this.view.state.doc.line(number).from
-      if (painting.changed.has(at)) continue
-      if (this.apply(number, painting.kind, painting.set)) painting.changed.add(at)
+    let number = from
+    let last = to
+    while (number <= last) {
+      if (!painting.changed.has(this.view.state.doc.line(number).from)) {
+        // Where the row ended up rather than where it was: setting focus writes
+        // a line above it, and a row remembered by where it was reads as
+        // untouched the next time the press passes over it.
+        const landed = this.apply(number, painting.kind, painting.set)
+        if (landed !== undefined) {
+          painting.changed.add(landed)
+          // The row and everything under it moved down by what was written
+          // above it, so the rows still to reach are further along by as much.
+          const moved = this.view.state.doc.lineAt(landed).number - number
+          number += moved
+          last += moved
+        }
+      }
+      number += 1
     }
   }
 
   /**
    * Sets or clears a mark on a row, leaving one already that way alone. Says
-   * whether it changed anything, since only what changed is put back.
+   * where the row ended up, since only what changed is put back and the row can
+   * have moved to make space for the notation.
    */
   private apply(line: number, kind: Notations.Kind, set: boolean) {
     const { state } = this.view
-    if (line > state.doc.lines || !Notations.takesMark(state, line)) return false
+    if (line > state.doc.lines || !Notations.takesMark(state, line)) return undefined
     const carries = Notations.at(state, line).some((notation) => notation.kind === kind)
-    if (carries === set) return false
-    this.toggle(line, kind)
-    return true
+    if (carries === set) return undefined
+    const at = state.doc.line(line).from
+    const transaction = this.toggle(line, kind)
+    // Toward the row rather than the line written above it: an insertion at its
+    // start belongs to what was inserted, not to what it pushed down.
+    return transaction ? transaction.changes.mapPos(at, 1) : at
   }
 
   private toggle(line: number, kind: Notations.Kind) {
     const { state } = this.view
     // Refused here rather than only on the control: a blank line carrying a mark
     // of its own would be taken away along with it.
-    if (line > state.doc.lines || !Notations.takesMark(state, line)) return
+    if (line > state.doc.lines || !Notations.takesMark(state, line)) return undefined
     const transaction = state.update({
       changes: Notations.toggle(state, { kind, line, syntax: this.syntax }),
       // The caret stays where the writer left it rather than jumping to the mark
@@ -421,10 +449,11 @@ class Rail {
     // Setting focus writes a line, so what a press is holding onto moves: the
     // rows it covers are the same rows at their new offsets.
     const painting = this.painting
-    if (!painting) return
-    painting.origin = transaction.changes.mapPos(painting.origin)
-    const changed = [...painting.changed].map((at) => transaction.changes.mapPos(at))
+    if (!painting) return transaction
+    painting.origin = transaction.changes.mapPos(painting.origin, 1)
+    const changed = [...painting.changed].map((at) => transaction.changes.mapPos(at, 1))
     painting.changed.clear()
     for (const at of changed) painting.changed.add(at)
+    return transaction
   }
 }

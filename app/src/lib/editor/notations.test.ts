@@ -279,6 +279,21 @@ describe('syntax', () => {
 })
 
 describe('takesMark', () => {
+  test('refuses a line that is already only a notation', () => {
+    // Not code, so not something to mark: marking it would write a notation
+    // above a notation.
+    const state = EditorState.create({
+      doc: '// [!code focus]\nconst a = 1\n',
+      extensions: [notations],
+    })
+    expect([1, 2].map((line) => takesMark(state, line))).toMatchInlineSnapshot(`
+      [
+        false,
+        true,
+      ]
+    `)
+  })
+
   test('refuses a blank line, which a mark of its own would take away', () => {
     // Shiki reads a comment alone on a line as addressing the line after it,
     // and removes the line it sat on.

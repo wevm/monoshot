@@ -131,9 +131,10 @@ export function at(state: EditorState, line: number): readonly Notation[] {
 /**
  * Whether a line can carry a mark. A blank one cannot: a comment alone on a line
  * addresses the line after it, and is taken out along with the line it sat on.
+ * Nor can a line that is already only a notation, which is not code either.
  */
 export function takesMark(state: EditorState, line: number): boolean {
-  return state.doc.line(line).text.trim() !== ''
+  return state.doc.line(line).text.replace(pattern, '').trim() !== ''
 }
 
 /**
