@@ -20,6 +20,12 @@ import { Theme } from '../src/index.js'
 /** How many colors stand for a theme in the picker. */
 const wanted = 3
 
+/** Below this chroma a color reads as grey rather than as a hue. */
+const neutral = 0.04
+
+/** What a rule naming no scope counts for, in scopes it stands in place of. */
+const unscoped = 8
+
 const output = path.join(import.meta.dirname, '..', 'app', 'src', 'lib', 'swatches.ts')
 const toOklch = converter('oklch')
 
@@ -56,40 +62,47 @@ export const swatches: Record<string, { backdrop: string; colors: readonly strin
 console.log(`Wrote ${Object.keys(swatches).length} swatches to ${path.relative('.', output)}`)
 
 /**
- * The colors a theme is known by: the hues it paints most, gathered into arcs
- * weighted by how much of the theme each rule reaches and how vivid it is.
+ * The colors a theme is known by: what it paints the most of a snippet in.
  *
- * The same reading the frame's own accent comes from, so the swatch and the
- * artwork behind it agree about what a theme looks like.
+ * Weighed by how far each rule reaches and nothing else. Weighing by how vivid
+ * a color is finds the accent a theme decorates with, which is a different
+ * question: a theme whose code is mostly off-white is known by that off-white,
+ * not by the pink it uses twice.
  */
 function strongest(theme: ThemeRegistration): string[] {
-  const arcs = new Map<
-    number,
-    { chroma: number; count: number; lightness: number; weight: number }
-  >()
-  for (const rule of theme.tokenColors ?? []) {
+  // The same field under two names; a theme carrying both would otherwise have
+  // every rule counted twice.
+  const rules = theme.tokenColors ?? theme.settings ?? []
+  const groups = new Map<string, { colors: Map<string, number>; count: number }>()
+  for (const rule of rules) {
     const value = rule.settings?.foreground
     if (!value) continue
     const color = toOklch(value)
-    if (!color || !Number.isFinite(color.h) || color.c <= 0.02) continue
-    const reach = Array.isArray(rule.scope)
-      ? Math.max(rule.scope.length, 1)
-      : Math.max((rule.scope ?? '').split(',').length, 1)
-    const arc = Math.floor((color.h ?? 0) / 30)
-    const found = arcs.get(arc) ?? { chroma: 0, count: 0, lightness: 0, weight: 0 }
-    found.chroma += color.c
-    found.count += 1
-    found.lightness += color.l
-    found.weight += reach * color.c
-    arcs.set(arc, found)
+    if (!color) continue
+    const scope = Array.isArray(rule.scope) ? rule.scope.join(',') : (rule.scope ?? '')
+    const named = scope.split(',').filter((part) => part.trim()).length
+    // A rule naming no scope paints everything the others leave, which is most
+    // of a snippet: it counts for more than any one of them.
+    const reach = named || unscoped
+    // Grey and near-grey keep to themselves rather than joining whichever hue
+    // they lean toward: the color most code is written in is often one of them,
+    // and it is not a pale version of the accent beside it.
+    const key = color.c < neutral ? 'neutral' : String(Math.floor((color.h ?? 0) / 30))
+    const found = groups.get(key) ?? { colors: new Map<string, number>(), count: 0 }
+    found.count += reach
+    // Each color's own total, so the one shown is the one the theme paints most
+    // of the group in rather than whichever rule happens to name most scopes.
+    found.colors.set(value, (found.colors.get(value) ?? 0) + reach)
+    groups.set(key, found)
   }
-  const ordered = [...arcs.entries()].sort((a, b) => b[1].weight - a[1].weight).slice(0, wanted)
-  return ordered.map(([arc, found]) =>
-    formatHex({
-      c: found.chroma / found.count,
-      h: arc * 30 + 15,
-      l: found.lightness / found.count,
-      mode: 'oklch',
-    }),
-  )
+  return [...groups.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, wanted)
+    .map((group) => {
+      // The color itself rather than the group's average, which is a color the
+      // theme never paints: a group of blues averages to a duller blue than any
+      // of them.
+      const [best] = [...group.colors].sort((a, b) => b[1] - a[1])
+      return formatHex(toOklch(best?.[0] ?? '#888888') ?? { c: 0, h: 0, l: 0.5, mode: 'oklch' })
+    })
 }

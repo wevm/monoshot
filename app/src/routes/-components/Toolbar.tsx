@@ -264,7 +264,11 @@ const styles = stylex.create({
   // The artwork in miniature: the backdrop a theme draws, with the colors it
   // paints code in standing on it.
   themeBox: (backdrop: string) => ({
-    background: backdrop,
+    // Longhands: a shorthand carrying a value this shape is dropped, and the
+    // panel's own surface reads through where the backdrop should be.
+    backgroundImage: backdrop,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
     borderRadius: 8,
     borderStyle: 'none',
     // A hairline edge, so a near-black backdrop still reads against the panel.
@@ -290,19 +294,24 @@ const styles = stylex.create({
     transitionProperty: 'transform',
     transitionTimingFunction: motion.out,
   }),
-  // The colors as the window standing on that backdrop: equal stripes, edge to
-  // edge across what holds them, the way the artwork sits on its own.
+  // The colors as three bars standing on that backdrop, spaced so the backdrop
+  // reads between them as well as around them.
   themeStripes: {
-    // The box's corner less the padding around this, so the two are concentric.
-    borderRadius: 3,
     display: 'grid',
+    gap: 3,
     gridAutoColumns: '1fr',
     gridAutoFlow: 'column',
     height: '100%',
-    overflow: 'hidden',
     width: '100%',
   },
-  themeStroke: (paint: string) => ({ backgroundColor: paint }),
+  // The box's corner less the padding around these, so the two are concentric.
+  // Edged both ways: a bar sits on a picture that may be lighter or darker than
+  // it, and one hairline alone reads on only one of them.
+  themeStroke: (paint: string) => ({
+    backgroundColor: paint,
+    borderRadius: 3,
+    boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.22), 0 0 0 1px rgb(0 0 0 / 0.28)',
+  }),
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 4,

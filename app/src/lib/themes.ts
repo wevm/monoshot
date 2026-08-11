@@ -29,7 +29,7 @@ export const composed = palettes.map((palette) =>
 
 /** What a theme is shown as: the backdrop it draws, and the colors on it. */
 export type Swatch = {
-  /** A CSS background: the theme's own backdrop, or the picture it stands on. */
+  /** A CSS image: the theme's own backdrop, or the picture it stands on. */
   backdrop: string
   colors: readonly string[]
 }
@@ -59,7 +59,7 @@ const drawn = new Map<string, Swatch>([
     return [
       theme.name as string,
       {
-        backdrop: `url("${Wallpapers.thumbnail(theme.name as string)}") center / cover`,
+        backdrop: `url("${Wallpapers.thumbnail(theme.name as string)}")`,
         colors: painted.slice(1, 4),
       },
     ] as const
