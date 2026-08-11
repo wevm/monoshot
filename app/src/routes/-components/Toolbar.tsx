@@ -121,19 +121,20 @@ const styles = stylex.create({
   rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
-  rows: { display: 'flex', flexDirection: 'column', gap: 8, padding: 8 },
+  rows: { display: 'flex', flexDirection: 'column', gap: 4, padding: 4 },
   rowTitle: { color: color.onChromeSecondary, paddingInline: 2 },
   // A selected swatch's ring is drawn outside it and a hovered one grows past
   // its box, both of which a scrolling row counts as somewhere to scroll to:
-  // the padding is the room they take instead. Enough for the ring's own 3px
-  // and the 2px it paints beyond that, which the row would otherwise cut.
+  // the padding is the room they take instead. Enough for a swatch that is both
+  // at once, which grows the ring's 3px and the 2px beyond it by the hover's
+  // own scale.
   colorRow: {
     alignItems: 'center',
     display: 'flex',
     gap: 5,
     overflowX: 'auto',
     overflowY: 'hidden',
-    padding: 6,
+    padding: 10,
   },
   // Every picture takes an equal share, so the set spans the width the colors
   // below it ask for. Narrow enough and they scroll, as the colors do.
@@ -142,7 +143,7 @@ const styles = stylex.create({
     gap: 5,
     overflowX: 'auto',
     overflowY: 'hidden',
-    padding: 6,
+    padding: 10,
   },
   swatchButton: {
     borderStyle: 'none',
