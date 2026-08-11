@@ -1,7 +1,7 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
 import type { ReactElement } from 'react'
-import { useMemo, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Roll } from './Roll.js'
@@ -42,7 +42,10 @@ const rolling = { bounce: 0, duration: 0.22, type: 'spring' } as const
 type Aim = { at: Element; label: string }
 
 let aim: Aim | undefined
+let pending: Aim | undefined
+let resting = true
 let waiting: ReturnType<typeof setTimeout> | undefined
+let settling: ReturnType<typeof setTimeout> | undefined
 const watching = new Set<() => void>()
 
 function watch(watcher: () => void) {
@@ -64,6 +67,31 @@ function aimAt(at: Aim | undefined) {
  * hint that went in that moment would blink out and straight back in.
  */
 const linger = 100
+
+/** How long the pointer stands still before it counts as having stopped. */
+const rest = 120
+
+/**
+ * Watches the pointer, so a hint answers what it came to rest on rather than
+ * everything it passed on the way.
+ *
+ * The marks sit beside the code and the strip follows the pointer down it, so a
+ * pointer on its way somewhere sweeps control after control.
+ */
+function pace() {
+  const moved = () => {
+    resting = false
+    clearTimeout(settling)
+    // Out of the way while the pointer is going somewhere.
+    if (aim) aimAt(undefined)
+    settling = setTimeout(() => {
+      resting = true
+      if (pending) aimAt(pending)
+    }, rest)
+  }
+  window.addEventListener('pointermove', moved, { passive: true })
+  return () => window.removeEventListener('pointermove', moved)
+}
 
 /**
  * Hover and focus tooltip around a single focusable child. Reaches the one
@@ -108,11 +136,14 @@ export namespace Tooltip {
    */
   export function point(at?: Aim | undefined) {
     clearTimeout(waiting)
-    if (at) {
-      aimAt(at)
+    pending = at
+    if (!at) {
+      waiting = setTimeout(() => aimAt(undefined), linger)
       return
     }
-    waiting = setTimeout(() => aimAt(undefined), linger)
+    // Only once the pointer has stopped: on its way it is passing this control
+    // rather than asking about it.
+    if (resting) aimAt(at)
   }
 
   /** Props for {@link Tooltip}. */
@@ -131,6 +162,7 @@ function Wrapped() {
 
 /** The hint for whatever {@link Tooltip.point} was last pointed at. */
 function Aimed() {
+  useEffect(pace, [])
   const aimed = useSyncExternalStore(
     watch,
     () => aim,
