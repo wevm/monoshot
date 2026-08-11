@@ -405,11 +405,7 @@ function toOklch(value: string): Oklch | undefined {
  */
 function pickAccent(theme: ThemeRegistrationResolved): Oklch | undefined {
   const tokens = [...(theme.settings ?? []), ...(theme.tokenColors ?? [])]
-  /** Token colors gathered by hue, wide enough that one hue lands in one arc. */
-  const arcs = new Map<
-    number,
-    { chroma: number; count: number; weight: number; x: number; y: number }
-  >()
+  const painted: { chroma: number; hue: number; weight: number }[] = []
   for (const token of tokens) {
     const value = token.settings?.foreground
     if (!value) continue
@@ -418,26 +414,42 @@ function pickAccent(theme: ThemeRegistrationResolved): Oklch | undefined {
     // A rule painting twenty scopes carries twenty times as much of the theme
     // as one painting a single scope, and a vivid color carries more than a
     // muted one at the same reach.
-    const weight = scopes(token.scope) * color.c
-    const arc = Math.floor((color.h ?? 0) / 30)
-    const found = arcs.get(arc) ?? { chroma: 0, count: 0, weight: 0, x: 0, y: 0 }
-    const radians = ((color.h ?? 0) * Math.PI) / 180
-    found.chroma += color.c
-    found.count += 1
-    found.weight += weight
-    found.x += Math.cos(radians) * weight
-    found.y += Math.sin(radians) * weight
-    arcs.set(arc, found)
+    painted.push({ chroma: color.c, hue: color.h ?? 0, weight: scopes(token.scope) * color.c })
   }
-  const heaviest = [...arcs.values()].sort((a, b) => b.weight - a.weight)[0]
+  // A window around each hue the theme paints, rather than fixed arcs: an arc
+  // boundary falling inside one hue splits it, and reds at 359 and 1 degrees
+  // are the same red.
+  let heaviest: { near: typeof painted; weight: number } | undefined
+  for (const centre of painted) {
+    const near = painted.filter((one) => apart(one.hue, centre.hue) <= reach)
+    const weight = near.reduce((total, one) => total + one.weight, 0)
+    if (heaviest && heaviest.weight >= weight) continue
+    heaviest = { near, weight }
+  }
   if (!heaviest) return undefined
-  // The mean of the arc that won rather than of the whole palette: averaging
+  // The mean of the hues that won rather than of the whole palette: averaging
   // every hue a theme uses lands between them, on a color it never paints.
+  const [x, y] = heaviest.near.reduce(
+    ([across, up], one) => {
+      const radians = (one.hue * Math.PI) / 180
+      return [across + Math.cos(radians) * one.weight, up + Math.sin(radians) * one.weight]
+    },
+    [0, 0],
+  )
   return {
-    c: heaviest.chroma / heaviest.count,
-    h: ((Math.atan2(heaviest.y, heaviest.x) * 180) / Math.PI + 360) % 360,
+    c: heaviest.near.reduce((total, one) => total + one.chroma, 0) / heaviest.near.length,
+    h: ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360,
     l: 0.5,
   }
+}
+
+/** How wide a hue reads as one hue, in degrees either side of it. */
+const reach = 15
+
+/** How far apart two hues are, the short way around the circle. */
+function apart(one: number, other: number): number {
+  const gap = Math.abs(one - other) % 360
+  return gap > 180 ? 360 - gap : gap
 }
 
 /** How much of a theme a rule paints, as the number of scopes it names. */
