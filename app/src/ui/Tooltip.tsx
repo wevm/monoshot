@@ -1,7 +1,7 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
+import { useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
-import { useState } from 'react'
 
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
@@ -17,14 +17,6 @@ const styles = stylex.create({
   // Over whatever it is about, including the surfaces that float: a hint about a
   // control inside a popover is drawn on top of the popover.
   positioner: { zIndex: 20 },
-  // Set once it stands somewhere, so it is placed where it opens and travels
-  // only from one control to another.
-  travelling: {
-    transitionDuration: motion.fast,
-    transitionProperty: 'transform',
-    transitionTimingFunction: motion.out,
-    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0s' },
-  },
   popup: {
     backgroundColor: color.background,
     borderRadius: radius.control,
@@ -47,6 +39,20 @@ const styles = stylex.create({
 })
 
 /**
+ * How the pill travels from the control it was over to the one it is over now.
+ *
+ * The placement itself, since that is what Base UI writes, and inline because it
+ * writes `transition: none` there for the frame the pill mounts. Only a style of
+ * its own outranks that, and the library reads the transition to decide which
+ * edge to hold the pill by: without one it anchors the first placement by `top`
+ * and every later one by `bottom`, leaving the first move with nothing to
+ * interpolate.
+ */
+const travel = ['bottom', 'left', 'right', 'top']
+  .map((side) => `${side} ${motion.fast} ${motion.out}`)
+  .join(', ')
+
+/**
  * Hover and focus tooltip around a single focusable child. Reaches the one
  * {@link Tooltip.Surface} the app mounts, so every hint is the same pill moving.
  *
@@ -64,21 +70,16 @@ export namespace Tooltip {
    * Tooltip.Provider}.
    */
   export function Surface() {
-    const [travelling, setTravelling] = useState(false)
+    const still = useReducedMotion()
     return (
-      <Base.Root
-        handle={shared}
-        onOpenChange={(open) => {
-          if (!open) setTravelling(false)
-        }}
-        onOpenChangeComplete={setTravelling}
-      >
+      <Base.Root handle={shared}>
         {({ payload }) => (
           <Base.Portal>
             <Base.Positioner
               side="top"
               sideOffset={6}
-              {...stylex.props(styles.positioner, travelling && styles.travelling)}
+              style={{ transition: still ? 'none' : travel }}
+              {...stylex.props(styles.positioner)}
             >
               <Base.Popup {...stylex.props(styles.popup, text.label13)}>
                 {/* Styled in `styles.css`: the swap it draws is between two
