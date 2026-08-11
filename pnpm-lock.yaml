@@ -258,6 +258,9 @@ importers:
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 2.23.2
+      culori:
+        specifier: 'catalog:'
+        version: 4.0.2
       highlight.js:
         specifier: 'catalog:'
         version: 11.11.1
@@ -310,6 +313,9 @@ importers:
       '@types/babel__core':
         specifier: 'catalog:'
         version: 7.20.5
+      '@types/culori':
+        specifier: 'catalog:'
+        version: 4.0.1
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5

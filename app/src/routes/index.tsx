@@ -366,7 +366,7 @@ function Page() {
   const [artwork, setArtwork] = useState<Artwork>()
   // Held as data rather than drawn from its URL: the copy an export captures is
   // read as it stands, and a fetch it started would not have landed by then.
-  const [wallpaper, setWallpaper] = useState<string>()
+  const [wallpaper, setWallpaper] = useState<Wallpapers.Picture>()
   const stage = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
@@ -455,8 +455,8 @@ function Page() {
     if (!named) return setWallpaper(undefined)
     let active = true
     void Wallpapers.embed(named.id).then(
-      (source) => {
-        if (active) setWallpaper(source)
+      (picture) => {
+        if (active) setWallpaper(picture)
       },
       (cause: Error) => {
         if (active) setNotice(cause.message)
@@ -523,7 +523,7 @@ function Page() {
         palette: Theme.derive(rendered.theme),
         settings,
         title,
-        wallpaper: picture,
+        wallpaper: picture?.source,
       }),
     )
     try {
@@ -711,6 +711,12 @@ function Page() {
         background: `color-mix(in oklab, ${settings.background} 22%, #08080a)`,
         foreground: frame.palette.page.foreground,
       }
+    // A picture owns the surface the same way, in the strongest color it holds.
+    if (wallpaper)
+      return {
+        background: `color-mix(in oklab, ${wallpaper.color} 22%, #08080a)`,
+        foreground: frame.palette.page.foreground,
+      }
     return frame.palette.page
   })()
 
@@ -722,7 +728,7 @@ function Page() {
         canvas && wallpaper
           ? styles.canvasPicture({
               scrim: `color-mix(in oklab, ${canvas.background} 82%, transparent)`,
-              source: wallpaper,
+              source: wallpaper.source,
             })
           : null,
       )}
@@ -879,7 +885,7 @@ function Page() {
                 radius={settings.radius}
                 title={title}
                 titleBar={settings.titleBar}
-                wallpaper={wallpaper}
+                wallpaper={wallpaper?.source}
                 width={settings.width}
               >
                 <Editor
