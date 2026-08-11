@@ -20,12 +20,22 @@ export function unchecked(code: string): string {
     const alone = line.replace(removal, '').trim() === ''
     const first = alone ? index + 1 : index
     if (alone) blanked.add(index)
-    for (let target = first; target < first + Number(match[1] ?? 1); target++) blanked.add(target)
+    // Held to the lines there are: a snippet asking for a billion of them, or
+    // for so many that the count reads as infinite, is asking this to run
+    // until the tab gives up.
+    for (let target = first; target < Math.min(first + count(match[1]), lines.length); target++)
+      blanked.add(target)
   }
   if (!blanked.size) return code
   return lines
     .map((line, index) => (blanked.has(index) ? ' '.repeat(line.length) : line))
     .join('\n')
+}
+
+/** How many lines a notation covers, as a count this can count to. */
+function count(written: string | undefined): number {
+  const asked = Number(written ?? 1)
+  return Number.isSafeInteger(asked) && asked > 0 ? asked : 1
 }
 
 /**

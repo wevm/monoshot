@@ -23,9 +23,13 @@ export type Kind = 'add' | 'focus' | 'highlight' | 'remove'
 export type Notation = {
   /** Whether the comment stands on a line of its own. */
   alone: boolean
+  /** Where the comment starts, as a document offset. */
   from: number
+  /** What the notation asks those lines to look like. */
   kind: Kind
+  /** The lines it marks, numbered from one as the document numbers them. */
   lines: readonly number[]
+  /** Where the comment ends, as the document offset just past it. */
   to: number
 }
 
@@ -258,13 +262,15 @@ function build(state: EditorState): Value {
     const match = written.at(-1) as RegExpExecArray
     const kind = kinds[match[1] as string] as Kind
     const first = alone ? number + 1 : number
-    const count = Number(match[2] ?? 1)
+    // Held to the lines there are: a snippet asking for a billion of them, or
+    // for so many that the count reads as infinite, is asking the editor to
+    // rebuild its decorations until the tab gives up.
+    const last = Math.min(first + count(match[2]) - 1, doc.lines)
     const covered = []
-    for (let target = first; target < first + count; target++)
-      if (target <= doc.lines) {
-        covered.push(target)
-        marked.set(target, (marked.get(target) ?? new Set()).add(kind))
-      }
+    for (let target = first; target <= last; target++) {
+      covered.push(target)
+      marked.set(target, (marked.get(target) ?? new Set()).add(kind))
+    }
     found.push({
       alone,
       from: line.from + match.index,
@@ -325,6 +331,12 @@ function conceal(
       line.from + match.index + match[0].length,
     )
   })
+}
+
+/** How many lines a notation covers, as a count the editor can count to. */
+function count(written: string | undefined): number {
+  const asked = Number(written ?? 1)
+  return Number.isSafeInteger(asked) && asked > 0 ? asked : 1
 }
 
 /** A row holding a notation and nothing else, which is not part of the code. */
