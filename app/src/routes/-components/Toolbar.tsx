@@ -297,24 +297,22 @@ const styles = stylex.create({
     transitionProperty: 'transform',
     transitionTimingFunction: motion.out,
   }),
-  // The colors as three bars standing on that backdrop, spaced so the backdrop
-  // reads between them as well as around them.
+  // The colors sit in a well of the panel's own material rather than on the
+  // picture: what separates them is the toolbar showing through the picture,
+  // the way a cut would, not a stroke drawn over it.
   themeStripes: {
+    backgroundColor: color.chrome,
+    borderRadius: 4,
     display: 'grid',
-    gap: 3,
+    gap: 2,
     gridAutoColumns: '1fr',
     gridAutoFlow: 'column',
     height: '100%',
+    padding: 1,
     width: '100%',
   },
-  // The box's corner less the padding around these, so the two are concentric.
-  // Edged in the panel's own material, so a bar reads as cut out of the surface
-  // it sits on whatever picture is behind it.
-  themeStroke: (paint: string) => ({
-    backgroundColor: paint,
-    borderRadius: 3,
-    boxShadow: `0 0 0 1px ${color.chromeTranslucent}`,
-  }),
+  // The well's corner less the padding around these, so the two are concentric.
+  themeStroke: (paint: string) => ({ backgroundColor: paint, borderRadius: 3 }),
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 4,
