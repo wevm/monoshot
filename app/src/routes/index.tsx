@@ -11,6 +11,7 @@ import * as Twoslash from '#/lib/twoslash/client.js'
 import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
 import { dialects } from '#/lib/twoslash/options.js'
+import * as Wallpapers from '#/lib/wallpapers.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
@@ -197,6 +198,8 @@ type Artwork = {
   palette: Theme.derive.Result
   settings: Settings
   title: string
+  /** The backdrop's picture as data, when the settings named one. */
+  wallpaper: string | undefined
 }
 
 /**
@@ -353,6 +356,9 @@ function Page() {
   // artwork for the highlighter's fallback and leave it there.
   const [notice, setNotice] = useState<string>()
   const [artwork, setArtwork] = useState<Artwork>()
+  // Held as data rather than drawn from its URL: the copy an export captures is
+  // read as it stands, and a fetch it started would not have landed by then.
+  const [wallpaper, setWallpaper] = useState<string>()
   const stage = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
@@ -436,6 +442,23 @@ function Page() {
     return () => clearTimeout(timer)
   }, [code, language, settings.types])
 
+  useEffect(() => {
+    const named = Wallpapers.at(settings.background)
+    if (!named) return setWallpaper(undefined)
+    let active = true
+    void Wallpapers.embed(named.id).then(
+      (source) => {
+        if (active) setWallpaper(source)
+      },
+      (cause: Error) => {
+        if (active) setNotice(cause.message)
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [settings.background])
+
   useEffect(() => () => resolver.current?.dispose(), [])
 
   // Types are painted in the theme's own colors rather than a flat foreground.
@@ -482,6 +505,8 @@ function Page() {
       theme,
       ...(types ? { twoslash: types } : {}),
     })
+    const named = Wallpapers.at(settings.background)
+    const picture = named ? await Wallpapers.embed(named.id) : undefined
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
       setArtwork({
@@ -490,6 +515,7 @@ function Page() {
         palette: Theme.derive(rendered.theme),
         settings,
         title,
+        wallpaper: picture,
       }),
     )
     try {
@@ -798,6 +824,7 @@ function Page() {
               radius={artwork.settings.radius}
               title={artwork.title}
               titleBar={artwork.settings.titleBar}
+              wallpaper={artwork.wallpaper}
               width={artwork.settings.width}
             >
               <Frame.Code css={artwork.css} html={artwork.html} />
@@ -833,6 +860,7 @@ function Page() {
                 radius={settings.radius}
                 title={title}
                 titleBar={settings.titleBar}
+                wallpaper={wallpaper}
                 width={settings.width}
               >
                 <Editor

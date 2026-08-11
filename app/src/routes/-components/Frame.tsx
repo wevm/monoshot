@@ -11,6 +11,7 @@ import { createContext, useEffect, useRef, useState } from 'react'
 import * as Annotation from '#/lib/editor/annotation.js'
 import * as Identifier from '#/lib/editor/identifier.js'
 import { ignore } from '#/lib/export.js'
+import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -133,6 +134,13 @@ const styles = stylex.create({
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
   },
   fill: (value: string) => ({ backgroundColor: value }),
+  // Covered rather than tiled or fitted: the artwork is cropped to whatever
+  // shape the frame is dragged to, the way a desktop crops one to a display.
+  wallpaper: (source: string) => ({
+    backgroundImage: `url("${source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+  }),
   padding: (value: number) => ({ padding: value }),
   window: {
     backgroundColor: 'var(--window-background)',
@@ -191,6 +199,7 @@ export function Frame(props: Frame.Props) {
     radius,
     title,
     titleBar,
+    wallpaper,
     width,
   } = props
 
@@ -235,8 +244,13 @@ export function Frame(props: Frame.Props) {
               title: palette.window.title,
               to: palette.backdrop.to,
             }),
-            background === 'default' ? styles.backdrop : null,
+            // The theme's own backdrop also stands in while a picture loads, so
+            // naming one never leaves the artwork on nothing.
+            background === 'default' || (Wallpapers.at(background) && !wallpaper)
+              ? styles.backdrop
+              : null,
             background.startsWith('#') ? styles.fill(background) : null,
+            wallpaper ? styles.wallpaper(wallpaper) : null,
             styles.padding(padding),
           )}
         >
@@ -486,6 +500,8 @@ export declare namespace Frame {
     title: string
     /** Shows the window chrome: traffic lights and the title field. */
     titleBar: boolean
+    /** The picture a `wallpaper:` background named, as data the page loaded. */
+    wallpaper?: string | undefined
     /** Artwork width, in pixels. */
     width: number
   }

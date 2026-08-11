@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
 import { dialects } from '#/lib/twoslash/options.js'
+import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -120,7 +121,9 @@ const styles = stylex.create({
   rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
-  colorRow: { alignItems: 'center', display: 'flex', gap: 5, overflowX: 'auto', padding: 12 },
+  rows: { display: 'flex', flexDirection: 'column', gap: 10, padding: 12 },
+  rowTitle: { color: color.onChromeSecondary, paddingInline: 2 },
+  colorRow: { alignItems: 'center', display: 'flex', gap: 5, overflowX: 'auto' },
   swatchButton: {
     borderStyle: 'none',
     borderRadius: 6,
@@ -155,6 +158,14 @@ const styles = stylex.create({
     position: 'absolute',
   },
   swatchColor: (value: string) => ({ backgroundColor: value }),
+  // Landscape, since what it stands for is a picture rather than a color: a
+  // square crop of one says too little about it to pick by.
+  swatchPicture: (source: string) => ({
+    backgroundImage: `url("${source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+    width: 40,
+  }),
   // Stands for the theme's own gradient rather than a flat color.
   swatchDefault: { backgroundImage: 'linear-gradient(140deg, #6f5233, #2a1c0f)' },
   // The transparency checker, drawn rather than imported.
@@ -409,58 +420,86 @@ export function Toolbar(props: Toolbar.Props) {
                   ))}
                 </div>
               ) : panel === 'background' ? (
-                <div {...stylex.props(styles.colorRow)}>
-                  <button
-                    aria-pressed={background === 'default'}
-                    data-option={background === 'default' ? 'selected' : ''}
-                    onClick={() => onChange({ background: 'default' })}
-                    onFocus={() => onChange({ background: 'default' })}
-                    type="button"
-                    {...stylex.props(styles.swatchButton, styles.swatchDefault)}
-                  >
-                    <span {...stylex.props(styles.srOnly)}>Default</span>
-                    {background === 'default' && <Ring travel={travel} />}
-                  </button>
-                  <button
-                    aria-pressed={background === 'none'}
-                    data-option={background === 'none' ? 'selected' : ''}
-                    onClick={() => onChange({ background: 'none' })}
-                    onFocus={() => onChange({ background: 'none' })}
-                    type="button"
-                    {...stylex.props(styles.swatchButton, styles.swatchNone)}
-                  >
-                    <span {...stylex.props(styles.srOnly)}>None</span>
-                    {background === 'none' && <Ring travel={travel} />}
-                  </button>
-                  <div {...stylex.props(styles.divider)} />
-                  {backgrounds.map((value) => (
+                <div {...stylex.props(styles.rows)}>
+                  <div>
+                    <span {...stylex.props(styles.rowTitle, text.label12)}>Wallpapers</span>
+                    <div {...stylex.props(styles.colorRow)}>
+                      {Wallpapers.list.map((wallpaper) => {
+                        const value = Wallpapers.background(wallpaper.id)
+                        return (
+                          <button
+                            aria-pressed={background === value}
+                            data-option={background === value ? 'selected' : ''}
+                            key={wallpaper.id}
+                            onClick={() => onChange({ background: value })}
+                            onFocus={() => onChange({ background: value })}
+                            type="button"
+                            {...stylex.props(
+                              styles.swatchButton,
+                              styles.swatchPicture(Wallpapers.thumbnail(wallpaper.id)),
+                            )}
+                          >
+                            <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
+                            {background === value && <Ring travel={travel} />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <span {...stylex.props(styles.rowTitle, text.label12)}>Colors</span>
+                  <div {...stylex.props(styles.colorRow)}>
                     <button
-                      aria-pressed={background === value}
-                      data-option={background === value ? 'selected' : ''}
-                      key={value}
-                      onClick={() => onChange({ background: value })}
-                      onFocus={() => onChange({ background: value })}
+                      aria-pressed={background === 'default'}
+                      data-option={background === 'default' ? 'selected' : ''}
+                      onClick={() => onChange({ background: 'default' })}
+                      onFocus={() => onChange({ background: 'default' })}
                       type="button"
-                      {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
+                      {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                     >
-                      <span {...stylex.props(styles.srOnly)}>{value}</span>
-                      {background === value && <Ring travel={travel} />}
+                      <span {...stylex.props(styles.srOnly)}>Default</span>
+                      {background === 'default' && <Ring travel={travel} />}
                     </button>
-                  ))}
-                  <div {...stylex.props(styles.divider)} />
-                  <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
-                    <span {...stylex.props(styles.srOnly)}>Custom color</span>
-                    <input
-                      aria-pressed={custom}
-                      data-option={custom ? 'selected' : ''}
-                      onChange={(event) => onChange({ background: event.target.value })}
-                      onFocus={(event) => onChange({ background: event.target.value })}
-                      type="color"
-                      value={background.startsWith('#') ? background : '#3b82d6'}
-                      {...stylex.props(styles.colorInput)}
-                    />
-                    {custom && <Ring travel={travel} />}
-                  </label>
+                    <button
+                      aria-pressed={background === 'none'}
+                      data-option={background === 'none' ? 'selected' : ''}
+                      onClick={() => onChange({ background: 'none' })}
+                      onFocus={() => onChange({ background: 'none' })}
+                      type="button"
+                      {...stylex.props(styles.swatchButton, styles.swatchNone)}
+                    >
+                      <span {...stylex.props(styles.srOnly)}>None</span>
+                      {background === 'none' && <Ring travel={travel} />}
+                    </button>
+                    <div {...stylex.props(styles.divider)} />
+                    {backgrounds.map((value) => (
+                      <button
+                        aria-pressed={background === value}
+                        data-option={background === value ? 'selected' : ''}
+                        key={value}
+                        onClick={() => onChange({ background: value })}
+                        onFocus={() => onChange({ background: value })}
+                        type="button"
+                        {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
+                      >
+                        <span {...stylex.props(styles.srOnly)}>{value}</span>
+                        {background === value && <Ring travel={travel} />}
+                      </button>
+                    ))}
+                    <div {...stylex.props(styles.divider)} />
+                    <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
+                      <span {...stylex.props(styles.srOnly)}>Custom color</span>
+                      <input
+                        aria-pressed={custom}
+                        data-option={custom ? 'selected' : ''}
+                        onChange={(event) => onChange({ background: event.target.value })}
+                        onFocus={(event) => onChange({ background: event.target.value })}
+                        type="color"
+                        value={background.startsWith('#') ? background : '#3b82d6'}
+                        {...stylex.props(styles.colorInput)}
+                      />
+                      {custom && <Ring travel={travel} />}
+                    </label>
+                  </div>
                 </div>
               ) : null}
             </m.div>
@@ -562,6 +601,10 @@ export const backgrounds = [
 
 /** Where a background sits in the color row, for measuring the ring's travel. */
 function backgroundIndex(background: string) {
+  const picture = Wallpapers.list.findIndex(
+    (wallpaper) => Wallpapers.background(wallpaper.id) === background,
+  )
+  if (picture !== -1) return picture
   if (background === 'default') return 0
   if (background === 'none') return 1
   const index = backgrounds.indexOf(background as (typeof backgrounds)[number])
@@ -573,7 +616,7 @@ function backgroundIndex(background: string) {
 function backgroundLabel(background: string) {
   if (background === 'default') return 'Default'
   if (background === 'none') return 'None'
-  return background.toUpperCase()
+  return Wallpapers.at(background)?.name ?? background.toUpperCase()
 }
 
 /** Settles quickly without overshooting into wobble. */

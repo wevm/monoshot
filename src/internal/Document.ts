@@ -15,8 +15,10 @@ export type Font = {
 /** Everything the document needs beyond the highlighted markup. */
 export type Options = {
   /**
-   * `default` paints the theme's gradient, `none` leaves it transparent, and
-   * any other value is used as the CSS `background` of the canvas.
+   * `default` paints the theme's gradient, `none` leaves it transparent, a
+   * `wallpaper:<id>` names a picture this surface does not carry and falls back
+   * to the gradient, and any other value is used as the canvas's CSS
+   * `background`.
    */
   background: string
   /** The code, already highlighted. */
@@ -54,10 +56,13 @@ export function build(options: Options): string {
   const { background, html, padding, palette, radius, title, titleBar, width } = options
   const styles = options.annotated === true ? annotations(palette) : ''
   const fonts = options.fonts ?? []
+  // A wallpaper is a picture the drawing surface holds, and this one holds
+  // none: a link naming one still opens, on the theme's own backdrop.
+  const named = background.startsWith('wallpaper:')
   const backdrop =
     background === 'none'
       ? 'transparent'
-      : background === 'default'
+      : background === 'default' || named
         ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
         : css(background, 'background')
   return `<!doctype html>

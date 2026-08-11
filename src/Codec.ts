@@ -8,9 +8,18 @@ import * as z from 'zod'
  * failing, so a truncated or hand-edited link still opens something usable.
  */
 export const schema = z.object({
-  /** `default`, `none`, or a `#rrggbb` color for the frame's backdrop. */
+  /**
+   * The frame's backdrop: `default` for the theme's own gradient, `none` for a
+   * transparent one, a `#rrggbb` color, or `wallpaper:<id>` for a picture the
+   * surface drawing it carries.
+   */
   background: z
-    .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
+    .union([
+      z.literal('default'),
+      z.literal('none'),
+      z.string().regex(/^#[0-9a-f]{6}$/i),
+      z.string().regex(/^wallpaper:[a-z0-9-]+$/),
+    ])
     .catch('default'),
   /** The snippet itself, which is empty when the window holds nothing. */
   code: z.string().catch(''),
