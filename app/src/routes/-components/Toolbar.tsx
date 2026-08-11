@@ -36,6 +36,9 @@ const styles = stylex.create({
   // The color row is a fixed set of chips, so it sizes to them and centers on
   // the bar. Matching the bar would stretch or squeeze it every time the theme
   // name changes length.
+  // A width of its own rather than the bar's: the bar is as wide as the name of
+  // whatever is selected, and the grid would reflow every time that changed.
+  panelThemes: { width: 520 },
   panelFit: {
     insetInline: 'auto auto',
     left: '50%',
@@ -305,12 +308,12 @@ const styles = stylex.create({
     width: '100%',
   },
   // The box's corner less the padding around these, so the two are concentric.
-  // Edged both ways: a bar sits on a picture that may be lighter or darker than
-  // it, and one hairline alone reads on only one of them.
+  // Edged in the panel's own material, so a bar reads as cut out of the surface
+  // it sits on whatever picture is behind it.
   themeStroke: (paint: string) => ({
     backgroundColor: paint,
     borderRadius: 3,
-    boxShadow: 'inset 0 0 0 1px rgb(255 255 255 / 0.22), 0 0 0 1px rgb(0 0 0 / 0.28)',
+    boxShadow: `0 0 0 1px ${color.chromeTranslucent}`,
   }),
   swatch: (background: string) => ({
     backgroundColor: background,
@@ -448,7 +451,8 @@ export function Toolbar(props: Toolbar.Props) {
               transition={{ ...spring, filter: fade, opacity: fade }}
               {...stylex.props(
                 styles.panel,
-                panel === 'background' && styles.panelFit,
+                (panel === 'background' || panel === 'theme') && styles.panelFit,
+                panel === 'theme' && styles.panelThemes,
                 styles.surface,
               )}
             >
