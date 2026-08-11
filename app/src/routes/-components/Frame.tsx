@@ -135,9 +135,12 @@ const styles = stylex.create({
   },
   fill: (value: string) => ({ backgroundColor: value }),
   // Covered rather than tiled or fitted: the artwork is cropped to whatever
-  // shape the frame is dragged to, the way a desktop crops one to a display.
-  wallpaper: (source: string) => ({
-    backgroundImage: `url("${source}")`,
+  // shape it is dragged to, the way a desktop crops one to a display. Held to
+  // the viewport when the page draws the same picture, so the two are one
+  // picture with the artwork as the bright part of it.
+  wallpaper: (picture: { attachment: 'fixed' | 'scroll'; source: string }) => ({
+    backgroundAttachment: picture.attachment,
+    backgroundImage: `url("${picture.source}")`,
     backgroundPosition: 'center',
     backgroundSize: 'cover',
   }),
@@ -250,7 +253,12 @@ export function Frame(props: Frame.Props) {
               ? styles.backdrop
               : null,
             background.startsWith('#') ? styles.fill(background) : null,
-            wallpaper ? styles.wallpaper(wallpaper) : null,
+            wallpaper
+              ? styles.wallpaper({
+                  attachment: wallpaper.spread === 'viewport' ? 'fixed' : 'scroll',
+                  source: wallpaper.source,
+                })
+              : null,
             styles.padding(padding),
           )}
         >
@@ -500,8 +508,13 @@ export declare namespace Frame {
     title: string
     /** Shows the window chrome: traffic lights and the title field. */
     titleBar: boolean
-    /** The picture a `wallpaper:` background named, as data the page loaded. */
-    wallpaper?: string | undefined
+    /**
+     * The picture a `wallpaper:` background named, as data the page loaded, and
+     * how far it spreads: across the viewport, where the page draws the same
+     * picture and the two read as one; or across the artwork alone, which is
+     * all a captured copy has.
+     */
+    wallpaper?: { source: string; spread: 'artwork' | 'viewport' } | undefined
     /** Artwork width, in pixels. */
     width: number
   }

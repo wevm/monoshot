@@ -53,6 +53,10 @@ const styles = stylex.create({
   // page's color: the same picture at full strength either side of the
   // artwork's edge would leave nothing to see that edge by.
   canvasPicture: (picture: { scrim: string; source: string }) => ({
+    // Held to the viewport, which the artwork's own copy is held to as well: one
+    // picture across both, rather than each covering its own box with a
+    // different part of it.
+    backgroundAttachment: 'fixed',
     backgroundImage: `linear-gradient(${picture.scrim}, ${picture.scrim}), url("${picture.source}")`,
     backgroundPosition: 'center',
     backgroundSize: 'cover',
@@ -849,7 +853,9 @@ function Page() {
               radius={artwork.settings.radius}
               title={artwork.title}
               titleBar={artwork.settings.titleBar}
-              wallpaper={artwork.wallpaper}
+              wallpaper={
+                artwork.wallpaper ? { source: artwork.wallpaper, spread: 'artwork' } : undefined
+              }
               width={artwork.settings.width}
             >
               <Frame.Code css={artwork.css} html={artwork.html} />
@@ -885,7 +891,7 @@ function Page() {
                 radius={settings.radius}
                 title={title}
                 titleBar={settings.titleBar}
-                wallpaper={wallpaper?.source}
+                wallpaper={wallpaper ? { source: wallpaper.source, spread: 'viewport' } : undefined}
                 width={settings.width}
               >
                 <Editor
