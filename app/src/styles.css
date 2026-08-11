@@ -478,6 +478,10 @@
   justify-content: center;
   opacity: 0.4;
   padding: 0;
+  transition:
+    background-color var(--motion-fast) var(--motion-out),
+    opacity var(--motion-fast) var(--motion-out),
+    transform var(--motion-fast) var(--motion-out);
   width: 20px;
 }
 
@@ -488,6 +492,7 @@
 
 .rail-control:active {
   background-color: color-mix(in oklab, var(--window-foreground) 20%, transparent);
+  transform: scale(0.97);
 }
 
 .rail-control:focus-visible {
@@ -503,12 +508,14 @@
   opacity: 1;
 }
 
+/* The hues come from `Theme.marks`, published on the layer these are drawn in:
+   a second copy here would leave the controls behind the day they change. */
 .rail-control[data-kind='add'][data-active] {
-  color: oklch(66% 0.15 150);
+  color: var(--mark-add);
 }
 
 .rail-control[data-kind='remove'][data-active] {
-  color: oklch(62% 0.19 20);
+  color: var(--mark-remove);
 }
 
 .rail-control svg {
