@@ -35,8 +35,8 @@ const blank = 'A blank line takes no mark'
  */
 const gap = 10
 
-/** How far a pinned surface's controls sit from the surface they act on. */
-const beside = 4
+/** The gap a surface's controls keep from it, as the margin inside one does. */
+const margin = 2
 
 /** The row being reached for, from either the code or the controls beside it. */
 const reach = StateEffect.define<string | undefined>()
@@ -342,7 +342,7 @@ class Rail {
           // own width is whatever the surface offered.
           controls.style.setProperty(
             '--rail-right',
-            `${Math.round(measured.width - left + beside)}px`,
+            `${Math.round(measured.width - left + margin)}px`,
           )
           controls.style.setProperty('--rail-top', `${Math.round(top)}px`)
         }

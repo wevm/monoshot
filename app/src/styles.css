@@ -185,14 +185,16 @@
      the window's edge would cut off at the code's own left columns. Positioned
      by the editor, which measures where the surface landed. */
   .twoslash-controls[data-outside] {
+    /* Where the surface is, kept as a margin so the inset onto its first line
+       is still the one every surface's controls take. */
+    margin-top: var(--rail-top);
     pointer-events: auto;
     right: var(--rail-right);
-    top: var(--rail-top);
-    transform: scale(0.9);
   }
 
   .twoslash-controls[data-outside][data-shown] {
     opacity: 1;
+    transform: translateX(0);
   }
 
   /* Nothing to bridge out here: the surface and its controls each say when they
@@ -201,12 +203,14 @@
     content: none;
   }
 
-  /* The window's own colors do not reach this layer, which publishes the pair
-     the strip beside a line reads instead. */
-  .twoslash-controls[data-outside] .twoslash-pin {
-    background-color: color-mix(in oklab, var(--window-foreground) 7%, var(--window-surface));
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--window-foreground) 14%, transparent);
+  /* The window's own fill does not reach this layer, which publishes the same
+     color under the name the controls beside a line read. */
+  .twoslash-controls[data-outside] {
     color: var(--window-foreground);
+  }
+
+  .twoslash-controls[data-outside] .twoslash-pin {
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-surface));
   }
 
   .twoslash-pin {

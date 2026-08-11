@@ -43,7 +43,8 @@ const styles = stylex.create({
   aside: { inset: 0, pointerEvents: 'none', position: 'absolute', zIndex: 3 },
   // Read by the controls, which are drawn outside the canvas the palette is set
   // on and so cannot inherit it from there.
-  asidePalette: (palette: { background: string; foreground: string }) => ({
+  asidePalette: (palette: { background: string; border: string; foreground: string }) => ({
+    '--window-border': palette.border,
     '--window-foreground': palette.foreground,
     '--window-surface': palette.background,
   }),
@@ -215,6 +216,7 @@ export function Frame(props: Frame.Props) {
           styles.root,
           styles.asidePalette({
             background: palette.window.background,
+            border: palette.window.border,
             foreground: palette.window.foreground,
           }),
           styles.gripPalette(palette.type === 'light'),
