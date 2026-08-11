@@ -136,6 +136,62 @@ describe('derive', () => {
   })
 })
 
+describe('compose', () => {
+  const colors = ['oklch(0.38 0.06 244)', 'oklch(0.55 0.04 236)', 'oklch(0.86 0.04 94)']
+
+  test('writes every color as hex, which is what reads a theme', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'dark' })
+    const written = [
+      theme.bg,
+      theme.fg,
+      ...(theme.settings ?? []).flatMap((rule) => [
+        rule.settings.background,
+        rule.settings.foreground,
+      ]),
+    ].filter((color) => color !== undefined)
+    expect(written.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(true)
+  })
+
+  test('gives every part of a snippet a color of its own', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'dark' })
+    const scoped = (theme.settings ?? []).filter((rule) => rule.scope)
+    const written = new Set(scoped.map((rule) => rule.settings.foreground))
+    expect(scoped.length).toBeGreaterThan(6)
+    expect(written.size).toBeGreaterThan(5)
+  })
+
+  test('holds a dark theme apart from the background it is read on', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'dark' })
+    const background = lightness(theme.bg as string)
+    const tokens = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => lightness(rule.settings.foreground as string))
+    expect(Math.min(...tokens) - background).toBeGreaterThan(0.2)
+  })
+
+  test('takes a light theme the other way, off a light background', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'light' })
+    const background = lightness(theme.bg as string)
+    const tokens = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => lightness(rule.settings.foreground as string))
+    expect(background - Math.max(...tokens)).toBeGreaterThan(0.2)
+  })
+
+  test('fills the roles a picture is too plain to fill itself', () => {
+    const theme = Theme.compose({
+      colors: ['oklch(0.5 0.05 250)'],
+      displayName: 'One',
+      name: 'one',
+      type: 'dark',
+    })
+    const written = new Set(
+      (theme.settings ?? []).filter((rule) => rule.scope).map((rule) => rule.settings.foreground),
+    )
+    expect(written.size).toBeGreaterThan(3)
+  })
+})
+
 function lightness(color: string): number {
   const match = /oklch\(([\d.]+)/.exec(color)
   if (match?.[1]) return Number(match[1])

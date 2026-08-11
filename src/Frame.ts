@@ -15,6 +15,7 @@ import type {
   Highlighter,
   RegexEngine,
   ShikiTransformer,
+  ThemeRegistrationRaw,
   ThemeRegistrationResolved,
   ThemedToken,
 } from 'shiki'
@@ -117,7 +118,12 @@ export function create(options: create.Options = {}): create.ReturnType {
     })
     const instance = await highlighter
     await Promise.all([
-      instance.getLoadedThemes().includes(theme) ? undefined : instance.loadTheme(theme),
+      // A theme composed for this renderer is already loaded under its own
+      // name; anything else has to be one shiki bundles, which is what the
+      // load rejects on when it is not.
+      instance.getLoadedThemes().includes(theme)
+        ? undefined
+        : instance.loadTheme(theme as BundledTheme),
       instance.getLoadedLanguages().includes(lang) ? undefined : instance.loadLanguage(lang),
     ])
     return instance
@@ -240,11 +246,19 @@ export function create(options: create.Options = {}): create.ReturnType {
       const instance = await resolve({ lang, theme })
       return {
         theme: structuredClone(instance.getTheme(theme)),
-        tokens: instance.codeToTokensBase(code, { lang, theme }),
+        tokens: instance.codeToTokensBase(code, { lang, theme: theme as BundledTheme }),
       }
     },
   }
 }
+
+/**
+ * A theme to render with: one shiki bundles, or the name of one handed to
+ * {@link create} as a theme of its own.
+ */
+// The intersection keeps the bundled names on offer while letting a composed
+// one through, which a plain `string` would collapse.
+export type Name = BundledTheme | (string & {})
 
 export declare namespace create {
   type Options = {
@@ -265,7 +279,7 @@ export declare namespace create {
     /** Languages to preload. Anything else loads on first use. */
     langs?: readonly BundledLanguage[] | undefined
     /** Themes to preload. Anything else loads on first use. */
-    themes?: readonly BundledTheme[] | undefined
+    themes?: readonly (BundledTheme | ThemeRegistrationRaw)[] | undefined
   }
 
   type ReturnType = {
@@ -310,7 +324,7 @@ export declare namespace load {
     /** Language grammar to load. */
     lang: BundledLanguage
     /** Theme to load. */
-    theme: BundledTheme
+    theme: Name
   }
 }
 
@@ -341,7 +355,7 @@ export declare namespace render {
     /** Language to tokenize with. */
     lang: BundledLanguage
     /** Theme to color with. */
-    theme: BundledTheme
+    theme: Name
     /**
      * Draw the types a `^?` query asks for, in flow.
      *

@@ -6,12 +6,13 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
+import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
-const themes = Theme.list()
+const themes = Themes.list()
 
 /** The key that reaches each control from anywhere on the page. */
 const shortcuts = {
@@ -280,7 +281,7 @@ export function Toolbar(props: Toolbar.Props) {
   const travel = Math.abs(swatchIndex - previousSwatchIndex) * swatchStride
   const themeIndex = themes.findIndex((entry) => entry.name === theme)
   const previousThemeIndex = usePrevious(themeIndex)
-  const selected = Theme.info(theme)
+  const selected = Themes.info(theme)
 
   // Clicking the open control closes it, so the bar is its own dismiss target.
   const toggle = (next: Panel) => setPanel((current) => (current === next ? undefined : next))

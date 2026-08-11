@@ -15,6 +15,7 @@ import * as Wallpapers from '#/lib/wallpapers.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
+import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
@@ -288,8 +289,8 @@ function share(parameters: { code: string; settings: Settings; title: string }) 
 }
 
 // One renderer for the page: it caches the themes and languages already loaded.
-const renderer = Core.create({ langs: ['tsx'] })
-const themes = Theme.list()
+const renderer = Core.create({ langs: ['tsx'], themes: Themes.composed })
+const themes = Themes.list()
 const names = themes.map((entry) => entry.name)
 
 /**
