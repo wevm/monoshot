@@ -18,9 +18,8 @@ import { rail } from '#/lib/editor/rail.js'
 import { overlooked, pins, problems } from '#/lib/editor/problems.js'
 import { query as queries } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
-import { setTypes } from '#/lib/editor/types.js'
+import * as Types from '#/lib/editor/types.js'
 import type { Completion } from '#/lib/twoslash/protocol.js'
-import type { Types } from '#/lib/editor/types.js'
 
 import { Frame } from './Frame.js'
 
@@ -95,10 +94,15 @@ export function Editor(props: Editor.Props) {
           notations,
           pins,
           // The complaints are pushed in rather than found here, so there is no
-          // source to run. Only the configuration is wanted: the built-in
-          // tooltip waits 300ms and would repeat what the hover already draws
-          // the moment the pointer lands.
-          linter(null, { tooltipFilter: () => [] }),
+          // source to run. Only the configuration is wanted, which drops the
+          // complaints the hover draws itself: the built-in tooltip waits 300ms
+          // and would repeat them the moment the pointer lands. One about a
+          // token holding no type keeps it, since the hover has nothing to
+          // hang it on and the squiggle would otherwise say nothing.
+          linter(null, {
+            tooltipFilter: (found, state) =>
+              found.filter((complaint) => !Types.over(state, complaint)),
+          }),
           rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries,
           hover,
@@ -137,7 +141,7 @@ export function Editor(props: Editor.Props) {
   }, [aside, language, rails])
 
   useEffect(() => {
-    view.current?.dispatch({ effects: setTypes.of(types) })
+    view.current?.dispatch({ effects: Types.setTypes.of(types) })
   }, [types])
 
   // After the document below would be wrong: a diagnostic clamped against the
@@ -183,7 +187,7 @@ export declare namespace Editor {
     /** Colors the editor to match the frame it sits in. */
     palette: Theme.derive.Result
     /** Types by identifier, shown on hover and under a pinned `^?` caret. */
-    types: Types
+    types: Types.Types
     /** Shiki tokens for the current document, one array per line. */
     tokens: readonly (readonly Token[])[]
   }

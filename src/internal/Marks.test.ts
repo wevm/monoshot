@@ -29,6 +29,21 @@ describe('unchecked', () => {
   })
 })
 
+test('counts only as far as there are lines to count', () => {
+  // A count of its own making rather than the snippet's: one asking for a
+  // billion lines, and one asking for so many that the number reads as
+  // infinite, both stop at the end of the code.
+  expect(unchecked('const a = 1 // [!code --:1000000000]\nconst b = 2')).toMatchInlineSnapshot(`
+      "                                    
+                 "
+    `)
+  expect(unchecked('const a = 1 // [!code --:999999999999999999999]\nconst b = 2'))
+    .toMatchInlineSnapshot(`
+      "                                               
+      const b = 2"
+    `)
+})
+
 describe('cut', () => {
   test('takes the ranges out, whatever order they arrive in', () => {
     expect(

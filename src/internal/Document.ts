@@ -256,21 +256,24 @@ export function annotations(palette: Theme.derive.Result): string {
  * no reason to become.
  */
 export function marked(html: string): boolean {
-  return /has-(diff|focused|highlighted)|twoslash-(tag|error)-line/.test(html)
+  // Read off a class attribute rather than the whole document: a snippet is
+  // free to contain the word `has-diff` as code, and that is not a mark.
+  return /class="[^"]*(?:has-(?:diff|focused|highlighted)|twoslash-(?:tag|error)-line)/.test(html)
 }
 
 export function marks(palette: Theme.derive.Result) {
   /**
    * A row: full width, past the inset the window holds its code at. A caller
    * embedding the markup declares `--body-inset` to say what that inset is;
-   * without one the row reaches the code's own edges.
+   * without one the row reaches the code's own edges, and the code steps in far
+   * enough for a diff marker to sit beside it rather than on it.
    *
    * A pixel past it, since the window clips on a rounded rect: an edge landing
    * exactly on that clip is antialiased into it, leaving the window showing
    * through as a hairline.
    */
   const row = `  margin-inline: calc(-1px - var(--body-inset, 0px));
-  padding-inline-start: calc(1px + var(--body-inset, 0px));
+  padding-inline-start: calc(1px + var(--body-inset, 0px) + var(--mark-gutter));
   padding-inline-end: calc(1px + var(--body-inset, 0px));`
   /** A row's bar and wash, from one Theme.marks. */
   const mark = (
@@ -278,7 +281,23 @@ export function marks(palette: Theme.derive.Result) {
     strength = 16,
   ) => `  background-color: color-mix(in oklab, ${color} ${strength}%, transparent);
   box-shadow: inset 3px 0 0 ${color};`
-  return `.shiki code {
+  /**
+   * Prose in a mark's hue. Darkened on a light window, where a hue picked to
+   * read against a dark one is too pale to read as small text.
+   */
+  const prose = (color: string) =>
+    palette.type === 'light' ? `color-mix(in oklab, ${color} 74%, black)` : color
+  return `.shiki {
+  --mark-gutter: 0px;
+}
+/* Room a diff marker needs when there is no inset to sit in: markup embedded
+   without a window holds its code at the code's own edge, and the marker would
+   otherwise land on the first token. Asked for by a diff and nothing else, so a
+   snippet only highlighting a line still sits where an unmarked one does. */
+.shiki.has-diff {
+  --mark-gutter: max(0px, 15px - var(--body-inset, 0px));
+}
+.shiki code {
   /* Rows, so a mark reaches the window rather than the text on the line. */
   display: grid;
   /* A row wraps at the window rather than reaching past it: an auto column is
@@ -289,7 +308,7 @@ export function marks(palette: Theme.derive.Result) {
 .shiki .line {
   /* A row holding nothing is still a line of the snippet: as a grid item an
      empty one would take no height, and the blank lines would close up. */
-  min-height: var(--code-line-height);
+  min-height: var(--code-line-height, 1lh);
   /* What a diff marker sits in, so it lands in the window's own inset. */
   position: relative;
 }
@@ -324,11 +343,11 @@ ${mark(Theme.marks.remove)}
   position: absolute;
 }
 .shiki .line.diff.add::after {
-  color: ${Theme.marks.add};
+  color: ${prose(Theme.marks.add)};
   content: '+';
 }
 .shiki .line.diff.remove::after {
-  color: ${Theme.marks.remove};
+  color: ${prose(Theme.marks.remove)};
   content: '-';
 }
 /* The token a complaint is about, marked where it sits rather than only named
@@ -359,20 +378,20 @@ ${mark(Theme.marks.remove)}
   display: none;
 }
 .twoslash-tag-log-line {
-  color: ${Theme.marks.log};
+  color: ${prose(Theme.marks.log)};
 ${mark(Theme.marks.log)}
 }
 .twoslash-error-line,
 .twoslash-tag-error-line {
-  color: ${Theme.marks.remove};
+  color: ${prose(Theme.marks.remove)};
 ${mark(Theme.marks.remove)}
 }
 .twoslash-tag-warn-line {
-  color: ${Theme.marks.warn};
+  color: ${prose(Theme.marks.warn)};
 ${mark(Theme.marks.warn)}
 }
 .twoslash-tag-annotate-line {
-  color: ${Theme.marks.add};
+  color: ${prose(Theme.marks.add)};
 ${mark(Theme.marks.add)}
 }`
 }

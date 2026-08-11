@@ -234,6 +234,85 @@ describe('render with notations', () => {
     expect(result.html).not.toContain('@log:')
   })
 
+  test('draws a tag in a language no compiler reads', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: ['# @warn: careful', 'print(1)', ''].join('\n'),
+      lang: 'python',
+      theme: 'vitesse-dark',
+    })
+    await frame.dispose()
+    // Nothing resolved the run, so the tag is the snippet's own mark: without
+    // it the row stays an ordinary comment and the editor disagrees.
+    expect(result.html).toContain('twoslash-tag-warn-line">careful<')
+    expect(result.html).not.toContain('@warn:')
+    // Rows the tag needs, which a caller embedding the markup reads from here.
+    expect(result.css).toContain('.twoslash-tag-warn-line')
+    // The tag row is prose rather than a line of code, so the code that follows
+    // it is the first one.
+    expect([...result.html.matchAll(/data-line="(\d+)"/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "1",
+        "2",
+      ]
+    `)
+  })
+
+  test('draws a tag beside a run that never looked for one', async () => {
+    const frame = Frame.create()
+    const code = '// @warn: careful\nconst a = 1\n'
+    // A run resolved elsewhere carries whatever its resolver was told to look
+    // for, and a plain twoslasher was told nothing about tags.
+    const result = await frame.render({
+      code,
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: { code, nodes: [] },
+    })
+    await frame.dispose()
+    expect([...result.html.matchAll(/twoslash-tag-(\w+)-line/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "warn",
+      ]
+    `)
+    expect(result.html).not.toContain('@warn:')
+  })
+
+  test('reserves the marker gutter for a snippet that marks a diff', async () => {
+    const frame = Frame.create()
+    const both = await Promise.all(
+      ['a = 1 # [!code hl]\n', 'a = 1 # [!code --]\n'].map((code) =>
+        frame.render({ code, lang: 'python', theme: 'vitesse-dark' }),
+      ),
+    )
+    await frame.dispose()
+    // Room for the marker shifts the code, so the gutter is asked for by the
+    // snippet that draws one and a highlighted line sits where a plain one does.
+    expect(both.map((result) => /--mark-gutter: ([^;]+);/.exec(result.css ?? '')?.[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "0px",
+        "0px",
+      ]
+    `)
+    expect(both.map((result) => result.css?.includes('.shiki.has-diff'))).toMatchInlineSnapshot(`
+      [
+        true,
+        true,
+      ]
+    `)
+    // Which of them the rule reaches: the class is on the markup rather than in
+    // the styles, so only the diff takes the room.
+    expect(both.map((result) => result.html.includes('has-diff'))).toMatchInlineSnapshot(`
+      [
+        false,
+        true,
+      ]
+    `)
+  })
+
   test('draws the marks only for a snippet that carries some', async () => {
     const frame = Frame.create()
     const settings = {

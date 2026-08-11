@@ -46,6 +46,15 @@ export const types = StateField.define<Types>({
   },
 })
 
+/**
+ * Whether a known type overlaps the range, rather than sitting beside it. What
+ * the hover answers for: a complaint touching an identifier's last character is
+ * about whatever follows it.
+ */
+export function over(state: EditorState, range: { from: number; to: number }): boolean {
+  return state.field(types).some((span) => span.from < range.to && range.from < span.to)
+}
+
 /** The type covering a document offset, if one is known. */
 export function at(state: EditorState, pos: number): Span | undefined {
   return state.field(types).find((span) => pos >= span.from && pos <= span.to)

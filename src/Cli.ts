@@ -233,7 +233,7 @@ function frame(
   if (theme === undefined)
     return {
       code: 'unknown_theme',
-      message: `\`${state.theme}\` is not a theme. \`monoshot themes\` lists every name.`,
+      message: `\`${state.theme}\` is not offered. \`monoshot themes\` lists every name.`,
     }
   return { state: { ...state, lang, theme: theme.name } }
 }

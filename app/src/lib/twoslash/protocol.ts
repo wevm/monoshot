@@ -114,7 +114,12 @@ export function without(run: Run, ignored: readonly number[]): Run {
     nodes: run.nodes.filter(
       (node) =>
         node.type !== 'error' ||
-        !marks.some((at) => at >= node.start && at <= node.start + node.length),
+        // The end is where the complaint stops rather than its last character,
+        // so a mark sitting there belongs to whatever comes next. One reported
+        // between two characters still holds the position it points at.
+        !marks.some(
+          (at) => at >= node.start && at < Math.max(node.start + node.length, node.start + 1),
+        ),
     ),
   }
 }

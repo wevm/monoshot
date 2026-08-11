@@ -2,7 +2,7 @@
 'monoshot': minor
 ---
 
-Added `Frame.create` for rendering shiki-highlighted code frames, and `Theme.list`/`Theme.derive` for picking any bundled theme and deriving its frame palette.
+Added `Frame.create` for rendering shiki-highlighted code frames, and `Theme.list`/`Theme.derive` for picking a theme it offers and deriving its frame palette.
 
 ```ts
 import { Frame, Theme } from 'monoshot'

@@ -10,7 +10,6 @@ const html = await frame.toDocument({
   background: 'default',
   code: 'const a = 1',
   lang: 'ts',
-  lineNumbers: true,
   padding: 64,
   radius: 12,
   theme: 'vitesse-dark',

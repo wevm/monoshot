@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
-import type { Theme } from 'monoshot'
+import { Theme } from 'monoshot'
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -45,6 +45,10 @@ const styles = stylex.create({
   // Read by the controls, which are drawn outside the canvas the palette is set
   // on and so cannot inherit it from there.
   asidePalette: (palette: { background: string; border: string; foreground: string }) => ({
+    // The mark hues come from the library, so the controls beside a line, the
+    // decorations in the editor, and the exported image cannot disagree.
+    '--mark-add': Theme.marks.add,
+    '--mark-remove': Theme.marks.remove,
     '--window-border': palette.border,
     '--window-foreground': palette.foreground,
     '--window-surface': palette.background,
@@ -250,7 +254,9 @@ export function Frame(props: Frame.Props) {
             // The theme's own backdrop, which also stands in while a picture
             // loads: naming one never leaves the artwork on nothing. Out of the
             // way once the picture is here, since both paint the same property.
-            !wallpaper && (background === 'default' || Wallpapers.at(background))
+            // Every picture, not only the ones there are: a fragment naming one
+            // that has since gone would otherwise leave the canvas transparent.
+            !wallpaper && (background === 'default' || Wallpapers.names(background))
               ? styles.backdrop
               : null,
             background.startsWith('#') ? styles.fill(background) : null,

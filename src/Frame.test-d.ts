@@ -12,7 +12,7 @@ describe('create', () => {
     const frame = Frame.create()
     // @ts-expect-error -- a misspelled theme is a type error rather than a
     // rejected load.
-    frame.render({ code: 'a', lang: 'ts', theme: 'vitesse-drak' })
+    void frame.render({ code: 'a', lang: 'ts', theme: 'vitesse-drak' })
   })
 
   test('takes the name of a theme it was built with', () => {
@@ -32,7 +32,7 @@ describe('create', () => {
     const frame = Frame.create({ themes: ['nord'] })
     // @ts-expect-error -- preloading a theme does not open the door to every
     // string.
-    frame.render({ code: 'a', lang: 'ts', theme: 'not-a-theme' })
+    void frame.render({ code: 'a', lang: 'ts', theme: 'not-a-theme' })
   })
 })
 
