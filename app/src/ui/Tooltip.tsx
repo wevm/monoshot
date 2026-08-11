@@ -1,6 +1,6 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
@@ -68,8 +68,13 @@ function aimAt(at: Aim | undefined) {
  */
 const linger = 100
 
-/** How long the pointer stands still before it counts as having stopped. */
-const rest = 120
+/**
+ * How long a control is under the pointer before its hint answers.
+ *
+ * Long enough that crossing a control is not asking about it, short enough that
+ * stopping on one does not feel like waiting.
+ */
+const hover = 100
 
 /**
  * Watches the pointer, so a hint answers what it came to rest on rather than
@@ -87,7 +92,7 @@ function pace() {
     settling = setTimeout(() => {
       resting = true
       if (pending) aimAt(pending)
-    }, rest)
+    }, hover)
   }
   window.addEventListener('pointermove', moved, { passive: true })
   return () => window.removeEventListener('pointermove', moved)
@@ -125,7 +130,9 @@ export namespace Tooltip {
    * Shares one delay across the tooltips inside. A row of swatches reads as one
    * row: once a hint has been waited for, the ones beside it answer at once.
    */
-  export const Provider = Base.Provider
+  export function Provider(props: { children: ReactNode }) {
+    return <Base.Provider delay={hover}>{props.children}</Base.Provider>
+  }
 
   /**
    * Points the hint at a control the app built itself, and at the words for it.

@@ -32,7 +32,7 @@ function Layout() {
   // Every route reads the stored scheme, not just the one that can change it.
   useEffect(() => Scheme.hydrate(), [])
   return (
-    <Tooltip.Provider delay={0}>
+    <Tooltip.Provider>
       <StylexDevReload />
       <Outlet />
       <Tooltip.Surface />
