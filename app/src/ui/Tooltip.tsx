@@ -51,8 +51,13 @@ const travel = `transform ${motion.fast} ${motion.out}`
  */
 const placing = `transform 1ms linear`
 
-/** The pill taking the width of what it says next, as the toolbar's bar does. */
-const morph = { bounce: 0, duration: 0.3, type: 'spring' } as const
+/**
+ * The pill taking the width of what it says next, and the hint rolling to it.
+ *
+ * Without give: a hint is read rather than played with, and a name that settles
+ * by rocking into place is a name that cannot be read until it stops.
+ */
+const morph = { bounce: 0, duration: 0.22, type: 'spring' } as const
 
 /**
  * Hover and focus tooltip around a single focusable child. Reaches the one
@@ -110,7 +115,7 @@ export namespace Tooltip {
                 render={<m.div layout="size" transition={morph} />}
                 {...stylex.props(styles.popup, text.label13)}
               >
-                <Roll value={payload ?? ''} />
+                <Roll transition={morph} value={payload ?? ''} />
               </Base.Popup>
             </Base.Positioner>
           </Base.Portal>

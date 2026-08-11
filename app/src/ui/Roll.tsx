@@ -1,5 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, motion as m } from 'motion/react'
+import type { Transition } from 'motion/react'
 import { useState } from 'react'
 
 const styles = stylex.create({
@@ -15,7 +16,7 @@ const roll = { damping: 30, stiffness: 420, type: 'spring' } as const
 
 /** Text that rolls to what it says next rather than being replaced by it. */
 export function Roll(props: Roll.Props) {
-  const { digits, style, up = true, value } = props
+  const { digits, style, transition = roll, up = true, value } = props
   const offset = up ? '-100%' : '100%'
   const from = up ? '100%' : '-100%'
   // Every change gets a fresh key, so a value returning while its predecessor
@@ -36,7 +37,7 @@ export function Roll(props: Roll.Props) {
               exit={{ opacity: 0, y: offset }}
               initial={{ opacity: 0, y: from }}
               key={digits ? character : `${character}-${seen.count}`}
-              transition={roll}
+              transition={transition}
               {...stylex.props(styles.glyph)}
             >
               {character}
@@ -54,6 +55,8 @@ export declare namespace Roll {
     /** Rolls each character on its own, for values that read as a number. */
     digits?: boolean | undefined
     style?: stylex.StyleXStyles[] | undefined
+    /** How the glyphs move. Firm with a little give by default. */
+    transition?: Transition | undefined
     /** Direction the value rolls. Up by default, as a value advancing does. */
     up?: boolean | undefined
     value: string
