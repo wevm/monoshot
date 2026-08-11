@@ -129,7 +129,7 @@
        shows the code through the part that sticks out. */
     background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
     /* The same corner the exported frame draws a type on. */
-    border-radius: 4px;
+    border-radius: 8px;
     box-shadow: inset 0 0 0 1px var(--window-border);
     font-family: var(--code-font-family);
     font-size: var(--code-annotation-size);
@@ -160,6 +160,8 @@
   .twoslash-controls {
     display: flex;
     gap: 2px;
+    /* Toward the code by default, and away from it when the window's edge is
+       too close to hold them: near column 0 there is nothing to the left. */
     /* The room the editor's inset leaves to the left of column 0, so they fit
        there whatever column a type is pinned at. */
     margin-right: 2px;
@@ -198,6 +200,21 @@
     width: var(--code-line-height);
   }
 
+  .twoslash-controls[data-side='right'] {
+    left: 100%;
+    margin-left: 2px;
+    margin-right: 0;
+    right: auto;
+    transform: translateX(-2px) scale(0.9);
+    transform-origin: left center;
+  }
+
+  .cm-tooltip .twoslash-controls[data-side='right'],
+  .twoslash:hover .twoslash-controls[data-side='right'],
+  .twoslash-controls[data-side='right']:focus-within {
+    transform: none;
+  }
+
   /* Reaches across the gap to the surface, so crossing it does not read as
      leaving both. Only the gap: over the controls it would take the presses
      meant for them. */
@@ -207,6 +224,11 @@
     left: 100%;
     position: absolute;
     width: 2px;
+  }
+
+  .twoslash-controls[data-side='right']::after {
+    left: auto;
+    right: 100%;
   }
 
   /* A pinned block sits in the code's own column, so at column 0 there is
@@ -359,24 +381,38 @@
 /* The controls beside a line, drawn outside the window: it clips, so nothing in
    it could reach past its edge. Positioned by the editor, which knows where each
    line sits. */
+/* What notices the pointer on a row, covering it and the gap between it and the
+   window: crossing that gap is on the way to the controls. */
+.rail-reach {
+  height: var(--rail-height, 0);
+  left: calc(var(--rail-left, 0px) - var(--rail-gap, 0px));
+  position: absolute;
+  top: var(--rail-top, 0);
+  width: calc(var(--rail-gap, 0px) + 92px);
+}
+
 .rail {
   align-items: center;
   background-color: color-mix(in oklab, var(--window-surface) 85%, transparent);
   /* The controls' own corner plus the padding around them, so the two are
      concentric. Even padding, since one radius cannot be that on two axes. */
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   gap: 2px;
   height: calc(20px + 6px);
   left: var(--rail-left, 0);
   opacity: 0;
   padding: 3px;
-  /* Hit-testable while invisible: the strips tile the side of the window, so
-     running down them keeps a line under the pointer the whole way. */
-  pointer-events: auto;
+  pointer-events: none;
   position: absolute;
-  top: var(--rail-top, 0);
-  transition: opacity 140ms cubic-bezier(0.19, 1, 0.22, 1);
+  top: 0;
+  /* Half its own height back, so it centres on the row it stands beside. */
+  transform: translateY(calc(var(--rail-top, 0px) - 50%));
+  /* One strip travelling between rows rather than one appearing on each: the
+     eye follows it there instead of finding it somewhere else. */
+  transition:
+    opacity 140ms cubic-bezier(0.19, 1, 0.22, 1),
+    transform 160ms cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 .rail[data-shown],
@@ -406,7 +442,7 @@
   background: none;
   border: none;
   /* The strip's corner less the padding around this. */
-  border-radius: 5px;
+  border-radius: 7px;
   color: var(--rail-color, var(--window-foreground));
   cursor: pointer;
   display: flex;

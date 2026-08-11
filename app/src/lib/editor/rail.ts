@@ -80,15 +80,30 @@ type Row = {
   /** Where a kept complaint was taken from, on a row that draws one. */
   at?: number | undefined
   carried?: readonly Notations.Kind[] | undefined
+  height: number
   key: string
   line?: number | undefined
   takes?: boolean | undefined
   top: number
 }
 
+/**
+ * One strip, moved to the row being reached for rather than one per row: the
+ * controls travel between rows instead of appearing somewhere else, and there
+ * is only ever one of them to build.
+ *
+ * The rows themselves are covered by their own reaches, which tile the side of
+ * the window so running down it runs down the code without a gap to fall
+ * through.
+ */
 class Rail {
-  /** One strip per row on screen, by what that row is. */
-  private strips = new Map<string, HTMLElement>()
+  private readonly strip = document.createElement('div')
+  /** What covers each row on screen, by what that row is. */
+  private reaches = new Map<string, HTMLElement>()
+  /** What each row offers, read back when the strip moves onto it. */
+  private rows = new Map<string, Row>()
+  /** The row the strip is built for, so it is rebuilt only when it moves. */
+  private showing: string | undefined
   /** Whether this has been replaced, which a measure already asked for outlives. */
   private gone = false
 
@@ -100,6 +115,9 @@ class Rail {
     // The host is this plugin's alone, so whatever is in it belongs to a
     // predecessor: reconfiguring the editor leaves one behind.
     container.replaceChildren()
+    this.strip.className = 'rail'
+    this.strip.style.setProperty('--rail-gap', `${gap}px`)
+    container.appendChild(this.strip)
     view.dom.addEventListener('mousemove', this.track)
     view.dom.addEventListener('mouseover', this.track)
     view.dom.addEventListener('mouseleave', this.clear)
@@ -119,26 +137,20 @@ class Rail {
     this.view.dom.removeEventListener('mouseover', this.track)
     this.view.dom.removeEventListener('mouseleave', this.clear)
     this.container.removeEventListener('mouseleave', this.clear)
-    for (const strip of this.strips.values()) strip.remove()
-    this.strips.clear()
+    this.container.replaceChildren()
+    this.reaches.clear()
   }
 
   /**
-   * Which row the pointer is over, read by height rather than by position: a
-   * complaint draws between two lines, and a position would name one of them.
+   * Which row the pointer is over, read by what it is over rather than by
+   * position: a complaint draws between two lines, and a position would name
+   * one of them.
    */
   private readonly track = (event: MouseEvent) => {
     const target = event.target instanceof Element ? event.target.closest('.cm-objection') : null
-    // A complaint draws between two lines, so a position under the pointer
-    // would name one of them rather than the row itself.
     if (target) return this.reach(`pin:${this.lineOf(target)}`)
     const position = this.view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
     this.reach(`line:${this.view.state.doc.lineAt(position).number}`)
-  }
-
-  /** The line a complaint drawn under it belongs to. */
-  private lineOf(objection: Element) {
-    return this.view.state.doc.lineAt(this.view.posAtDOM(objection)).number
   }
 
   private readonly clear = () => this.reach(undefined)
@@ -148,10 +160,15 @@ class Rail {
     this.view.dispatch({ effects: reach.of(key) })
   }
 
+  /** The line a complaint drawn under it belongs to. */
+  private lineOf(objection: Element) {
+    return this.view.state.doc.lineAt(this.view.posAtDOM(objection)).number
+  }
+
   /**
-   * Rebuilds the strips and places them beside their lines. Measured through
-   * CodeMirror rather than during an update, which would read a layout the
-   * update is still writing.
+   * Measures the rows and covers each one. Measured through CodeMirror rather
+   * than during an update, which would read a layout the update is still
+   * writing.
    */
   private render() {
     if (this.gone) return
@@ -164,8 +181,13 @@ class Rail {
           while (position <= to) {
             const line = view.state.doc.lineAt(position)
             const block = view.lineBlockAt(line.from)
+            position = line.to + 1
+            // A row closed up because it holds a notation and nothing else is
+            // not on screen to be reached for.
+            if (block.height === 0) continue
             rows.push({
               carried: Notations.at(view.state, line.number).map((notation) => notation.kind),
+              height: block.height,
               key: `line:${line.number}`,
               line: line.number,
               takes: Notations.takesMark(view.state, line.number),
@@ -173,7 +195,6 @@ class Rail {
               // itself.
               top: view.documentTop + block.top - host.top,
             })
-            position = line.to + 1
           }
         }
         // Read off the rows themselves: a complaint is drawn between two lines,
@@ -182,85 +203,94 @@ class Rail {
           const line = this.lineOf(drawn)
           const at = keptUnder(view.state, line)
           if (at === undefined) continue
-          rows.push({ at, key: `pin:${line}`, top: drawn.getBoundingClientRect().top - host.top })
+          const box = drawn.getBoundingClientRect()
+          rows.push({ at, height: box.height, key: `pin:${line}`, top: box.top - host.top })
         }
         return { left: view.dom.getBoundingClientRect().right - host.left + gap, rows }
       },
       write: (measured) => {
-        // A measure asked for before this was replaced still runs, and the
-        // strips it would build are ones nothing owns.
+        // A measure asked for before this was replaced still runs, and what it
+        // would build is something nothing owns.
         if (this.gone) return
-        const stale = new Set(this.strips.keys())
+        const stale = new Set(this.reaches.keys())
+        this.rows.clear()
         for (const row of measured.rows) {
           stale.delete(row.key)
-          const strip = this.strips.get(row.key) ?? this.build(row)
-          this.strips.set(row.key, strip)
-          strip.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
-          // Centred on the row rather than hung from its top: the strip is its
-          // padding taller than the control inside it.
-          strip.style.setProperty('--rail-top', `${Math.round(row.top) - 2}px`)
-          if (row.line === undefined) continue
-          for (const button of strip.querySelectorAll('button')) {
-            button.disabled = !row.takes
-            button.title = row.takes ? labels[button.dataset['kind'] as Notations.Kind] : blank
-            if (row.takes && row.carried?.includes(button.dataset['kind'] as Notations.Kind))
-              button.dataset['active'] = ''
-            else delete button.dataset['active']
-          }
+          this.rows.set(row.key, row)
+          const cover = this.reaches.get(row.key) ?? this.cover(row.key)
+          this.reaches.set(row.key, cover)
+          cover.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
+          cover.style.setProperty('--rail-top', `${Math.round(row.top)}px`)
+          cover.style.setProperty('--rail-height', `${Math.round(row.height)}px`)
         }
         for (const key of stale) {
-          this.strips.get(key)?.remove()
-          this.strips.delete(key)
+          this.reaches.get(key)?.remove()
+          this.reaches.delete(key)
         }
+        this.strip.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
+        // Rebuilt where it stands: what a row offers can change under it.
+        this.showing = undefined
         this.show(this.view.state.field(reached, false))
       },
     })
   }
 
-  /** Only the row being reached for shows its controls. */
+  /** Moves the strip onto the row being reached for, and builds what it offers. */
   private show(key: string | undefined) {
-    for (const [own, strip] of this.strips)
-      if (own === key) strip.dataset['shown'] = ''
-      else delete strip.dataset['shown']
+    const row = key === undefined ? undefined : this.rows.get(key)
+    if (!row) {
+      delete this.strip.dataset['shown']
+      this.showing = undefined
+      return
+    }
+    // Centred on the row rather than hung from its top: the strip is its own
+    // padding taller than the control inside it.
+    this.strip.style.setProperty('--rail-top', `${Math.round(row.top + row.height / 2)}px`)
+    this.strip.dataset['shown'] = ''
+    if (this.showing === key) return
+    this.showing = key
+    this.strip.replaceChildren(...this.controls(row))
   }
 
-  private build(row: Row) {
-    const strip = document.createElement('div')
-    strip.className = 'rail'
-    // Read by the strip's own reach back toward the window, so the gap it
-    // stands off and the gap it carries cannot disagree.
-    strip.style.setProperty('--rail-gap', `${gap}px`)
-    // A strip covers its row's full height, so the strips tile the side of the
-    // window: running down them runs down the rows without a gap between.
-    strip.addEventListener('mouseenter', () => this.reach(row.key))
-    this.container.appendChild(strip)
+  /** A transparent cover over a row, which is what notices the pointer on it. */
+  private cover(key: string) {
+    const cover = document.createElement('div')
+    cover.className = 'rail-reach'
+    cover.style.setProperty('--rail-gap', `${gap}px`)
+    cover.addEventListener('mouseenter', () => this.reach(key))
+    this.container.appendChild(cover)
+    return cover
+  }
+
+  /** What a row offers: the marks it can carry, or the one way out of it. */
+  private controls(row: Row) {
     const { at, line } = row
-    if (line === undefined) {
-      if (at !== undefined)
-        strip.appendChild(
-          this.control({
-            // Set, since the complaint being on screen is what this row is.
-            active: true,
-            // The glyph that pinned it, in the hue the complaint carries: the
-            // one thing this offers is to take it back.
-            color: Theme.marks.remove,
-            icon: Annotation.pin,
-            label: 'Unpin this message',
-            select: () => keep(this.view, at),
-          }),
-        )
-      return strip
-    }
-    for (const kind of order) {
+    if (line === undefined)
+      return at === undefined
+        ? []
+        : [
+            this.control({
+              // Set, since the complaint being on screen is what this row is.
+              active: true,
+              // The glyph that pinned it, in the hue the complaint carries: the
+              // one thing this offers is to take it back.
+              color: Theme.marks.remove,
+              icon: Annotation.pin,
+              label: 'Unpin this message',
+              select: () => keep(this.view, at),
+            }),
+          ]
+    return order.map((kind) => {
       const button = this.control({
+        active: row.takes === true && row.carried?.includes(kind) === true,
         icon: icons[kind],
-        label: labels[kind],
+        label: row.takes === true ? labels[kind] : blank,
         select: () => this.toggle(line, kind),
       })
       button.dataset['kind'] = kind
-      strip.appendChild(button)
-    }
-    return strip
+      button.disabled = row.takes !== true
+      return button
+    })
   }
 
   /** One control of the strip, whichever the strip is. */
