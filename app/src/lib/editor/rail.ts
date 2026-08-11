@@ -35,6 +35,9 @@ const blank = 'A blank line takes no mark'
  */
 const gap = 10
 
+/** How far a pinned surface's controls sit from the surface they act on. */
+const beside = 4
+
 /** The row being reached for, from either the code or the controls beside it. */
 const reach = StateEffect.define<string | undefined>()
 
@@ -120,6 +123,8 @@ class Rail {
   private reaches = new Map<string, HTMLElement>()
   /** What each row offers, read back when the strip moves onto it. */
   private rows = new Map<string, Row>()
+  /** The controls a pinned surface hangs off its edge, by the surface they act on. */
+  private hung = new Map<HTMLElement, HTMLElement>()
   /** The row the strip is built for, so it is rebuilt only when it moves. */
   private showing: string | undefined
   /** The mark a press is carrying down the rows, while it is held. */
@@ -168,6 +173,14 @@ class Rail {
     this.container.removeEventListener('mousemove', this.follow)
     window.removeEventListener('mouseup', this.drop)
     window.removeEventListener('mousemove', this.carry)
+    // Handed back before the layer is emptied: the surfaces outlive this, and a
+    // successor takes them out again from where they were written.
+    for (const [surface, controls] of this.hung) {
+      delete controls.dataset['outside']
+      delete controls.dataset['shown']
+      surface.appendChild(controls)
+    }
+    this.hung.clear()
     this.container.replaceChildren()
     this.reaches.clear()
   }
@@ -285,7 +298,21 @@ class Rail {
           const box = drawn.getBoundingClientRect()
           rows.push({ at, height: box.height, key: `pin:${line}`, top: box.top - host.top })
         }
-        return { left: view.dom.getBoundingClientRect().right - host.left + gap, rows }
+        // Pinned surfaces are drawn in the code, which the window clips, so what
+        // hangs off their edge is measured here and drawn out here with the rest.
+        const surfaces = []
+        for (const surface of view.dom.querySelectorAll<HTMLElement>(
+          '.twoslash-block > .twoslash',
+        )) {
+          const box = surface.getBoundingClientRect()
+          surfaces.push({ left: box.left - host.left, surface, top: box.top - host.top })
+        }
+        return {
+          left: view.dom.getBoundingClientRect().right - host.left + gap,
+          rows,
+          surfaces,
+          width: host.width,
+        }
       },
       write: (measured) => {
         // A measure asked for before this was replaced still runs, and what it
@@ -305,6 +332,23 @@ class Rail {
         for (const key of stale) {
           this.reaches.get(key)?.remove()
           this.reaches.delete(key)
+        }
+        const dropped = new Set(this.hung.keys())
+        for (const { left, surface, top } of measured.surfaces) {
+          dropped.delete(surface)
+          const controls = this.hung.get(surface) ?? this.hang(surface)
+          if (!controls) continue
+          // Held by its right edge: what it is beside is what it acts on, and its
+          // own width is whatever the surface offered.
+          controls.style.setProperty(
+            '--rail-right',
+            `${Math.round(measured.width - left + beside)}px`,
+          )
+          controls.style.setProperty('--rail-top', `${Math.round(top)}px`)
+        }
+        for (const surface of dropped) {
+          this.hung.get(surface)?.remove()
+          this.hung.delete(surface)
         }
         this.strip.style.setProperty('--rail-left', `${Math.round(measured.left)}px`)
         // Rebuilt where it stands: what a row offers can change under it.
@@ -331,6 +375,35 @@ class Rail {
     if (this.showing === key) return
     this.showing = key
     this.strip.replaceChildren(...this.controls(row))
+  }
+
+  /**
+   * Takes a pinned surface's controls out of the code and draws them beside it
+   * out here, where the window's edge is not there to cut them off. Reaching for
+   * them is the surface's own business either way, so the surface says when.
+   */
+  private hang(surface: HTMLElement) {
+    const controls = surface.querySelector('.twoslash-controls')
+    if (!(controls instanceof HTMLElement)) return undefined
+    controls.dataset['outside'] = ''
+    this.container.appendChild(controls)
+    this.hung.set(surface, controls)
+    const show = () => {
+      controls.dataset['shown'] = ''
+    }
+    const hide = () => {
+      delete controls.dataset['shown']
+    }
+    // Once: a surface outliving the rail that took its controls out is hung
+    // again by the next one, and the listeners it was given still stand.
+    if (controls.dataset['wired'] === undefined) {
+      controls.dataset['wired'] = ''
+      for (const element of [surface, controls]) {
+        element.addEventListener('mouseenter', show)
+        element.addEventListener('mouseleave', hide)
+      }
+    }
+    return controls
   }
 
   /** A transparent cover over a row, which is what notices the pointer on it. */

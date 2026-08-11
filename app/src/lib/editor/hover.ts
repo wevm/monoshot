@@ -128,15 +128,6 @@ export const hover: Extension = [
           const point = () => {
             if (!word) return
             const box = surface.getBoundingClientRect()
-            // The window clips what is drawn in it, so near column 0 there is
-            // no room to the left for the controls to hang in: they move in over
-            // the surface rather than being cut off by the edge.
-            const controls = surface.querySelector('.twoslash-controls')
-            if (controls instanceof HTMLElement) {
-              const room = box.left - view.dom.getBoundingClientRect().left
-              const wanted = controls.getBoundingClientRect().width + 4
-              surface.style.setProperty('--twoslash-shift', `${Math.max(0, wanted - room)}px`)
-            }
             const limit = Math.max(inset, box.width - inset - notch)
             const left = Math.min(Math.max(word.left - box.left, inset), limit)
             surface.style.setProperty('--twoslash-notch', `${left}px`)
