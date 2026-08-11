@@ -2,7 +2,7 @@ import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
 import { motion as m, useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Roll } from './Roll.js'
@@ -78,9 +78,6 @@ function aimAt(at: Aim | undefined) {
   for (const watcher of watching) watcher()
 }
 
-/** How long a hint waits before answering, as the wrapped ones wait. */
-const wait = 300
-
 /**
  * How long it holds on after being taken back.
  *
@@ -132,17 +129,11 @@ export namespace Tooltip {
    */
   export function point(at?: Aim | undefined) {
     clearTimeout(waiting)
-    if (!at) {
-      waiting = setTimeout(() => aimAt(undefined), linger)
-      return
-    }
-    // Already answering, so this is the hint moving rather than a new one: it
-    // travels to the control now asking, and waits again only once it has gone.
-    if (aim) {
+    if (at) {
       aimAt(at)
       return
     }
-    waiting = setTimeout(() => aimAt(at), wait)
+    waiting = setTimeout(() => aimAt(undefined), linger)
   }
 
   /** Props for {@link Tooltip}. */
@@ -171,9 +162,14 @@ function Aimed() {
     () => aim,
     () => undefined,
   )
+  // Held while it goes: a pill with nothing to be anchored to is placed at the
+  // page's own corner, and it would travel there to be taken away.
+  const last = useRef<Aim | undefined>(undefined)
+  if (aimed) last.current = aimed
+  const shown = aimed ?? last.current
   return (
     <Base.Root open={aimed !== undefined}>
-      <Pill anchor={aimed?.at} label={aimed?.label ?? ''} open={aimed !== undefined} />
+      <Pill anchor={shown?.at} label={shown?.label ?? ''} open={aimed !== undefined} />
     </Base.Root>
   )
 }
