@@ -352,9 +352,9 @@ function Page() {
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
-    // Nothing shared, nothing to restore: the codec answers with its own
-    // defaults for an empty fragment, and those know only what shiki bundles.
-    if (!window.location.hash.replace('#', '')) return
+    // Nothing shared, or nothing readable: the codec answers with its own
+    // defaults, and those know only what shiki bundles.
+    if (!Codec.readable(window.location.hash)) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
     setSettings(shared.settings)
