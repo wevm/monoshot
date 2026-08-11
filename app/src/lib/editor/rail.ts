@@ -47,7 +47,15 @@ const reached = StateField.define<string | undefined>({
   create: () => undefined,
   update(value, transaction) {
     for (const effect of transaction.effects) if (effect.is(reach)) return effect.value
-    return value
+    if (!transaction.docChanged || value === undefined) return value
+    // A row is named by its line, and setting a mark can write a line above it:
+    // carried through the edit, so the controls stay beside the row they were
+    // beside rather than beside its number.
+    const [kind, number] = value.split(':')
+    const line = Number(number)
+    if (!kind || !line || line > transaction.startState.doc.lines) return undefined
+    const at = transaction.changes.mapPos(transaction.startState.doc.line(line).from)
+    return `${kind}:${transaction.state.doc.lineAt(at).number}`
   },
 })
 
@@ -104,6 +112,8 @@ class Rail {
   private rows = new Map<string, Row>()
   /** The row the strip is built for, so it is rebuilt only when it moves. */
   private showing: string | undefined
+  /** The mark a press is carrying down the rows, while it is held. */
+  private painting: { kind: Notations.Kind; set: boolean } | undefined
   /** Whether this has been replaced, which a measure already asked for outlives. */
   private gone = false
 
@@ -122,6 +132,9 @@ class Rail {
     view.dom.addEventListener('mouseover', this.track)
     view.dom.addEventListener('mouseleave', this.clear)
     this.container.addEventListener('mouseleave', this.clear)
+    // On the window: a press carrying a mark down the rows can be let go
+    // anywhere, and the rows are not where the pointer has to be by then.
+    window.addEventListener('mouseup', this.drop)
     this.render()
   }
 
@@ -137,6 +150,7 @@ class Rail {
     this.view.dom.removeEventListener('mouseover', this.track)
     this.view.dom.removeEventListener('mouseleave', this.clear)
     this.container.removeEventListener('mouseleave', this.clear)
+    window.removeEventListener('mouseup', this.drop)
     this.container.replaceChildren()
     this.reaches.clear()
   }
@@ -154,6 +168,10 @@ class Rail {
   }
 
   private readonly clear = () => this.reach(undefined)
+
+  private readonly drop = () => {
+    this.painting = undefined
+  }
 
   private reach(key: string | undefined) {
     if (this.view.state.field(reached, false) === key) return
@@ -257,7 +275,13 @@ class Rail {
     const cover = document.createElement('div')
     cover.className = 'rail-reach'
     cover.style.setProperty('--rail-gap', `${gap}px`)
-    cover.addEventListener('mouseenter', () => this.reach(key))
+    cover.addEventListener('mouseenter', () => {
+      this.reach(key)
+      // A press held from another row carries its mark onto this one, so a run
+      // of lines takes it in one gesture.
+      const line = this.rows.get(key)?.line
+      if (this.painting && line !== undefined) this.apply(line, this.painting)
+    })
     this.container.appendChild(cover)
     return cover
   }
@@ -283,6 +307,12 @@ class Rail {
     return order.map((kind) => {
       const button = this.control({
         active: row.takes === true && row.carried?.includes(kind) === true,
+        hold: () => {
+          // What the press decides for the row it started on is what it carries
+          // to every row it is dragged over, rather than flipping each in turn.
+          this.painting = { kind, set: row.carried?.includes(kind) !== true }
+          this.apply(line, this.painting)
+        },
         icon: icons[kind],
         label: row.takes === true ? labels[kind] : blank,
         select: () => this.toggle(line, kind),
@@ -297,6 +327,8 @@ class Rail {
   private control(options: {
     active?: boolean | undefined
     color?: string | undefined
+    /** What a press by pointer does, when it does more than a press by key. */
+    hold?: (() => void) | undefined
     icon: string
     label: string
     select: () => void
@@ -311,9 +343,24 @@ class Rail {
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
     // Ahead of the click: the editor would otherwise take focus and drop the
     // caret on whatever the control sits over.
-    button.addEventListener('mousedown', (event) => event.preventDefault())
-    button.addEventListener('click', options.select)
+    button.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      options.hold?.()
+    })
+    // A press by key reports no click count, and has no drag to carry.
+    button.addEventListener('click', (event) => {
+      if (!options.hold || event.detail === 0) options.select()
+    })
     return button
+  }
+
+  /** Sets or clears a mark on a row, leaving one already that way alone. */
+  private apply(line: number, painting: { kind: Notations.Kind; set: boolean }) {
+    const { state } = this.view
+    if (line > state.doc.lines || !Notations.takesMark(state, line)) return
+    const carries = Notations.at(state, line).some((notation) => notation.kind === painting.kind)
+    if (carries === painting.set) return
+    this.toggle(line, painting.kind)
   }
 
   private toggle(line: number, kind: Notations.Kind) {
