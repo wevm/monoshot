@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { converter, formatHex } from 'culori'
 import { bundledThemes } from 'shiki'
-import type { ThemeRegistration } from 'shiki'
+import type { ThemeRegistration, ThemeRegistrationResolved } from 'shiki'
 
 import { Theme } from '../src/index.js'
 
@@ -28,7 +28,16 @@ const swatches = Object.fromEntries(
     Theme.list().map(async (info) => {
       const load = bundledThemes[info.name]
       const theme = (await load()).default as ThemeRegistration
-      return [info.name, { background: background(theme), colors: strongest(theme) }] as const
+      // The backdrop the frame would draw for it, so a swatch is the artwork in
+      // miniature rather than a color chart.
+      const palette = Theme.derive(theme as ThemeRegistrationResolved)
+      return [
+        info.name,
+        {
+          backdrop: `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`,
+          colors: strongest(theme),
+        },
+      ] as const
     }),
   ),
 )
@@ -39,16 +48,12 @@ fs.writeFileSync(
  * The colors each bundled theme paints with, read from the themes themselves by
  * \`scripts/theme-swatches.ts\`. Generated: edit the script, not this.
  */
-export const swatches: Record<string, { background: string; colors: readonly string[] }> =
+export const swatches: Record<string, { backdrop: string; colors: readonly string[] }> =
   ${JSON.stringify(swatches, null, 2)}
 `,
 )
 
 console.log(`Wrote ${Object.keys(swatches).length} swatches to ${path.relative('.', output)}`)
-
-function background(theme: ThemeRegistration): string {
-  return theme.colors?.['editor.background'] ?? theme.bg ?? '#101010'
-}
 
 /**
  * The colors a theme is known by: the hues it paints most, gathered into arcs

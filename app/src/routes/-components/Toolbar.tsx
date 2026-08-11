@@ -261,23 +261,25 @@ const styles = stylex.create({
     gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))',
     padding: 6,
   },
-  themeBox: (canvas: string) => ({
-    alignItems: 'center',
-    backgroundColor: canvas,
+  // The artwork in miniature: the backdrop a theme draws, with the colors it
+  // paints code in standing on it.
+  themeBox: (backdrop: string) => ({
+    background: backdrop,
     borderRadius: 8,
     borderStyle: 'none',
-    // A hairline edge, so a near-black canvas still reads against the panel.
+    // A hairline edge, so a near-black backdrop still reads against the panel.
     boxShadow: {
       default: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)',
       ':focus-visible': shadow.focusRing,
     },
     cursor: 'pointer',
-    display: 'flex',
-    gap: 3,
-    height: 32,
-    justifyContent: 'center',
+    display: 'grid',
+    height: 34,
     outline: 'none',
-    padding: 0,
+    // Room for the backdrop to read as the picture or gradient it is, rather
+    // than as a hairline around the colors.
+    padding: 7,
+    placeItems: 'center',
     position: 'relative',
     transform: {
       default: 'scale(1)',
@@ -288,13 +290,19 @@ const styles = stylex.create({
     transitionProperty: 'transform',
     transitionTimingFunction: motion.out,
   }),
-  // The colors as a snippet wears them: a few strokes on the theme's own canvas.
-  themeStroke: (paint: string) => ({
-    backgroundColor: paint,
-    borderRadius: 999,
-    height: 14,
-    width: 4,
-  }),
+  // The colors as the window standing on that backdrop: equal stripes, edge to
+  // edge across what holds them, the way the artwork sits on its own.
+  themeStripes: {
+    // The box's corner less the padding around this, so the two are concentric.
+    borderRadius: 3,
+    display: 'grid',
+    gridAutoColumns: '1fr',
+    gridAutoFlow: 'column',
+    height: '100%',
+    overflow: 'hidden',
+    width: '100%',
+  },
+  themeStroke: (paint: string) => ({ backgroundColor: paint }),
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 4,
@@ -453,12 +461,14 @@ export function Toolbar(props: Toolbar.Props) {
                               ref={entry.name === theme ? reveal : null}
                               title={entry.displayName}
                               type="button"
-                              {...stylex.props(styles.themeBox(shown.background))}
+                              {...stylex.props(styles.themeBox(shown.backdrop))}
                             >
                               <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
-                              {shown.colors.map((paint) => (
-                                <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
-                              ))}
+                              <span {...stylex.props(styles.themeStripes)}>
+                                {shown.colors.map((paint) => (
+                                  <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
+                                ))}
+                              </span>
                               {entry.name === theme && <Ring row={section.title} travel={travel} />}
                             </button>
                           )

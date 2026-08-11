@@ -27,12 +27,16 @@ export const composed = palettes.map((palette) =>
   }),
 )
 
-/** What a theme is shown as in the picker: its canvas, and the colors on it. */
-export type Swatch = { background: string; colors: readonly string[] }
+/** What a theme is shown as: the backdrop it draws, and the colors on it. */
+export type Swatch = {
+  /** A CSS background: the theme's own backdrop, or the picture it stands on. */
+  backdrop: string
+  colors: readonly string[]
+}
 
 /** The colors a theme is known by, for a picker to show it as. */
 export function swatch(name: string): Swatch {
-  return drawn.get(name) ?? { background: '#101010', colors: ['#888888', '#aaaaaa', '#cccccc'] }
+  return drawn.get(name) ?? { backdrop: '#101010', colors: ['#888888', '#aaaaaa', '#cccccc'] }
 }
 
 /** Whether a theme was made here from a picture rather than bundled by shiki. */
@@ -51,9 +55,13 @@ const drawn = new Map<string, Swatch>([
       .map((rule) => rule.settings.foreground)
       .filter((color) => color !== undefined)
     // Past the comment, which every theme paints quietest and none is known by.
+    // The picture it stands on, which is the backdrop it is drawn against.
     return [
       theme.name as string,
-      { background: theme.bg ?? '#101010', colors: painted.slice(1, 4) },
+      {
+        backdrop: `url("${Wallpapers.thumbnail(theme.name as string)}") center / cover`,
+        colors: painted.slice(1, 4),
+      },
     ] as const
   }),
 ])
