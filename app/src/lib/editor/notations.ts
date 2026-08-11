@@ -3,6 +3,8 @@ import type { ChangeSpec, EditorState, Extension } from '@codemirror/state'
 import { Decoration, EditorView } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 
+import * as Identifier from './identifier.js'
+
 const field = StateField.define<Value>({
   create: (state) => build(state),
   update: (value, transaction) => (transaction.docChanged ? build(transaction.state) : value),
@@ -121,6 +123,29 @@ const names: Readonly<Record<Kind, string>> = {
  * whole of it in one step.
  */
 export const notations: Extension = field
+
+/**
+ * The snippet without what was written to mark it: the notations, the tags, and
+ * the caret lines asking for a type.
+ *
+ * What is copied is the code, the way the exported frame draws it. Whoever
+ * pastes it wants the snippet rather than the instructions for drawing it.
+ */
+export function bare(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => {
+      if (tags.test(line) || Identifier.caretColumn(line) !== undefined) return false
+      // A line holding only notations goes; a line holding nothing stays, since
+      // that is the shape of the code.
+      return line.trim() === '' || line.replace(pattern, '').trim() !== ''
+    })
+    .map((line) => {
+      const written = line.replace(pattern, '')
+      return written === line ? line : written.replace(/[ \t]+$/, '')
+    })
+    .join('\n')
+}
 
 /** The notations covering a line, in source order. */
 export function at(state: EditorState, line: number): readonly Notation[] {

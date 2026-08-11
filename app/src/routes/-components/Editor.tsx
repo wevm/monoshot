@@ -13,7 +13,7 @@ import { highlight, setTokens } from '#/lib/editor/highlight.js'
 import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
-import { notations, syntax } from '#/lib/editor/notations.js'
+import { bare, notations, syntax } from '#/lib/editor/notations.js'
 import { rail } from '#/lib/editor/rail.js'
 import { overlooked, pins, problems } from '#/lib/editor/problems.js'
 import { query as queries } from '#/lib/editor/query.js'
@@ -86,6 +86,9 @@ export function Editor(props: Editor.Props) {
           // takes both, which the plain delete binding would not.
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.lineWrapping,
+          // What is copied is the snippet, not the marks on it: a paste
+          // elsewhere wants the code the frame draws.
+          EditorView.clipboardOutputFilter.of((text) => bare(text)),
           // Without a name the code surface reads as an unlabelled edit field.
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,

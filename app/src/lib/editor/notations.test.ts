@@ -1,7 +1,7 @@
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
-import { notations, removed, syntax, takesMark, toggle } from './notations.js'
+import { bare, notations, removed, syntax, takesMark, toggle } from './notations.js'
 
 /** The class each line ends up with, which is what this field decides. */
 function marked(doc: string) {
@@ -305,5 +305,33 @@ describe('takesMark', () => {
         false,
       ]
     `)
+  })
+})
+
+describe('bare', () => {
+  test('leaves the snippet without what was written to mark it', () => {
+    expect(
+      bare(
+        [
+          '// [!code focus]',
+          'const a = 1 // [!code hl]',
+          '',
+          '// @log: looked at',
+          'const b = 2',
+          '//    ^?',
+          '',
+        ].join('\n'),
+      ),
+    ).toMatchInlineSnapshot(`
+      "const a = 1
+
+      const b = 2
+      "
+    `)
+  })
+
+  test('leaves a snippet carrying no marks exactly as it was', () => {
+    const code = 'const a = 1\n\nconst b = 2\n'
+    expect(bare(code)).toBe(code)
   })
 })
