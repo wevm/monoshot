@@ -1,4 +1,4 @@
-import type * as Theme from '../Theme.js'
+import * as Theme from '../Theme.js'
 
 /** A font to embed, so the document asks the network for nothing. */
 export type Font = {
@@ -15,16 +15,16 @@ export type Font = {
 /** Everything the document needs beyond the highlighted markup. */
 export type Options = {
   /**
-   * `default` paints the theme's gradient, `none` leaves it transparent, and
-   * any other value is used as the CSS `background` of the canvas.
+   * `default` paints the theme's gradient, `none` leaves it transparent, a
+   * `wallpaper:<id>` names a picture this surface does not carry and falls back
+   * to the gradient, and any other value is used as the canvas's CSS
+   * `background`.
    */
   background: string
   /** The code, already highlighted. */
   html: string
   /** Whether the html carries twoslash blocks, which need their own styles. */
   annotated?: boolean | undefined
-  /** Whether to draw a line-number gutter beside the code. */
-  lineNumbers: boolean
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
   /** Frame colors, derived from the theme the code was highlighted with. */
@@ -53,14 +53,16 @@ export type Options = {
  * would leave the stylesheet or fetch a resource.
  */
 export function build(options: Options): string {
-  const { background, html, lineNumbers, padding, palette, radius, title, titleBar, width } =
-    options
+  const { background, html, padding, palette, radius, title, titleBar, width } = options
   const styles = options.annotated === true ? annotations(palette) : ''
   const fonts = options.fonts ?? []
+  // A wallpaper is a picture the drawing surface holds, and this one holds
+  // none: a link naming one still opens, on the theme's own backdrop.
+  const named = background.startsWith('wallpaper:')
   const backdrop =
     background === 'none'
       ? 'transparent'
-      : background === 'default'
+      : background === 'default' || named
         ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
         : css(background, 'background')
   return `<!doctype html>
@@ -75,6 +77,8 @@ ${fontFaces(fonts)}
   --code-line-height: 22px;
   --code-tab-size: 2;
   --code-annotation-size: 12px;
+  /* What the window insets its code by, so a marked line can reach past it. */
+  --body-inset: 16px;
   --window-background: ${palette.window.background};
   --window-border: ${palette.window.border};
   --window-shadow: ${shadow[palette.type]};
@@ -118,7 +122,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .body {
   color: ${palette.window.foreground};
-  padding: ${titleBar ? '4px 16px' : '8px 16px'};
+  padding: ${titleBar ? '4px' : '8px'} var(--body-inset);
 }
 .shiki, .shiki code {
   background: transparent !important;
@@ -133,7 +137,7 @@ body { -webkit-font-smoothing: antialiased; }
   white-space: pre-wrap;
 }
 .shiki { padding-block: 12px; }
-${lineNumbers ? gutter(html) : ''}
+${marked(html) ? marks(palette) : ''}
 ${styles}
 .twoslash-block {
   display: flex;
@@ -186,39 +190,6 @@ const shadow = {
 } as const
 
 /**
- * The gutter, sized to the document rather than read from the DOM: there is no
- * script here to measure it. A wrapped line hangs its continuation under the
- * code instead of under the numbers.
- */
-function gutter(html: string) {
-  const lines = (html.match(/class="line"/g) ?? []).length
-  const width = String(Math.max(lines, 10)).length
-  return `.shiki code {
-  /* Grid, not blocked lines: shiki puts a real newline between them, which a
-     block would render as height on top of the line box. Whitespace between
-     grid items makes no row. */
-  display: grid;
-}
-.shiki .line {
-  padding-left: calc(${width}ch + 20px);
-  text-indent: calc(-1ch * ${width} - 20px);
-}
-.shiki .twoslash-meta-line {
-  padding-left: calc(${width}ch + 20px);
-}
-.shiki .line::before {
-  content: attr(data-line);
-  display: inline-block;
-  margin-right: 20px;
-  opacity: 0.4;
-  overflow: hidden;
-  text-align: right;
-  vertical-align: top;
-  width: ${width}ch;
-}`
-}
-
-/**
  * Styles for the blocks twoslash renders in place of a `^?` line. Only the
  * static shapes: the hover popovers in the upstream stylesheet need a pointer,
  * and an image has none.
@@ -236,6 +207,11 @@ export function annotations(palette: Theme.derive.Result): string {
 }
 .twoslash-meta-line {
   display: flex;
+}
+/* Preformatted only where the line holds code: a message and a tag are prose,
+   and prose reaching the window's edge wraps rather than running out of it. */
+.twoslash-query-line,
+.twoslash-popup-code {
   white-space: pre;
 }
 .twoslash-query-line .twoslash-popup-container {
@@ -270,12 +246,134 @@ export function annotations(palette: Theme.derive.Result): string {
   display: block;
   padding: 6px 10px;
 }
-.twoslash-error-line {
-  color: ${palette.window.foreground};
+`
+}
+
+/**
+ * The marks a snippet carries, drawn as rows reaching the window's edges with
+ * a bar down the side they start on. Present only when something is marked:
+ * the rules turn the code into rows, which a snippet with nothing to mark has
+ * no reason to become.
+ */
+export function marked(html: string): boolean {
+  return /has-(diff|focused|highlighted)|twoslash-(tag|error)-line/.test(html)
+}
+
+export function marks(palette: Theme.derive.Result) {
+  /**
+   * A row: full width, past the inset the window holds its code at. A caller
+   * embedding the markup declares `--body-inset` to say what that inset is;
+   * without one the row reaches the code's own edges.
+   *
+   * A pixel past it, since the window clips on a rounded rect: an edge landing
+   * exactly on that clip is antialiased into it, leaving the window showing
+   * through as a hairline.
+   */
+  const row = `  margin-inline: calc(-1px - var(--body-inset, 0px));
+  padding-inline-start: calc(1px + var(--body-inset, 0px));
+  padding-inline-end: calc(1px + var(--body-inset, 0px));`
+  /** A row's bar and wash, from one Theme.marks. */
+  const mark = (
+    color: string,
+    strength = 16,
+  ) => `  background-color: color-mix(in oklab, ${color} ${strength}%, transparent);
+  box-shadow: inset 3px 0 0 ${color};`
+  return `.shiki code {
+  /* Rows, so a mark reaches the window rather than the text on the line. */
+  display: grid;
+  /* A row wraps at the window rather than reaching past it: an auto column is
+     as wide as its widest line, and a grid item carries a minimum of its own
+     content. */
+  grid-template-columns: minmax(0, 1fr);
+}
+.shiki .line {
+  /* A row holding nothing is still a line of the snippet: as a grid item an
+     empty one would take no height, and the blank lines would close up. */
+  min-height: var(--code-line-height);
+  /* What a diff marker sits in, so it lands in the window's own inset. */
+  position: relative;
+}
+.shiki .line,
+.twoslash-error-line,
+.twoslash-tag-line {
+${row}
+}
+.shiki .line.highlighted {
+${mark(palette.window.foreground, 8)}
+}
+/* Focus says which lines matter, so the rest recede rather than being marked.
+   A line carrying a mark of its own keeps it: the mark is the louder claim. */
+.shiki.has-focused .line:not(.focused):not(.highlighted):not(.diff) {
+  opacity: 0.4;
+}
+.shiki .line.diff.add {
+${mark(Theme.marks.add)}
+}
+.shiki .line.diff.remove {
+${mark(Theme.marks.remove)}
+}
+/* The code being replaced reads as code that is gone: its own colors would
+   still be claiming it. Drained rather than recolored, so what the syntax made
+   of the line survives as light and dark. */
+.shiki .line.diff.remove span {
+  filter: grayscale(1);
+  opacity: 0.8;
+}
+.shiki .line.diff::after {
+  left: 6px;
+  position: absolute;
+}
+.shiki .line.diff.add::after {
+  color: ${Theme.marks.add};
+  content: '+';
+}
+.shiki .line.diff.remove::after {
+  color: ${Theme.marks.remove};
+  content: '-';
+}
+/* The token a complaint is about, marked where it sits rather than only named
+   in the row below: what is wrong is a place in the code first. */
+.twoslash-error {
+  text-decoration: underline wavy ${Theme.marks.remove};
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+/* A tag is prose the snippet carries, so it reads in the hue it was tagged
+   with rather than in the code's own colors. A complaint the compiler made is
+   the same kind of row, so it reads the same way. */
+.twoslash-error-line,
+.twoslash-tag-line {
+  align-items: center;
+  /* Set off from the line above, which it is a note on rather than the next
+     thing to read. */
+  margin-top: 6px;
+  display: flex;
   font-size: var(--code-annotation-size);
-  opacity: 0.75;
-  padding-bottom: 4px;
-  white-space: pre-wrap;
+  gap: 6px;
+  line-height: var(--code-line-height);
+  min-height: var(--code-line-height);
+}
+.twoslash-tag-icon {
+  /* The tag reads as prose in its own hue, which says what it is without a
+     glyph repeating it. */
+  display: none;
+}
+.twoslash-tag-log-line {
+  color: ${Theme.marks.log};
+${mark(Theme.marks.log)}
+}
+.twoslash-error-line,
+.twoslash-tag-error-line {
+  color: ${Theme.marks.remove};
+${mark(Theme.marks.remove)}
+}
+.twoslash-tag-warn-line {
+  color: ${Theme.marks.warn};
+${mark(Theme.marks.warn)}
+}
+.twoslash-tag-annotate-line {
+  color: ${Theme.marks.add};
+${mark(Theme.marks.add)}
 }`
 }
 

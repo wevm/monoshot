@@ -39,13 +39,13 @@ function settings(url: string) {
 
 describe('create', () => {
   describe('themes', () => {
-    test('lists every bundled theme', async () => {
+    test('lists every theme a frame offers', async () => {
       const { output } = await run(['themes'])
       expect(output).toHaveLength(Theme.list().length)
       expect(output[0]).toMatchInlineSnapshot(`
         {
-          "displayName": "Andromeeda",
-          "name": "andromeeda",
+          "displayName": "Aurora X",
+          "name": "aurora-x",
           "type": "dark",
         }
       `)

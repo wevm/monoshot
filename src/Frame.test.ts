@@ -27,7 +27,6 @@ describe('create', () => {
       background: 'none',
       code: 'const a = 1',
       lang: 'ts',
-      lineNumbers: false,
       padding: 32,
       radius: 12,
       theme: 'nord',
@@ -146,6 +145,117 @@ describe('create', () => {
   })
 })
 
+describe('render with notations', () => {
+  test('marks the line a `[!code hl]` sits on, and takes the notation out', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: 'const a = 1 // [!code hl]\nconst b = 2\n',
+      lang: 'ts',
+      theme: 'vitesse-dark',
+    })
+    await frame.dispose()
+    expect(result.html).toContain('has-highlighted')
+    expect(result.html).not.toContain('[!code')
+    expect([...result.html.matchAll(/class="line ?([a-z ]*)"/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "highlighted",
+        "",
+        "",
+      ]
+    `)
+  })
+
+  test('reads a diff, and a focus', async () => {
+    const frame = Frame.create()
+    const [diff, focus] = await Promise.all([
+      frame.render({
+        code: 'const a = 1 // [!code --]\nconst a = 2 // [!code ++]\n',
+        lang: 'ts',
+        theme: 'vitesse-dark',
+      }),
+      frame.render({
+        code: 'const a = 1 // [!code focus]\nconst b = 2\n',
+        lang: 'ts',
+        theme: 'vitesse-dark',
+      }),
+    ])
+    await frame.dispose()
+    expect(diff.html).toContain('line diff remove')
+    expect(diff.html).toContain('line diff add')
+    expect(focus.html).toContain('line focused')
+  })
+
+  test('returns the styles the marks need, twoslash or not', async () => {
+    const frame = Frame.create()
+    const marked = await frame.render({
+      code: 'const a = 1 // [!code hl]\n',
+      lang: 'ts',
+      theme: 'vitesse-dark',
+    })
+    const plain = await frame.render({ code: 'const a = 1\n', lang: 'ts', theme: 'vitesse-dark' })
+    await frame.dispose()
+    // A caller embedding the markup has nowhere else to read them from.
+    expect(marked.css).toContain('.shiki .line.highlighted')
+    expect(plain.css).toBeUndefined()
+  })
+
+  test('draws a line for each tag a snippet carries', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      // A tag attaches to the line after it, so each needs one of its own.
+      code: [
+        'const a = 1',
+        '// @log: looked at',
+        'const b = 2',
+        '// @error: went wrong',
+        'const c = 3',
+        '// @warn: careful',
+        'const d = 4',
+        '// @annotate: note',
+        'const e = 5',
+        '',
+      ].join('\n'),
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect([...result.html.matchAll(/twoslash-tag-(\w+)-line/g)].map((match) => match[1]))
+      .toMatchInlineSnapshot(`
+      [
+        "log",
+        "error",
+        "warn",
+        "annotate",
+      ]
+    `)
+    // The tag is prose about the code, not part of it.
+    expect(result.html).not.toContain('@log:')
+  })
+
+  test('draws the marks only for a snippet that carries some', async () => {
+    const frame = Frame.create()
+    const settings = {
+      background: 'default',
+      lang: 'ts',
+      padding: 64,
+      radius: 12,
+      theme: 'vitesse-dark',
+      title: '',
+      titleBar: true,
+      width: 640,
+    } as const
+    const [marked, plain] = await Promise.all([
+      frame.toDocument({ ...settings, code: 'const a = 1 // [!code hl]\n' }),
+      frame.toDocument({ ...settings, code: 'const a = 1\n' }),
+    ])
+    await frame.dispose()
+    expect(marked).toContain('.line.highlighted')
+    expect(plain).not.toContain('.line.highlighted')
+  })
+})
+
 describe('render with twoslash', () => {
   const query = 'const greeting = "hello"\n//    ^?\n'
 
@@ -220,7 +330,6 @@ describe('render with twoslash', () => {
       background: 'default',
       code: query,
       lang: 'ts',
-      lineNumbers: false,
       padding: 64,
       radius: 12,
       theme: 'vitesse-dark',

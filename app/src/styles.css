@@ -98,6 +98,13 @@
     text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
   }
 
+  /* What is wrong with a token outranks what type it holds, so the mark that
+     advertises the type steps aside for the squiggle rather than sitting under
+     it. The hover reads the same way: it shows the complaint, not the type. */
+  .twoslash-mark:has(.cm-lintRange) {
+    text-decoration: none;
+  }
+
   /* A type arriving: it settles from just above, so the eye follows it down to
      where it lands rather than finding it already there. */
   @keyframes twoslash-in {
@@ -121,6 +128,8 @@
        inherits this fill and hangs off the surface, so a transparent one
        shows the code through the part that sticks out. */
     background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
+    /* The same corner the exported frame draws a type on. */
+    border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--window-border);
     font-family: var(--code-font-family);
     font-size: var(--code-annotation-size);
@@ -147,47 +156,91 @@
 
   /* Beside the type's first line, just off the surface: near the word it
      describes, clear of the notch, and out of flow entirely, so nothing
-     reflows when it appears. */
+     reflows when they appear. */
+  .twoslash-controls {
+    display: flex;
+    gap: 2px;
+    /* Toward the code by default, and away from it when the window's edge is
+       too close to hold them: near column 0 there is nothing to the left. */
+    /* The room the editor's inset leaves to the left of column 0, so they fit
+       there whatever column a type is pinned at. */
+    margin-right: 2px;
+    /* Out of the picture until reached for. They still take hits while they are
+       invisible, so the pointer passing over them brings them out. */
+    opacity: 0;
+    position: absolute;
+    right: 100%;
+    /* Centered on the first line: 6px of surface padding plus half a line. */
+    top: 4px;
+    /* Comes out of the surface's edge rather than appearing beside it: the
+       travel closes the gap exactly, so it never laps the type. */
+    transform: translateX(calc(2px + var(--twoslash-shift, 0px))) scale(0.9);
+    transform-origin: right center;
+    transition:
+      opacity var(--motion-fast) var(--motion-out),
+      transform var(--motion-fast) var(--motion-out);
+  }
+
+  /* Drawn outside the window rather than in the surface it belongs to, which
+     the window's edge would cut off at the code's own left columns. Positioned
+     by the editor, which measures where the surface landed. */
+  .twoslash-controls[data-outside] {
+    /* Where the surface is, kept as a margin so the inset onto its first line
+       is still the one every surface's controls take. */
+    margin-top: var(--rail-top);
+    pointer-events: auto;
+    right: var(--rail-right);
+  }
+
+  .twoslash-controls[data-outside][data-shown] {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Nothing to bridge out here: the surface and its controls each say when they
+     are reached for, and the gap between them is not a place to fall through. */
+  .twoslash-controls[data-outside]::after {
+    content: none;
+  }
+
+  /* The window's own fill does not reach this layer, which publishes the same
+     color under the name the controls beside a line read. */
+  .twoslash-controls[data-outside] {
+    color: var(--window-foreground);
+  }
+
+  .twoslash-controls[data-outside] .twoslash-pin {
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-surface));
+  }
+
   .twoslash-pin {
     align-items: center;
-    /* The surface's own composited fill, so the part hanging off the edge is
-       opaque rather than showing code through it. */
-    background-color: inherit;
+    /* The surface's own fill, written out rather than inherited: the row these
+       sit in carries no background of its own, and code would otherwise read
+       through them. */
+    background-color: color-mix(in oklab, currentColor 7%, var(--window-background));
     border: none;
     border-radius: 999px;
     box-shadow: inset 0 0 0 1px var(--window-border);
     color: inherit;
     cursor: pointer;
     display: flex;
-    height: 14px;
+    /* A line tall, so a control reads at the size of what it acts on. */
+    height: var(--code-line-height);
     justify-content: center;
-    /* Together these are the room the editor's inset leaves to the left of
-       column 0, so the pin fits there whatever column a type is pinned at. */
-    margin-right: 2px;
-    /* Out of the picture until reached for. It still takes hits while it is
-       invisible, so the pointer passing over it brings it out. */
-    opacity: 0;
     padding: 0;
-    position: absolute;
-    right: 100%;
-    /* Centered on the first line: 6px of surface padding plus half a line. */
-    top: 6px;
-    /* Comes out of the surface's edge rather than appearing beside it: the
-       travel closes the gap exactly, so it never laps the type. */
-    transform: translateX(2px) scale(0.9);
-    transform-origin: right center;
-    transition:
-      opacity var(--motion-fast) var(--motion-out),
-      transform var(--motion-fast) var(--motion-out);
-    width: 14px;
+    width: var(--code-line-height);
   }
 
   /* Reaches across the gap to the surface, so crossing it does not read as
-     leaving both. */
-  .twoslash-pin::after {
+     leaving both. Only the gap: over the controls it would take the presses
+     meant for them. */
+  .twoslash-controls::after {
     content: '';
-    inset: 0 -2px 0 0;
+    inset-block: 0;
+    left: 100%;
     position: absolute;
+    width: 2px;
   }
 
   /* A pinned block sits in the code's own column, so at column 0 there is
@@ -204,11 +257,13 @@
   /* The hover only exists while you are pointing at the word, so its control
      is there from the start; a pinned type is part of the picture, and gives
      one up only once the pointer is on it. */
-  .cm-tooltip .twoslash-pin,
-  .twoslash:hover .twoslash-pin,
-  .twoslash-pin:focus-visible {
+  .cm-tooltip .twoslash-controls,
+  .twoslash:hover .twoslash-controls,
+  .twoslash-controls:focus-within {
     opacity: 1;
-    transform: none;
+    /* Toward the surface by however much the window's edge left them without
+       room: overlapping the code beats being cut off by it. */
+    transform: translateX(var(--twoslash-shift, 0px));
   }
 
   /* Presses read as pressed, not as a hover that happens to be clicked. */
@@ -218,12 +273,12 @@
 
   .twoslash-pin svg {
     fill: none;
-    height: 9px;
+    height: 13px;
     stroke: currentColor;
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 2;
-    width: 9px;
+    width: 13px;
   }
 
   /* The run between the word and its type. Transparent, and part of the
@@ -315,21 +370,6 @@
     transform: rotate(45deg);
     width: 7px;
   }
-
-  /* Shiki emits the highlighted markup, so the gutter is styled here rather
-     than through StyleX, which cannot target injected descendants. Present only
-     when it is asked for: a collapsed placeholder survives a DOM capture as its
-     natural width, which indents every line by its own line number. */
-  [data-line-numbers] .shiki .line::before {
-    content: attr(data-line);
-    display: inline-block;
-    margin-right: 20px;
-    opacity: 0.4;
-    overflow: hidden;
-    text-align: right;
-    vertical-align: top;
-    width: var(--gutter, 2ch);
-  }
 }
 
 /* Motion is the reveal, not the message: without it the surfaces still arrive,
@@ -347,7 +387,147 @@
     }
   }
 
-  .twoslash-pin {
+  .twoslash-controls {
     transform: none;
   }
+}
+
+/* The controls beside a line, drawn outside the window: it clips, so nothing in
+   it could reach past its edge. Positioned by the editor, which knows where each
+   line sits. */
+/* What notices the pointer on a row, covering it and the gap between it and the
+   window: crossing that gap is on the way to the controls. */
+.rail-reach {
+  height: var(--rail-height, 0);
+  left: calc(var(--rail-left, 0px) - var(--rail-gap, 0px));
+  /* The host takes no pointer of its own, so what covers a row asks for one. */
+  pointer-events: auto;
+  position: absolute;
+  top: var(--rail-top, 0);
+  width: calc(var(--rail-gap, 0px) + 92px);
+}
+
+.rail {
+  align-items: center;
+  background-color: color-mix(in oklab, var(--window-surface) 85%, transparent);
+  /* The controls' own corner plus the padding around them, so the two are
+     concentric. Even padding, since one radius cannot be that on two axes. */
+  border-radius: 10px;
+  display: flex;
+  gap: 2px;
+  height: calc(20px + 6px);
+  left: var(--rail-left, 0);
+  opacity: 0;
+  padding: 3px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  /* Half its own height back, so it centres on the row it stands beside. */
+  transform: translateY(calc(var(--rail-top, 0px) - 50%));
+  /* One strip travelling between rows rather than one appearing on each: the
+     eye follows it there instead of finding it somewhere else. */
+  transition:
+    opacity 140ms cubic-bezier(0.19, 1, 0.22, 1),
+    transform 160ms cubic-bezier(0.19, 1, 0.22, 1);
+  /* Over what covers the rows: they are built after this and would otherwise
+     take the presses meant for the controls. */
+  z-index: 1;
+}
+
+/* Under the pointer rather than travelling to a row: what is dragged has to
+   land on the pointer, not ease toward it. */
+.rail[data-following] {
+  transition-property: opacity;
+}
+
+.rail[data-shown],
+.rail:focus-within {
+  opacity: 1;
+  /* Takes the pointer only where it is: the controls are what a press is for,
+     and what covers the rows lies under them. */
+  pointer-events: auto;
+}
+
+/* The gap between the window and the controls, carried by the strip itself:
+   crossing it is on the way to the controls, so it holds them open rather than
+   dropping them halfway. Reachable only while they are open, so the grip that
+   resizes the window keeps the whole of its own edge. */
+.rail::before {
+  content: '';
+  inset-block: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 100%;
+  width: var(--rail-gap, 0px);
+}
+
+.rail[data-shown]::before {
+  pointer-events: auto;
+}
+
+.rail-control {
+  align-items: center;
+  background: none;
+  border: none;
+  /* The strip's corner less the padding around this. */
+  border-radius: 7px;
+  color: var(--rail-color, var(--window-foreground));
+  cursor: pointer;
+  display: flex;
+  height: 20px;
+  justify-content: center;
+  opacity: 0.4;
+  padding: 0;
+  width: 20px;
+}
+
+.rail-control:hover {
+  background-color: color-mix(in oklab, var(--window-foreground) 12%, transparent);
+  opacity: 1;
+}
+
+.rail-control:active {
+  background-color: color-mix(in oklab, var(--window-foreground) 20%, transparent);
+}
+
+.rail-control:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--window-foreground);
+  outline-offset: 1px;
+}
+
+/* A control for a mark the line already carries, which is also what takes it
+   away again. */
+.rail-control[data-active] {
+  background-color: color-mix(in oklab, var(--window-foreground) 14%, transparent);
+  opacity: 1;
+}
+
+.rail-control[data-kind='add'][data-active] {
+  color: oklch(66% 0.15 150);
+}
+
+.rail-control[data-kind='remove'][data-active] {
+  color: oklch(62% 0.19 20);
+}
+
+.rail-control svg {
+  fill: none;
+  height: 14px;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    transition-duration: 0s;
+  }
+}
+
+.rail-control:disabled {
+  cursor: default;
+  opacity: 0.15;
 }

@@ -8,16 +8,23 @@ import * as z from 'zod'
  * failing, so a truncated or hand-edited link still opens something usable.
  */
 export const schema = z.object({
-  /** `default`, `none`, or a `#rrggbb` color for the frame's backdrop. */
+  /**
+   * The frame's backdrop: `default` for the theme's own gradient, `none` for a
+   * transparent one, a `#rrggbb` color, or `wallpaper:<id>` for a picture the
+   * surface drawing it carries.
+   */
   background: z
-    .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
+    .union([
+      z.literal('default'),
+      z.literal('none'),
+      z.string().regex(/^#[0-9a-f]{6}$/i),
+      z.string().regex(/^wallpaper:[a-z0-9-]+$/),
+    ])
     .catch('default'),
   /** The snippet itself, which is empty when the window holds nothing. */
   code: z.string().catch(''),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
-  /** Whether the snippet is numbered down its left edge. */
-  lineNumbers: z.boolean().catch(false),
   /** Space around the window, in pixels. */
   padding: z.number().int().min(0).max(256).catch(64),
   /** Corner radius of the window, in pixels. */
@@ -28,6 +35,8 @@ export const schema = z.object({
   title: z.string().catch(''),
   /** Whether the window wears a title bar. */
   titleBar: z.boolean().catch(true),
+  /** Whether the snippet is type checked, which only a TypeScript one can be. */
+  types: z.boolean().catch(true),
   /** Width of the window, in pixels. */
   width: z.number().int().min(320).max(1600).catch(640),
 })
@@ -43,12 +52,12 @@ const keys = {
   background: 'b',
   code: 'c',
   lang: 'g',
-  lineNumbers: 'n',
   padding: 'p',
   radius: 'r',
   theme: 't',
   title: 'i',
   titleBar: 'y',
+  types: 's',
   width: 'w',
 } as const satisfies Record<keyof State, string>
 

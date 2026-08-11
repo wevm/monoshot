@@ -8,8 +8,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
+import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
 import { dialects } from '#/lib/twoslash/options.js'
+import * as Wallpapers from '#/lib/wallpapers.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
@@ -46,6 +48,18 @@ const styles = stylex.create({
   canvasColor: (surface: { background: string; foreground: string }) => ({
     backgroundColor: surface.background,
     color: surface.foreground,
+  }),
+  // The artwork's own picture, carried across the shell under a wash of the
+  // page's color: the same picture at full strength either side of the
+  // artwork's edge would leave nothing to see that edge by.
+  canvasPicture: (picture: { scrim: string; source: string }) => ({
+    // Held to the viewport, which the artwork's own copy is held to as well: one
+    // picture across both, rather than each covering its own box with a
+    // different part of it.
+    backgroundAttachment: 'fixed',
+    backgroundImage: `linear-gradient(${picture.scrim}, ${picture.scrim}), url("${picture.source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
   }),
   header: {
     alignItems: 'center',
@@ -148,6 +162,7 @@ const styles = stylex.create({
     alignItems: 'center',
     backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
     borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
+    borderRadius: 4,
     borderStyle: 'solid',
     borderWidth: 1,
     display: 'flex',
@@ -175,6 +190,8 @@ const styles = stylex.create({
 const empty: Editor.Props['types'] = []
 
 /** The same, for a document the compiler has said nothing about yet. */
+const nothing: readonly number[] = []
+
 const quiet: Editor.Props['diagnostics'] = []
 
 /** Everything on screen that a shared link carries, less the code and title. */
@@ -193,6 +210,8 @@ type Artwork = {
   palette: Theme.derive.Result
   settings: Settings
   title: string
+  /** The backdrop's picture as data, when the settings named one. */
+  wallpaper: string | undefined
 }
 
 /**
@@ -213,11 +232,11 @@ type Capture = {
 const fallback: Settings = {
   background: 'default',
   language: 'auto',
-  lineNumbers: false,
   padding: 64,
   radius: 12,
   theme: 'vitesse-dark',
   titleBar: true,
+  types: true,
   width: 640,
 }
 
@@ -240,11 +259,11 @@ function restore(hash: string) {
     settings: {
       background: state.background,
       language,
-      lineNumbers: state.lineNumbers,
       padding: state.padding,
       radius: state.radius,
       theme,
       titleBar: state.titleBar,
+      types: state.types,
       width: state.width,
     } satisfies Settings,
     title: state.title,
@@ -258,12 +277,12 @@ function share(parameters: { code: string; settings: Settings; title: string }) 
     background: settings.background,
     code,
     lang: settings.language,
-    lineNumbers: settings.lineNumbers,
     padding: settings.padding,
     radius: settings.radius,
     theme: settings.theme,
     title,
     titleBar: settings.titleBar,
+    types: settings.types,
     width: settings.width,
   })
 }
@@ -335,6 +354,8 @@ function Page() {
   // that did match stays until one for this document arrives. The editor maps
   // what it already holds through the edits between.
   const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
+  /** Complaints the writer waved off, which the picture leaves out too. */
+  const [ignored, setIgnored] = useState<readonly number[]>(nothing)
   // Seeded with the default snippet's types, resolved at build time: the
   // worker that resolves them carries a compiler, and a first visit would
   // download it to draw a document nobody has touched.
@@ -347,6 +368,9 @@ function Page() {
   // artwork for the highlighter's fallback and leave it there.
   const [notice, setNotice] = useState<string>()
   const [artwork, setArtwork] = useState<Artwork>()
+  // Held as data rather than drawn from its URL: the copy an export captures is
+  // read as it stands, and a fetch it started would not have landed by then.
+  const [wallpaper, setWallpaper] = useState<Wallpapers.Picture>()
   const stage = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
@@ -405,7 +429,9 @@ function Page() {
     // dropped here rather than when its replacement goes out: the debounce is
     // long enough for a stale answer to land inside it.
     resolver.current?.invalidate()
-    const dialect = dialects[language as keyof typeof dialects]
+    // Turned off, the snippet is read as text: the compiler is what draws the
+    // types, the squiggles, and the blocks a `^?` leaves behind.
+    const dialect = settings.types ? dialects[language as keyof typeof dialects] : undefined
     if (!dialect) {
       setResolved(undefined)
       return
@@ -426,7 +452,24 @@ function Page() {
     }
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
     return () => clearTimeout(timer)
-  }, [code, language])
+  }, [code, language, settings.types])
+
+  useEffect(() => {
+    const named = Wallpapers.at(settings.background)
+    if (!named) return setWallpaper(undefined)
+    let active = true
+    void Wallpapers.embed(named.id).then(
+      (picture) => {
+        if (active) setWallpaper(picture)
+      },
+      (cause: Error) => {
+        if (active) setNotice(cause.message)
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [settings.background])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 
@@ -474,6 +517,8 @@ function Page() {
       theme,
       ...(types ? { twoslash: types } : {}),
     })
+    const named = Wallpapers.at(settings.background)
+    const picture = named ? await Wallpapers.embed(named.id) : undefined
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
       setArtwork({
@@ -482,6 +527,7 @@ function Page() {
         palette: Theme.derive(rendered.theme),
         settings,
         title,
+        wallpaper: picture?.source,
       }),
     )
     try {
@@ -522,7 +568,9 @@ function Page() {
     // this document: an older answer's offsets would mark the wrong words.
     // Only a run resolved against this very document: an older one carries
     // offsets into text that is no longer here.
-    const types = resolved?.document === code ? resolved.types : undefined
+    const found = resolved?.document === code ? resolved.types : undefined
+    // What the editor stopped reporting is not in the picture either.
+    const types = found && without(found, ignored)
     const capture: Capture = { code, language, options, settings, title, types }
     const run = Promise.resolve(pending.current)
       .catch(() => {})
@@ -667,11 +715,28 @@ function Page() {
         background: `color-mix(in oklab, ${settings.background} 22%, #08080a)`,
         foreground: frame.palette.page.foreground,
       }
+    // A picture owns the surface the same way, in the strongest color it holds.
+    if (wallpaper)
+      return {
+        background: `color-mix(in oklab, ${wallpaper.color} 22%, #08080a)`,
+        foreground: frame.palette.page.foreground,
+      }
     return frame.palette.page
   })()
 
   return (
-    <main {...stylex.props(styles.page, canvas ? styles.canvasColor(canvas) : null)}>
+    <main
+      {...stylex.props(
+        styles.page,
+        canvas ? styles.canvasColor(canvas) : null,
+        canvas && wallpaper
+          ? styles.canvasPicture({
+              scrim: `color-mix(in oklab, ${canvas.background} 82%, transparent)`,
+              source: wallpaper.source,
+            })
+          : null,
+      )}
+    >
       {rect && (
         // With a backdrop the guides stop at the artwork; with nothing to
         // respect at that edge they run the full screen.
@@ -788,13 +853,12 @@ function Page() {
               radius={artwork.settings.radius}
               title={artwork.title}
               titleBar={artwork.settings.titleBar}
+              wallpaper={
+                artwork.wallpaper ? { source: artwork.wallpaper, spread: 'artwork' } : undefined
+              }
               width={artwork.settings.width}
             >
-              <Frame.Code
-                css={artwork.css}
-                html={artwork.html}
-                lineNumbers={artwork.settings.lineNumbers}
-              />
+              <Frame.Code css={artwork.css} html={artwork.html} />
             </Frame>
           ) : null}
         </div>
@@ -827,17 +891,21 @@ function Page() {
                 radius={settings.radius}
                 title={title}
                 titleBar={settings.titleBar}
+                wallpaper={wallpaper ? { source: wallpaper.source, spread: 'viewport' } : undefined}
                 width={settings.width}
               >
                 <Editor
                   code={code}
                   diagnostics={diagnostics}
-                  lineNumbers={settings.lineNumbers}
+                  language={language}
                   onCodeChange={setCode}
+                  onIgnore={setIgnored}
                   // A language the service cannot read has nothing to offer,
                   // and the resolver only exists once a document needed one.
                   onComplete={async (document, position) => {
-                    const dialect = dialects[language as keyof typeof dialects]
+                    const dialect = settings.types
+                      ? dialects[language as keyof typeof dialects]
+                      : undefined
                     if (!dialect) return []
                     return (await resolver.current?.complete(document, dialect, position)) ?? []
                   }}

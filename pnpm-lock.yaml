@@ -161,6 +161,9 @@ importers:
       '@hono/zod-validator':
         specifier: 'catalog:'
         version: 0.9.0(hono@4.13.0)(zod@4.4.3)
+      '@shikijs/transformers':
+        specifier: 4.4.2
+        version: 4.4.2
       '@shikijs/twoslash':
         specifier: 4.4.2
         version: 4.4.2(typescript@5.9.3)
@@ -255,6 +258,9 @@ importers:
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 2.23.2
+      culori:
+        specifier: 'catalog:'
+        version: 4.0.2
       highlight.js:
         specifier: 'catalog:'
         version: 11.11.1
@@ -307,6 +313,9 @@ importers:
       '@types/babel__core':
         specifier: 'catalog:'
         version: 7.20.5
+      '@types/culori':
+        specifier: 'catalog:'
+        version: 4.0.1
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
@@ -1659,6 +1668,10 @@ packages:
 
   '@shikijs/themes@4.4.2':
     resolution: {integrity: sha512-H0CFoL07ddDC2Dd6EdrPYNkRhUR6YCkJlnuYFceYYUJJA5TIm2b5B33qqiDYryBExgbKMndFJPb2u1gTuqO37g==}
+    engines: {node: '>=20'}
+
+  '@shikijs/transformers@4.4.2':
+    resolution: {integrity: sha512-d81PJ9KkR1tVP95FH/9296HTtDo0mh76wv10u9T1YmsZq/UcXgt0OLdBszfUQ1i+umkRMCjDnFbFZU7/tCODTQ==}
     engines: {node: '>=20'}
 
   '@shikijs/twoslash@4.4.2':
@@ -4996,6 +5009,11 @@ snapshots:
 
   '@shikijs/themes@4.4.2':
     dependencies:
+      '@shikijs/types': 4.4.2
+
+  '@shikijs/transformers@4.4.2':
+    dependencies:
+      '@shikijs/core': 4.4.2
       '@shikijs/types': 4.4.2
 
   '@shikijs/twoslash@4.4.2(typescript@5.9.3)':

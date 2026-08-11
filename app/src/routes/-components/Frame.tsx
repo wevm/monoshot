@@ -6,11 +6,12 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useRef, useState } from 'react'
 
 import * as Annotation from '#/lib/editor/annotation.js'
 import * as Identifier from '#/lib/editor/identifier.js'
 import { ignore } from '#/lib/export.js'
+import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -36,6 +37,18 @@ const styles = stylex.create({
   // Grips take the opposite polarity from the artwork, so they read on a light
   // theme as well as a dark one, with a hairline in the other direction to
   // hold them against a backdrop of similar lightness.
+  // The strip of controls beside the code, which sits outside the window: the
+  // window clips, so a control inside it could never reach past its edge.
+  // Above the theme arrows, whose hit area reaches across the artwork's margin
+  // and would otherwise swallow the controls standing in it.
+  aside: { inset: 0, pointerEvents: 'none', position: 'absolute', zIndex: 3 },
+  // Read by the controls, which are drawn outside the canvas the palette is set
+  // on and so cannot inherit it from there.
+  asidePalette: (palette: { background: string; border: string; foreground: string }) => ({
+    '--window-border': palette.border,
+    '--window-foreground': palette.foreground,
+    '--window-surface': palette.background,
+  }),
   gripPalette: (light: boolean) => ({
     '--grip': light ? color.chrome : color.onChrome,
     '--grip-edge': light ? 'rgb(255 255 255 / 0.5)' : 'rgb(0 0 0 / 0.5)',
@@ -121,6 +134,16 @@ const styles = stylex.create({
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
   },
   fill: (value: string) => ({ backgroundColor: value }),
+  // Covered rather than tiled or fitted: the artwork is cropped to whatever
+  // shape it is dragged to, the way a desktop crops one to a display. Held to
+  // the viewport when the page draws the same picture, so the two are one
+  // picture with the artwork as the bright part of it.
+  wallpaper: (picture: { attachment: 'fixed' | 'scroll'; source: string }) => ({
+    backgroundAttachment: picture.attachment,
+    backgroundImage: `url("${picture.source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+  }),
   padding: (value: number) => ({ padding: value }),
   window: {
     backgroundColor: 'var(--window-background)',
@@ -179,10 +202,14 @@ export function Frame(props: Frame.Props) {
     radius,
     title,
     titleBar,
+    wallpaper,
     width,
   } = props
 
   const [dragging, setDragging] = useState(false)
+  // Held in state rather than a ref: what draws into it is a child, which has to
+  // render again once the element exists.
+  const [aside, setAside] = useState<HTMLDivElement | null>(null)
 
   // Leave the theme arrows and their labels a gutter, but never let a narrow
   // viewport drag the artwork smaller than it already is. Route components are
@@ -199,6 +226,11 @@ export function Frame(props: Frame.Props) {
       <div
         {...stylex.props(
           styles.root,
+          styles.asidePalette({
+            background: palette.window.background,
+            border: palette.window.border,
+            foreground: palette.window.foreground,
+          }),
           styles.gripPalette(palette.type === 'light'),
           styles.width(width),
         )}
@@ -215,8 +247,18 @@ export function Frame(props: Frame.Props) {
               title: palette.window.title,
               to: palette.backdrop.to,
             }),
-            background === 'default' ? styles.backdrop : null,
+            // The theme's own backdrop also stands in while a picture loads, so
+            // naming one never leaves the artwork on nothing.
+            background === 'default' || (Wallpapers.at(background) && !wallpaper)
+              ? styles.backdrop
+              : null,
             background.startsWith('#') ? styles.fill(background) : null,
+            wallpaper
+              ? styles.wallpaper({
+                  attachment: wallpaper.spread === 'viewport' ? 'fixed' : 'scroll',
+                  source: wallpaper.source,
+                })
+              : null,
             styles.padding(padding),
           )}
         >
@@ -253,9 +295,12 @@ export function Frame(props: Frame.Props) {
                 </m.div>
               )}
             </AnimatePresence>
-            <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>{children}</div>
+            <div {...stylex.props(styles.body, !titleBar && styles.bodyBare)}>
+              <Frame.Aside.Provider value={aside}>{children}</Frame.Aside.Provider>
+            </div>
           </div>
         </div>
+        <div ref={setAside} {...stylex.props(styles.aside)} />
         {/* Padding grows on every side at once, so the artwork's own edge
             keeps pace with the pointer. */}
         <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesOuter)}>
@@ -463,6 +508,13 @@ export declare namespace Frame {
     title: string
     /** Shows the window chrome: traffic lights and the title field. */
     titleBar: boolean
+    /**
+     * The picture a `wallpaper:` background named, as data the page loaded, and
+     * how far it spreads: across the viewport, where the page draws the same
+     * picture and the two read as one; or across the artwork alone, which is
+     * all a captured copy has.
+     */
+    wallpaper?: { source: string; spread: 'artwork' | 'viewport' } | undefined
     /** Artwork width, in pixels. */
     width: number
   }
@@ -481,6 +533,12 @@ type Palette = {
 const paddingCeiling = 160
 
 export namespace Frame {
+  /**
+   * Where a child draws what belongs beside the code rather than in it. Outside
+   * the window, which clips, and over the artwork it sits on.
+   */
+  export const Aside = createContext<HTMLElement | null>(null)
+
   /** The largest padding that still leaves the window a usable width. */
   export function maxPadding(width: number) {
     return Math.min(paddingCeiling, Math.max(0, Math.floor((width - 240) / 2)))
@@ -510,14 +568,18 @@ export namespace Frame {
    * the rules that draw it.
    */
   export function Code(props: Code.Props) {
-    const { css, html, lineNumbers } = props
-    // A fixed two-character gutter clips the leading digit past line 99.
-    const gutter = `${String(Math.max((html.match(/data-line="/g) ?? []).length, 10)).length}ch`
+    const { css, html } = props
 
     return (
       <div
-        data-line-numbers={lineNumbers || undefined}
-        ref={(node) => node?.style.setProperty('--gutter', gutter)}
+        ref={(node) => {
+          if (!node) return
+          // Written as a value rather than left to inherit: an export serializes
+          // computed styles, and a custom property standing for another one is
+          // copied unresolved, so the marks would reach nothing.
+          const inset = getComputedStyle(node).getPropertyValue('--editor-inset')
+          node.style.setProperty('--body-inset', inset)
+        }}
         {...stylex.props(code.root)}
       >
         {css ? <style>{css}</style> : null}
@@ -532,7 +594,6 @@ export namespace Frame {
       /** Styles the annotated markup needs, when the render produced any. */
       css?: string | undefined
       html: string
-      lineNumbers?: boolean | undefined
     }
   }
 }
@@ -544,7 +605,8 @@ const code = stylex.create({
     lineHeight: '22px',
     // Ligatures would break the 1:1 metrics the editor relies on later.
     fontVariantLigatures: 'none',
-    overflowX: 'auto',
+    // No scroller: the lines wrap, and one would clip the marks that reach past
+    // the code as well as leave a scrollbar in the picture.
     paddingBlock: 12,
     tabSize: 2,
   },

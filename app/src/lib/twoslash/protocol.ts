@@ -95,3 +95,26 @@ export type Response =
       /** The `version` of the request this answers. */
       version: number
     }
+
+/**
+ * The run with the complaints at these offsets left out, so an exported frame
+ * draws what the editor shows rather than every objection the compiler had.
+ *
+ * The offsets are into the document; the run's own are into the code twoslash
+ * returned, which is the document minus what it took out.
+ */
+export function without(run: Run, ignored: readonly number[]): Run {
+  if (!ignored.length) return run
+  const cuts = [...run.meta.removals].sort((a, b) => a[0] - b[0])
+  const marks = ignored.map((at) =>
+    cuts.reduce((out, [from, to]) => (to <= at ? out - (to - from) : out), at),
+  )
+  return {
+    ...run,
+    nodes: run.nodes.filter(
+      (node) =>
+        node.type !== 'error' ||
+        !marks.some((at) => at >= node.start && at <= node.start + node.length),
+    ),
+  }
+}

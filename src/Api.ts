@@ -47,7 +47,6 @@ namespace schema {
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
-      lineNumbers: z.boolean().optional(),
       padding: z.number().int().min(0).max(256).optional(),
       radius: z.number().int().min(0).max(24).optional(),
       theme: z.string().optional(),
@@ -145,7 +144,7 @@ export function create(options: create.Options = {}) {
       return Response.json({ error: `lang: \`${state.lang}\` is not bundled.` }, { status: 400 })
     const theme = Theme.info(state.theme)
     if (!theme)
-      return Response.json({ error: `theme: \`${state.theme}\` is not bundled.` }, { status: 400 })
+      return Response.json({ error: `theme: \`${state.theme}\` is not offered.` }, { status: 400 })
     try {
       return await frame.toDocument({
         ...state,

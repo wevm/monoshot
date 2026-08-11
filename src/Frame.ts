@@ -1,6 +1,13 @@
+import {
+  transformerNotationDiff,
+  transformerNotationFocus,
+  transformerNotationHighlight,
+} from '@shikijs/transformers'
 import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
 import * as Document from './internal/Document.js'
+import * as Marks from './internal/Marks.js'
+import { tags } from './internal/Tags.js'
 import * as Theme from './Theme.js'
 import type {
   BundledLanguage,
@@ -61,7 +68,7 @@ export function create(options: create.Options = {}): create.ReturnType {
    */
   async function build(resolved?: () => render.Types): Promise<ShikiTransformer> {
     const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
-    const twoslasher = resolved ?? (await compiler())
+    const twoslasher = resolved ?? checked(await compiler())
     return createTransformerFactory(
       // The factory asks for a mutable node list. Nothing reads one that way,
       // and a caller holding a resolved run should not copy it to hand it over.
@@ -83,6 +90,13 @@ export function create(options: create.Options = {}): create.ReturnType {
   async function compiler() {
     const { createTwoslasher } = await import('twoslash')
     return createTwoslasher({
+      customTags: [...tags],
+      compilerOptions: {
+        // Twoslash compiles strict, which marks every untyped parameter: a
+        // missing annotation rather than a mistake, in a snippet that left its
+        // context behind.
+        noImplicitAny: false,
+      },
       // Twoslash otherwise insists every compiler error be declared in the
       // source and gives up on the whole snippet when one is not.
       handbookOptions: { noErrorValidation: true },
@@ -126,6 +140,21 @@ export function create(options: create.Options = {}): create.ReturnType {
     })
   }
 
+  /**
+   * Keeps the compiler off the lines a snippet marks as removed, and draws the
+   * snippet as it was written rather than as the compiler saw it.
+   */
+  function checked(twoslasher: Awaited<ReturnType<typeof compiler>>) {
+    return (
+      code: string,
+      lang?: Parameters<typeof twoslasher>[1],
+      options?: Parameters<typeof twoslasher>[2],
+    ) => {
+      const result = twoslasher(Marks.unchecked(code), lang, options)
+      return { ...result, code: Marks.cut(code, result.meta.removals) }
+    }
+  }
+
   // A closure rather than a sibling method: an operation read off a destructured
   // renderer has no receiver to resolve.
   async function highlight(parameters: render.Options): Promise<render.ReturnType> {
@@ -140,28 +169,42 @@ export function create(options: create.Options = {}): create.ReturnType {
       const popup = lang === 'jsx' || lang === 'tsx' ? 'tsx' : 'ts'
       if (!instance.getLoadedLanguages().includes(popup)) await instance.loadLanguage(popup)
     }
-    return {
-      html: instance.codeToHtml(code, {
-        lang,
-        theme,
-        transformers: [
-          {
-            // Numbered here rather than in `line`, which runs before twoslash
-            // folds a query into a block and inserts its own lines: only what
-            // survives into the code element is a line of code.
-            code(node) {
-              let number = 0
-              for (const child of node.children) {
-                if (child.type !== 'element') continue
-                if (!classes(child.properties['class']).includes('line')) continue
-                child.properties['data-line'] = ++number
-              }
-            },
+    const html = instance.codeToHtml(code, {
+      lang,
+      theme,
+      transformers: [
+        {
+          // Numbered here rather than in `line`, which runs before twoslash
+          // folds a query into a block and inserts its own lines: only what
+          // survives into the code element is a line of code.
+          code(node) {
+            let number = 0
+            for (const child of node.children) {
+              if (child.type !== 'element') continue
+              if (!classes(child.properties['class']).includes('line')) continue
+              child.properties['data-line'] = ++number
+            }
           },
-          ...(annotations ? [annotations] : []),
-        ],
-      }),
-      ...(annotations ? { css: Document.annotations(Theme.derive(instance.getTheme(theme))) } : {}),
+        },
+        ...(annotations ? [annotations] : []),
+        // Presentation the snippet carries itself, the way a `^?` query
+        // does: `[!code focus]`, `[!code hl]`, and `[!code ++]` mark lines
+        // and are taken back out of what is drawn.
+        ...notations,
+      ],
+    })
+    // The styles belong to the markup rather than to a document: a caller
+    // embedding `html` has nowhere else to read them from.
+    const marked = Document.marked(html)
+    const palette = annotations || marked ? Theme.derive(instance.getTheme(theme)) : undefined
+    const css = palette
+      ? [annotations ? Document.annotations(palette) : '', marked ? Document.marks(palette) : '']
+          .filter(Boolean)
+          .join('\n')
+      : ''
+    return {
+      html,
+      ...(css ? { css } : {}),
       // Detached: the registry entry is shared, so handing it out would let
       // one caller's edit change what later renders produce.
       theme: structuredClone(instance.getTheme(theme)),
@@ -332,6 +375,17 @@ export declare namespace render {
     theme: ThemeRegistrationResolved
   }
 }
+
+/**
+ * Shiki's own readers for the marks a snippet carries. Always on: a notation
+ * costs nothing to look for, and a snippet that has none renders as it would
+ * have anyway.
+ */
+const notations = [
+  transformerNotationDiff(),
+  transformerNotationFocus(),
+  transformerNotationHighlight(),
+]
 
 /** A hast node's classes, which arrive as a string or as a list. */
 function classes(value: unknown): readonly string[] {

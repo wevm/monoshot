@@ -8,7 +8,7 @@ const styles = stylex.create({
   root: {
     alignItems: 'center',
     backgroundColor: color.background,
-    borderRadius: 0,
+    borderRadius: 4,
     boxShadow: shadow.border,
     color: color.gray900,
     display: 'inline-flex',

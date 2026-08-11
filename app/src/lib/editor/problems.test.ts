@@ -120,23 +120,27 @@ describe('objection', () => {
 
   test('finds the complaint a span sits under', () => {
     // `a`, which the complaint covers exactly.
-    expect(objection(marked(doc, [{ from: 6, to: 7 }]), { from: 6, to: 7 })).toBe(true)
+    expect(objection(marked(doc, [{ from: 6, to: 7 }]), { from: 6, to: 7 })?.message).toBe(
+      'message',
+    )
   })
 
   test('finds a complaint covering part of a span', () => {
-    expect(objection(marked(doc, [{ from: 4, to: 7 }]), { from: 6, to: 11 })).toBe(true)
+    expect(objection(marked(doc, [{ from: 4, to: 7 }]), { from: 6, to: 11 })?.message).toBe(
+      'message',
+    )
   })
 
   test('leaves a span the complaint only reaches', () => {
     // The complaint ends where the span starts, so it sits beside it.
-    expect(objection(marked(doc, [{ from: 0, to: 6 }]), { from: 6, to: 7 })).toBe(false)
+    expect(objection(marked(doc, [{ from: 0, to: 6 }]), { from: 6, to: 7 })).toBeUndefined()
   })
 
   test('leaves a span nothing was reported against', () => {
-    expect(objection(marked(doc, [{ from: 0, to: 5 }]), { from: 6, to: 7 })).toBe(false)
+    expect(objection(marked(doc, [{ from: 0, to: 5 }]), { from: 6, to: 7 })).toBeUndefined()
   })
 
   test('leaves every span when the compiler reported nothing', () => {
-    expect(objection(marked(doc, []), { from: 6, to: 7 })).toBe(false)
+    expect(objection(marked(doc, []), { from: 6, to: 7 })).toBeUndefined()
   })
 })

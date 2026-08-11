@@ -6,7 +6,6 @@ const options = {
   background: 'default',
   code: "const a = 'x'\n",
   lang: 'tsx',
-  lineNumbers: false,
   padding: 64,
   radius: 12,
   theme: 'vitesse-dark',
@@ -103,22 +102,8 @@ describe('build', () => {
     }).toMatchInlineSnapshot(`
       {
         "custom": "#101014",
-        "default": "linear-gradient(140deg, oklch(0.34220370283599866 0.09 37.89172016407201), oklch(0.28220370283599866 0.09 87.89172016407201))",
+        "default": "linear-gradient(140deg, oklch(0.34220370283599866 0.09789893959403556 351.04021560887355), oklch(0.28220370283599866 0.09789893959403556 41.04021560887355))",
         "none": "transparent",
-      }
-    `)
-  })
-
-  test('only styles the gutter when line numbers are asked for', async () => {
-    const off = await frame.toDocument(options)
-    const on = await frame.toDocument({ ...options, lineNumbers: true })
-    expect({
-      off: off.includes('.line::before'),
-      on: on.includes('.line::before'),
-    }).toMatchInlineSnapshot(`
-      {
-        "off": false,
-        "on": true,
       }
     `)
   })

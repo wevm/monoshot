@@ -35,16 +35,6 @@ const field = StateField.define<Value>({
  */
 export const query: Extension = [Types.types, field]
 
-/**
- * The number a line shows in the gutter. A pinned type stands in for its `^?`
- * line, so that line takes no number and the code after it keeps counting.
- */
-export function number(line: number, state: EditorState): string {
-  const { lines } = state.field(field)
-  if (lines.includes(line)) return ''
-  return String(line - lines.filter((pinned) => pinned < line).length)
-}
-
 type Value = {
   decorations: DecorationSet
   /** Document lines a pinned type replaced, in order. */

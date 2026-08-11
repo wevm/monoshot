@@ -5,23 +5,41 @@ export type Annotation = readonly (readonly Token[])[]
 
 /** The pin control a surface carries, when it offers one. */
 export type Action = {
+  /** The glyph it is drawn as. The pin, for whatever pins or unpins. */
+  icon?: string | undefined
   /** Accessible name, which also says which way the toggle goes. */
   label: string
   select: () => void
 }
 
-// Lucide's pin, at the size the annotation type is set in.
-const pin =
+/** Lucide's x, for whatever a surface offers to be rid of. */
+export const cross = 'M18 6 6 18M6 6l12 12'
+
+/** Lucide's rotate-ccw, for whatever a surface offers to have back. */
+export const back = 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5'
+
+/**
+ * Lucide's pin, at the size the annotation type is set in. Shared, so whatever
+ * offers to unpin something offers the same glyph.
+ */
+export const pin =
   'M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'
 
 /**
  * Builds the surface a type is shown on. One shape for both the hover and the
  * pinned block, so pinning changes where a type sits rather than how it looks.
  */
-export function element(annotation: Annotation, action?: Action): HTMLElement {
+export function element(annotation: Annotation, actions?: Action | readonly Action[]): HTMLElement {
   const root = document.createElement('div')
   root.className = 'twoslash'
-  if (action) root.appendChild(control(action))
+  const offered =
+    actions === undefined ? [] : Array.isArray(actions) ? actions : [actions as Action]
+  if (offered.length) {
+    const controls = document.createElement('div')
+    controls.className = 'twoslash-controls'
+    for (const action of offered) controls.appendChild(control(action))
+    root.appendChild(controls)
+  }
   paint(root, annotation)
   return root
 }
@@ -69,7 +87,7 @@ function control(action: Action): HTMLElement {
   button.type = 'button'
   button.ariaLabel = action.label
   button.title = action.label
-  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${pin}"/></svg>`
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${action.icon ?? pin}"/></svg>`
   // Pointer down rather than click: the editor would otherwise take the focus
   // back and dismiss the hover before the click landed. Plain primary presses
   // only, so a context menu or a modified click stays non-mutating.

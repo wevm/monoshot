@@ -18,13 +18,19 @@ const language = detect(sample) ?? 'tsx'
 const lang = dialects[language as keyof typeof dialects] ?? 'ts'
 const run = createTwoslasher({
   compilerOptions,
+  // Matches the worker, so a precomputed snippet reads its tags too.
+  customTags: [...Twoslash.tags],
   // Matches the worker: half-typed code is the normal case in an editor, and
   // twoslash otherwise insists every compiler error be declared in the source.
   handbookOptions: { noErrorValidation: true },
-})(sample, lang)
+})(Twoslash.unchecked(sample), lang)
 // The same three fields the worker sends, so a precomputed document and a
 // resolved one arrive in one shape.
-const types = { code: run.code, meta: { removals: run.meta.removals }, nodes: run.nodes }
+const types = {
+  code: Twoslash.cut(sample, run.meta.removals),
+  meta: { removals: run.meta.removals },
+  nodes: run.nodes,
+}
 
 const target = path.join(import.meta.dirname, '../src/lib/twoslash/sample.gen.ts')
 await fs.writeFile(

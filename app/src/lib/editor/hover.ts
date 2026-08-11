@@ -1,20 +1,21 @@
-import type { Extension } from '@codemirror/state'
+import type { EditorState, Extension } from '@codemirror/state'
 import { completionStatus } from '@codemirror/autocomplete'
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import type { Rect } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
-import { objection } from './problems.js'
+import { keep, kept, keptUnder, objection, overlook, overlookedAt } from './problems.js'
 import * as Types from './types.js'
 
 /**
  * How far the hover reaches past its own left edge. CodeMirror keeps a hover
- * open while the pointer is inside the tooltip's bounding box, so the pin
+ * open while the pointer is inside the tooltip's bounding box, so a control
  * hanging outside the surface only stays reachable if the tooltip is this much
- * wider than what it draws.
+ * wider than what it draws: two of them a line tall, the gap and the margin
+ * between, and a little to spare.
  */
-const reach = 30
+const reach = 54
 
 /** How far the notch sits inside the surface's leading edge. */
 const inset = 8
@@ -57,27 +58,82 @@ export const hover: Extension = [
       const found = Types.at(view.state, pos)
       const identifier = found && { from: found.from, to: found.to }
       if (!identifier || !found) return null
-      // Same rule against the compiler: a marked token already opens the
-      // message, and what is wrong with it is why it is worth hovering.
-      if (objection(view.state, identifier)) return null
-      // A pinned type is already on screen, so hovering it would only cover
-      // the block it is asking about.
-      if (pinned(view, identifier)) return null
+      // What is wrong with a token outranks what type it holds, and it is read
+      // on the same surface: one popover, whichever it is showing.
+      const complaint = objection(view.state, identifier)
+      // Already on screen, either as the block a pin left or as the type a
+      // caret line asked for: a hover would only cover what it is about.
+      if (complaint ? kept(view.state, complaint.from) : pinned(view, identifier)) return null
+      const message = complaint && prose(complaint.message)
+      const annotation = found.annotation
+      /**
+       * What the surface is showing, so a change behind it is noticed: waving a
+       * complaint off leaves the type in its place, and the popover the press
+       * landed in becomes that rather than closing.
+       */
+      const showing = (state: EditorState) => {
+        const found = objection(state, identifier)
+        return `${found?.message ?? ''}|${overlookedAt(state, identifier) ?? ''}`
+      }
+      /** The surface for whatever the state is now: a complaint, or a type. */
+      const draw = (state: EditorState) => {
+        const found = objection(state, identifier)
+        // A complaint waved off is no longer reported, so the only thing left
+        // saying it was ever there is the offer to hear it again.
+        const waved = found ? undefined : overlookedAt(state, identifier)
+        return Annotation.element(
+          found ? prose(found.message) : annotation,
+          found
+            ? [
+                { label: 'Pin this message', select: () => keep(view, found.from) },
+                {
+                  icon: Annotation.cross,
+                  label: 'Ignore this message',
+                  select: () => overlook(view, found.from),
+                },
+              ]
+            : [
+                { label: 'Pin this type', select: () => toggle(view, identifier) },
+                ...(waved === undefined
+                  ? []
+                  : [
+                      {
+                        icon: Annotation.back,
+                        label: 'Report this message again',
+                        select: () => overlook(view, waved),
+                      },
+                    ]),
+              ],
+        )
+      }
       return {
         // Below the identifier, where pinning will leave it, so hovering
         // previews the pinned block in place rather than somewhere else. It
         // goes above instead when that space is already showing a pinned
         // type, which a hover would otherwise sit on top of. CodeMirror
         // flips it back if there is no room up there.
-        above: covered(view, identifier, found.annotation.length),
+        above: covered(view, identifier, (message ?? found.annotation).length),
         create: () => {
-          const surface = Annotation.element(found.annotation, {
-            label: 'Pin this type',
-            select: () => toggle(view, identifier),
-          })
           let word: Rect | null = null
+          let shape = showing(view.state)
+          let surface = draw(view.state)
+          const root = bridge(surface)
+          /**
+           * Points the notch at the word. Runs after placement, which is the
+           * only point at which where the surface actually landed is known: a
+           * tooltip wider than the room to its right is clamped into the
+           * viewport, and a notch pinned at a fixed inset would then point
+           * somewhere left of its word.
+           */
+          const point = () => {
+            if (!word) return
+            const box = surface.getBoundingClientRect()
+            const limit = Math.max(inset, box.width - inset - notch)
+            const left = Math.min(Math.max(word.left - box.left, inset), limit)
+            surface.style.setProperty('--twoslash-notch', `${left}px`)
+          }
           return {
-            dom: bridge(surface),
+            dom: root,
             // The measure phase is the one place a tooltip may ask CodeMirror
             // where a position sits, so the word is taken here and read back
             // once the surface has been placed.
@@ -98,16 +154,14 @@ export const hover: Extension = [
             // Back by the reach as well, so widening the tooltip leftwards
             // leaves the surface itself where it was.
             offset: { x: -inset - reach, y: 0 },
-            // Runs after placement, which is the only point at which where the
-            // surface actually landed is known: a tooltip wider than the room
-            // to its right is clamped into the viewport, and a notch pinned at
-            // a fixed inset would then point somewhere left of its word.
-            positioned() {
-              if (!word) return
-              const box = surface.getBoundingClientRect()
-              const limit = Math.max(inset, box.width - inset - notch)
-              const left = Math.min(Math.max(word.left - box.left, inset), limit)
-              surface.style.setProperty('--twoslash-notch', `${left}px`)
+            positioned: point,
+            update(update) {
+              const next = showing(update.state)
+              if (next === shape) return
+              shape = next
+              surface = draw(update.state)
+              root.replaceChildren(surface)
+              point()
             },
           }
         },
@@ -142,13 +196,24 @@ export const hover: Extension = [
 ]
 
 /**
- * Whether a pinned type sits in the space a popover of `lines` would open
+ * A message on the surface a type is drawn on, so the compiler's prose and the
+ * language service's types read as one popover rather than two designs.
+ */
+function prose(message: string): Annotation.Annotation {
+  return [[{ content: message, offset: 0 }]]
+}
+
+/**
+ * Whether something already sits in the space a popover of `lines` would open
  * into. Counted in document lines rather than measured: a type is about as
  * tall as the code it covers, and one line either way only decides a side.
  */
 function covered(view: EditorView, identifier: { from: number }, lines: number) {
   const { doc } = view.state
   const start = doc.lineAt(identifier.from).number
+  // A complaint kept on screen draws directly under its line, which is exactly
+  // the space a popover would open into.
+  if (keptUnder(view.state, start) !== undefined) return true
   const end = Math.min(doc.lines, start + lines + 1)
   for (let line = start + 1; line <= end; line++)
     if (Identifier.caretColumn(doc.line(line).text) !== undefined) return true

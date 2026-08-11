@@ -135,7 +135,6 @@ export async function render(options: render.Options): Promise<Uint8Array> {
 /** What a caller can leave out of a render, and what it gets instead. */
 const defaults = {
   background: 'default',
-  lineNumbers: false,
   padding: 64,
   radius: 12,
   title: '',
@@ -193,7 +192,7 @@ export declare namespace render {
   /** What a caller can leave out, and what it gets instead. */
   type Defaults = Pick<
     Frame.toDocument.Options,
-    'background' | 'lineNumbers' | 'padding' | 'radius' | 'title' | 'titleBar' | 'width'
+    'background' | 'padding' | 'radius' | 'title' | 'titleBar' | 'width'
   >
 }
 

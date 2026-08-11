@@ -6,8 +6,10 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
+import { dialects } from '#/lib/twoslash/options.js'
+import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
-import { color, motion, shadow } from '../../theme/tokens.stylex.js'
+import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const themes = Theme.list()
 
@@ -15,9 +17,9 @@ const themes = Theme.list()
 const shortcuts = {
   background: 'b',
   language: 'a',
-  lineNumbers: 'l',
   theme: 't',
   titleBar: 'w',
+  types: 'y',
 } as const
 
 const styles = stylex.create({
@@ -46,8 +48,7 @@ const styles = stylex.create({
       default: color.chromeTranslucent,
       '@media (prefers-reduced-transparency: reduce)': color.chrome,
     },
-    // Square, like the artwork it controls.
-    borderRadius: 0,
+    borderRadius: radius.floating,
     boxShadow: shadow.floating,
     overflow: 'hidden',
   },
@@ -67,7 +68,7 @@ const styles = stylex.create({
     alignItems: 'flex-start',
     backgroundColor: { default: 'transparent', ':hover': color.chromeHover },
     borderStyle: 'none',
-    borderRadius: 0,
+    borderRadius: radius.control,
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
     color: color.onChrome,
     cursor: 'pointer',
@@ -85,6 +86,14 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   itemOpen: { backgroundColor: color.chromeHover },
+  // Still readable, since what it says about the snippet is the point of it
+  // being here at all.
+  itemDisabled: {
+    backgroundColor: 'transparent',
+    cursor: 'default',
+    opacity: 0.45,
+    transform: 'scale(1)',
+  },
   itemHeading: { alignItems: 'center', display: 'flex', gap: 6 },
   itemTitle: { color: color.onChromeSecondary },
   // The key that reaches this control, in the same cap the theme arrows use.
@@ -92,6 +101,7 @@ const styles = stylex.create({
     alignItems: 'center',
     backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
     borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
+    borderRadius: 4,
     borderStyle: 'solid',
     borderWidth: 1,
     color: color.onChromeSecondary,
@@ -111,7 +121,30 @@ const styles = stylex.create({
   rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
-  colorRow: { alignItems: 'center', display: 'flex', gap: 5, overflowX: 'auto', padding: 12 },
+  rows: { display: 'flex', flexDirection: 'column', gap: 4, padding: 4 },
+  rowTitle: { color: color.onChromeSecondary, paddingInline: 2 },
+  // A selected swatch's ring is drawn outside it and a hovered one grows past
+  // its box, both of which a scrolling row counts as somewhere to scroll to:
+  // the padding is the room they take instead. Enough for a swatch that is both
+  // at once, which grows the ring's 3px and the 2px beyond it by the hover's
+  // own scale.
+  colorRow: {
+    alignItems: 'center',
+    display: 'flex',
+    gap: 5,
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    padding: 10,
+  },
+  // Every picture takes an equal share, so the set spans the width the colors
+  // below it ask for. Narrow enough and they scroll, as the colors do.
+  pictureRow: {
+    display: 'flex',
+    gap: 5,
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    padding: 10,
+  },
   swatchButton: {
     borderStyle: 'none',
     borderRadius: 6,
@@ -146,6 +179,19 @@ const styles = stylex.create({
     position: 'absolute',
   },
   swatchColor: (value: string) => ({ backgroundColor: value }),
+  // Landscape, since what it stands for is a picture rather than a color: a
+  // square crop of one says too little about it to pick by.
+  swatchPicture: (source: string) => ({
+    backgroundImage: `url("${source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+    flexBasis: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    height: 28,
+    minWidth: 28,
+    width: 'auto',
+  }),
   // Stands for the theme's own gradient rather than a flat color.
   swatchDefault: { backgroundImage: 'linear-gradient(140deg, #6f5233, #2a1c0f)' },
   // The transparency checker, drawn rather than imported.
@@ -176,16 +222,20 @@ const styles = stylex.create({
   list: {
     display: 'flex',
     flexDirection: 'column',
+    // A row of its own, so one reads as a thing to press rather than a band of
+    // a longer surface.
+    gap: 2,
     maxHeight: 260,
     overflowY: 'auto',
     overscrollBehavior: 'contain',
-    paddingBlock: 6,
+    // Even, so an item's corner is the surface's own less what surrounds it.
+    padding: 6,
   },
   option: {
     alignItems: 'center',
     backgroundColor: { default: 'transparent', ':hover': color.chromeHover },
     borderStyle: 'none',
-    borderRadius: 0,
+    borderRadius: radius.control,
     boxShadow: { default: null, ':focus-visible': shadow.focusRing },
     color: color.onChromeSecondary,
     cursor: 'pointer',
@@ -193,7 +243,7 @@ const styles = stylex.create({
     gap: 10,
     outline: 'none',
     paddingBlock: 8,
-    paddingInline: 16,
+    paddingInline: 10,
     textAlign: 'start',
     transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
     transitionDuration: motion.fast,
@@ -204,7 +254,7 @@ const styles = stylex.create({
   optionSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
   swatch: (background: string) => ({
     backgroundColor: background,
-    borderRadius: 0,
+    borderRadius: 4,
     boxShadow: '0 0 0 1px #ffffff24',
     flexShrink: 0,
     height: 12,
@@ -217,7 +267,11 @@ const styles = stylex.create({
  * and a panel opens above it, spanning its width.
  */
 export function Toolbar(props: Toolbar.Props) {
-  const { background, language, lineNumbers, onChange, resolved, theme, titleBar } = props
+  const { background, language, onChange, resolved, theme, titleBar, types } = props
+  // Only a language the compiler reads can be checked, so for anything else the
+  // control says what is true of it rather than offering a setting it has no
+  // meaning for.
+  const checkable = resolved in dialects
   const [panel, setPanel] = useState<Panel>()
   // A hex the palette does not carry belongs to the custom picker.
   const custom = background.startsWith('#') && !backgrounds.includes(background as never)
@@ -303,9 +357,10 @@ export function Toolbar(props: Toolbar.Props) {
       if (shortcut === shortcuts.theme) toggle('theme')
       else if (shortcut === shortcuts.background) toggle('background')
       else if (shortcut === shortcuts.language) toggle('language')
-      else if (shortcut === shortcuts.lineNumbers) onChange({ lineNumbers: !lineNumbers })
       else if (shortcut === shortcuts.titleBar) onChange({ titleBar: !titleBar })
-      else return
+      else if (shortcut === shortcuts.types) {
+        if (checkable) onChange({ types: !types })
+      } else return
       event.preventDefault()
     }
     window.addEventListener('keydown', press)
@@ -391,58 +446,86 @@ export function Toolbar(props: Toolbar.Props) {
                   ))}
                 </div>
               ) : panel === 'background' ? (
-                <div {...stylex.props(styles.colorRow)}>
-                  <button
-                    aria-pressed={background === 'default'}
-                    data-option={background === 'default' ? 'selected' : ''}
-                    onClick={() => onChange({ background: 'default' })}
-                    onFocus={() => onChange({ background: 'default' })}
-                    type="button"
-                    {...stylex.props(styles.swatchButton, styles.swatchDefault)}
-                  >
-                    <span {...stylex.props(styles.srOnly)}>Default</span>
-                    {background === 'default' && <Ring travel={travel} />}
-                  </button>
-                  <button
-                    aria-pressed={background === 'none'}
-                    data-option={background === 'none' ? 'selected' : ''}
-                    onClick={() => onChange({ background: 'none' })}
-                    onFocus={() => onChange({ background: 'none' })}
-                    type="button"
-                    {...stylex.props(styles.swatchButton, styles.swatchNone)}
-                  >
-                    <span {...stylex.props(styles.srOnly)}>None</span>
-                    {background === 'none' && <Ring travel={travel} />}
-                  </button>
-                  <div {...stylex.props(styles.divider)} />
-                  {backgrounds.map((value) => (
+                <div {...stylex.props(styles.rows)}>
+                  <div>
+                    <span {...stylex.props(styles.rowTitle, text.label12)}>Wallpapers</span>
+                    <div {...stylex.props(styles.pictureRow)}>
+                      {Wallpapers.list.map((wallpaper) => {
+                        const value = Wallpapers.background(wallpaper.id)
+                        return (
+                          <button
+                            aria-pressed={background === value}
+                            data-option={background === value ? 'selected' : ''}
+                            key={wallpaper.id}
+                            onClick={() => onChange({ background: value })}
+                            onFocus={() => onChange({ background: value })}
+                            type="button"
+                            {...stylex.props(
+                              styles.swatchButton,
+                              styles.swatchPicture(Wallpapers.thumbnail(wallpaper.id)),
+                            )}
+                          >
+                            <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
+                            {background === value && <Ring row="pictures" travel={travel} />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <span {...stylex.props(styles.rowTitle, text.label12)}>Colors</span>
+                  <div {...stylex.props(styles.colorRow)}>
                     <button
-                      aria-pressed={background === value}
-                      data-option={background === value ? 'selected' : ''}
-                      key={value}
-                      onClick={() => onChange({ background: value })}
-                      onFocus={() => onChange({ background: value })}
+                      aria-pressed={background === 'default'}
+                      data-option={background === 'default' ? 'selected' : ''}
+                      onClick={() => onChange({ background: 'default' })}
+                      onFocus={() => onChange({ background: 'default' })}
                       type="button"
-                      {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
+                      {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                     >
-                      <span {...stylex.props(styles.srOnly)}>{value}</span>
-                      {background === value && <Ring travel={travel} />}
+                      <span {...stylex.props(styles.srOnly)}>Default</span>
+                      {background === 'default' && <Ring row="colors" travel={travel} />}
                     </button>
-                  ))}
-                  <div {...stylex.props(styles.divider)} />
-                  <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
-                    <span {...stylex.props(styles.srOnly)}>Custom color</span>
-                    <input
-                      aria-pressed={custom}
-                      data-option={custom ? 'selected' : ''}
-                      onChange={(event) => onChange({ background: event.target.value })}
-                      onFocus={(event) => onChange({ background: event.target.value })}
-                      type="color"
-                      value={background.startsWith('#') ? background : '#3b82d6'}
-                      {...stylex.props(styles.colorInput)}
-                    />
-                    {custom && <Ring travel={travel} />}
-                  </label>
+                    <button
+                      aria-pressed={background === 'none'}
+                      data-option={background === 'none' ? 'selected' : ''}
+                      onClick={() => onChange({ background: 'none' })}
+                      onFocus={() => onChange({ background: 'none' })}
+                      type="button"
+                      {...stylex.props(styles.swatchButton, styles.swatchNone)}
+                    >
+                      <span {...stylex.props(styles.srOnly)}>None</span>
+                      {background === 'none' && <Ring row="colors" travel={travel} />}
+                    </button>
+                    <div {...stylex.props(styles.divider)} />
+                    {backgrounds.map((value) => (
+                      <button
+                        aria-pressed={background === value}
+                        data-option={background === value ? 'selected' : ''}
+                        key={value}
+                        onClick={() => onChange({ background: value })}
+                        onFocus={() => onChange({ background: value })}
+                        type="button"
+                        {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
+                      >
+                        <span {...stylex.props(styles.srOnly)}>{value}</span>
+                        {background === value && <Ring row="colors" travel={travel} />}
+                      </button>
+                    ))}
+                    <div {...stylex.props(styles.divider)} />
+                    <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
+                      <span {...stylex.props(styles.srOnly)}>Custom color</span>
+                      <input
+                        aria-pressed={custom}
+                        data-option={custom ? 'selected' : ''}
+                        onChange={(event) => onChange({ background: event.target.value })}
+                        onFocus={(event) => onChange({ background: event.target.value })}
+                        type="color"
+                        value={background.startsWith('#') ? background : '#3b82d6'}
+                        {...stylex.props(styles.colorInput)}
+                      />
+                      {custom && <Ring row="colors" travel={travel} />}
+                    </label>
+                  </div>
                 </div>
               ) : null}
             </m.div>
@@ -476,20 +559,21 @@ export function Toolbar(props: Toolbar.Props) {
             value={backgroundLabel(background)}
           />
           <Item
-            onClick={() => onChange({ lineNumbers: !lineNumbers })}
-            pressed={lineNumbers}
-            shortcut={shortcuts.lineNumbers}
-            up
-            title="Line numbers"
-            value={lineNumbers ? 'On' : 'Off'}
-          />
-          <Item
             onClick={() => onChange({ titleBar: !titleBar })}
             pressed={titleBar}
             shortcut={shortcuts.titleBar}
             up
             title="Title bar"
             value={titleBar ? 'On' : 'Off'}
+          />
+          <Item
+            disabled={!checkable}
+            onClick={() => onChange({ types: !types })}
+            pressed={checkable && types}
+            shortcut={shortcuts.types}
+            up
+            title="Types"
+            value={checkable && types ? 'On' : 'Off'}
           />
         </m.div>
       </div>
@@ -512,10 +596,11 @@ export declare namespace Toolbar {
     background: string
     /** A pinned language, or `auto` to read it from the code. */
     language: BundledLanguage | 'auto'
-    lineNumbers: boolean
     theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
     titleBar: boolean
+    /** Whether the snippet is type checked, which only a TypeScript one can be. */
+    types: boolean
   }
 }
 
@@ -542,6 +627,10 @@ export const backgrounds = [
 
 /** Where a background sits in the color row, for measuring the ring's travel. */
 function backgroundIndex(background: string) {
+  const picture = Wallpapers.list.findIndex(
+    (wallpaper) => Wallpapers.background(wallpaper.id) === background,
+  )
+  if (picture !== -1) return picture
   if (background === 'default') return 0
   if (background === 'none') return 1
   const index = backgrounds.indexOf(background as (typeof backgrounds)[number])
@@ -553,7 +642,7 @@ function backgroundIndex(background: string) {
 function backgroundLabel(background: string) {
   if (background === 'default') return 'Default'
   if (background === 'none') return 'None'
-  return background.toUpperCase()
+  return Wallpapers.at(background)?.name ?? background.toUpperCase()
 }
 
 /** Settles quickly without overshooting into wobble. */
@@ -635,10 +724,13 @@ function Roll(props: {
  * The selection ring. One element shared across every swatch, so choosing a
  * color slides it from the old swatch to the new rather than blinking across.
  */
-function Ring(props: { travel: number }) {
+function Ring(props: { row: string; travel: number }) {
   return (
     <m.span
-      layoutId="swatch-ring"
+      // One ring per row: it travels between the swatches of a row, and a jump
+      // between rows is a selection moving from one kind of backdrop to
+      // another rather than a distance to cover.
+      layoutId={`swatch-ring-${props.row}`}
       transition={ring(props.travel)}
       {...stylex.props(styles.swatchRing)}
     />
@@ -682,6 +774,8 @@ const swatches = { dark: '#1c1c1c', light: '#f5f5f5' }
 function Item(props: {
   /** Rolls each character on its own, for values that read as a number. */
   digits?: boolean | undefined
+  /** Set when the setting has no meaning for what is on screen. */
+  disabled?: boolean | undefined
   onClick: () => void
   open?: boolean
   pressed?: boolean
@@ -692,7 +786,7 @@ function Item(props: {
   up: boolean
   value: string
 }) {
-  const { digits, onClick, open, pressed, shortcut, title, up, value } = props
+  const { digits, disabled, onClick, open, pressed, shortcut, title, up, value } = props
   return (
     <m.button
       // Two stacked spans would otherwise read as one run-together name.
@@ -700,11 +794,12 @@ function Item(props: {
       aria-keyshortcuts={shortcut}
       aria-label={`${title}: ${value}`}
       aria-pressed={pressed}
+      disabled={disabled}
       layout
       onClick={onClick}
       transition={morph}
       type="button"
-      {...stylex.props(styles.item, open && styles.itemOpen)}
+      {...stylex.props(styles.item, open && styles.itemOpen, disabled && styles.itemDisabled)}
     >
       <span {...stylex.props(styles.itemHeading)}>
         <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>

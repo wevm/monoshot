@@ -1,8 +1,16 @@
 import { EditorView } from '@codemirror/view'
 import type { Extension } from '@codemirror/state'
-import type { Theme } from 'monoshot'
+import { Theme } from 'monoshot'
 
 import { color, motion } from '../../theme/tokens.stylex.js'
+
+/** A row's bar and wash, from one hue. */
+function mark(color: string, strength = 16) {
+  return {
+    backgroundColor: `color-mix(in oklab, ${color} ${strength}%, transparent)`,
+    boxShadow: `inset 3px 0 0 ${color}`,
+  }
+}
 
 /** Depth under the completion menu, which floats above the code. */
 const shadow = { dark: 'rgb(0 0 0 / 0.6)', light: 'rgb(0 0 0 / 0.18)' } as const
@@ -36,9 +44,54 @@ export function theme(palette: Theme.derive.Result): Extension {
         paddingInline: 'var(--editor-inset)',
       },
       '.cm-cursor, .cm-dropCursor': { borderLeftColor: palette.window.foreground },
-      '.cm-line': { padding: 0 },
+      // Every line reaches past the inset the code is held at, so a marked one
+      // A notation is not a line of the snippet, so the row it sat on closes up
+      // the way the exported frame closes it.
+      '.cm-line.cm-gone': { display: 'none' },
+      // reads as a row of the window the way the exported image draws it. All of
+      // them and not only the marked ones: the box a line's controls are placed
+      // against would otherwise move the moment it took a mark.
+      '.cm-line': {
+        // A pixel past the inset, since the window clips on a rounded rect: an
+        // edge landing exactly on that clip is antialiased into it, leaving the
+        // window showing through as a hairline.
+        marginInline: 'calc(-1px - var(--editor-inset))',
+        padding: 0,
+        paddingInline: 'calc(1px + var(--editor-inset))',
+        position: 'relative',
+      },
+      '.cm-line.cm-mark-add': mark(Theme.marks.add),
+      // The sign a diff line carries, in the inset the window already holds.
+      // Its own pseudo-element, since the gutter draws a number in the other.
+      '.cm-line.cm-mark-add::after, .cm-line.cm-mark-remove::after': {
+        left: '6px',
+        position: 'absolute',
+      },
+      '.cm-line.cm-mark-add::after': { color: Theme.marks.add, content: '"+"' },
+      '.cm-line.cm-mark-remove::after': { color: Theme.marks.remove, content: '"-"' },
+      // A tag is prose the snippet carries, so it reads in the hue it was
+      // tagged with rather than in the code's own colors.
+      '.cm-line.cm-tag-annotate': { ...mark(Theme.marks.add), color: Theme.marks.add },
+      '.cm-line.cm-tag-error': { ...mark(Theme.marks.remove), color: Theme.marks.remove },
+      '.cm-line.cm-tag-log': { ...mark(Theme.marks.log), color: Theme.marks.log },
+      '.cm-line.cm-tag-warn': { ...mark(Theme.marks.warn), color: Theme.marks.warn },
+      // The code's own colors are painted on the spans inside, which the line
+      // cannot talk over without saying so.
+      '.cm-line[class*="cm-tag-"] span': { color: 'inherit !important' },
+      // Focus says which lines matter, so the rest recede.
+      '.cm-line.cm-mark-blur': { opacity: 0.4 },
+      '.cm-line.cm-mark-highlight': mark(palette.window.foreground, 8),
+      '.cm-line.cm-mark-remove': mark(Theme.marks.remove),
+      // The code being replaced reads as code that is gone: its own colors would
+      // still be claiming it. Drained rather than recolored, so what the syntax
+      // made of the line survives as light and dark.
+      '.cm-line.cm-mark-remove span': { filter: 'grayscale(1)', opacity: 0.8 },
       '.cm-scroller': {
         fontFamily: 'var(--code-font-family)',
+        // Every line reaches past the inset on both sides, which the scroller
+        // would otherwise offer to scroll to. Lines wrap, so there is nothing
+        // out there to reach.
+        overflowX: 'hidden',
         lineHeight: 'var(--code-line-height)',
         tabSize: 'var(--code-tab-size)',
       },
@@ -46,22 +99,6 @@ export function theme(palette: Theme.derive.Result): Extension {
       // has to step aside. It belongs here rather than in the stylesheet:
       // CodeMirror injects its styles unlayered, and unlayered always wins.
       '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
-      // The gutter is part of the artwork, so it recedes rather than sitting
-      // on a panel of its own.
-      '.cm-gutters': {
-        backgroundColor: 'transparent',
-        borderRight: 'none',
-        color: palette.window.foreground,
-        // The editor reaches past the window's inset so a pin has room to
-        // paint; the gutter takes the inset back, so its numbers sit where the
-        // exported frame draws them rather than against the window's edge.
-        marginLeft: 'var(--editor-inset)',
-        opacity: 0.4,
-      },
-      // With a gutter the code is already inset by it, and the room a pin
-      // needs is the gutter's own width.
-      '&:has(.cm-gutters) .cm-content': { paddingLeft: 0 },
-      '.cm-lineNumbers .cm-gutterElement': { minWidth: '2ch', paddingInline: '0 20px' },
       // A selection has to read against every bundled theme, so it tints the
       // theme's own border color rather than picking a color of its own.
       '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
@@ -122,7 +159,8 @@ export function theme(palette: Theme.derive.Result): Extension {
       // which is the marker they would otherwise lose.
       '.cm-lintRange-error': {
         backgroundImage: 'none',
-        textDecoration: `underline wavy ${palette.type === 'dark' ? color.squiggleOnDark : color.squiggleOnLight}`,
+        textDecoration: `underline wavy ${Theme.marks.remove}`,
+        textDecorationSkipInk: 'none',
       },
       // The same surface a type gets: a message merges into the type's own
       // hover tooltip, and the two read as one popover or as neither. Matched
@@ -141,6 +179,25 @@ export function theme(palette: Theme.derive.Result): Extension {
         padding: 0,
       },
       '.cm-diagnostic': { borderLeft: 'none', padding: '6px 10px' },
+      // A pinned complaint reads the way the exported frame draws one: a row of
+      // the window in the hue a removal carries, since that is what it is about.
+      '.cm-objection': {
+        ...mark(Theme.marks.remove),
+        position: 'relative',
+        alignItems: 'flex-start',
+        // Set off from the line above, which it is a note on rather than the
+        // next thing to read.
+        marginInline: 'calc(-1px - var(--editor-inset))',
+        marginTop: '6px',
+        color: Theme.marks.remove,
+        display: 'flex',
+        fontSize: 'var(--code-annotation-size)',
+        gap: '6px',
+        lineHeight: 'var(--code-line-height)',
+        minHeight: 'var(--code-line-height)',
+        paddingInline: 'calc(1px + var(--editor-inset))',
+        whiteSpace: 'pre-wrap',
+      },
     },
     { dark: palette.type === 'dark' },
   )

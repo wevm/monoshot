@@ -6,12 +6,12 @@ const state = {
   background: '#1c1c1e',
   code: "import { createHighlighter } from 'shiki'\n\nconst a = 1\n",
   lang: 'typescript',
-  lineNumbers: true,
   padding: 96,
   radius: 8,
   theme: 'github-dark',
   title: 'highlight.ts',
   titleBar: false,
+  types: false,
   width: 720,
 } satisfies Codec.State
 
@@ -26,12 +26,12 @@ describe('serialize', () => {
         "background": "default",
         "code": "const a = 1",
         "lang": "auto",
-        "lineNumbers": false,
         "padding": 64,
         "radius": 12,
         "theme": "vitesse-dark",
         "title": "",
         "titleBar": true,
+        "types": true,
         "width": 640,
       }
     `)
@@ -83,12 +83,12 @@ describe('deserialize', () => {
         "background": "default",
         "code": "const a = 1",
         "lang": "rust",
-        "lineNumbers": false,
         "padding": 64,
         "radius": 12,
         "theme": "vitesse-dark",
         "title": "",
         "titleBar": true,
+        "types": true,
         "width": 640,
       }
     `)

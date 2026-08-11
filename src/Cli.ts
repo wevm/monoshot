@@ -43,7 +43,6 @@ const languages = new Map<string, BundledLanguage>(
 const settings = z.object({
   background: z.string().optional().describe('`default`, `none`, or a `#rrggbb` color.'),
   lang: z.string().optional().describe('Language to tokenize with. Read from the file otherwise.'),
-  lineNumbers: z.boolean().optional().describe('Number the snippet down its left edge.'),
   padding: z.number().optional().describe('Space around the window, in pixels.'),
   radius: z.number().optional().describe("The window's corner radius, in pixels."),
   theme: z.string().optional().describe('A shiki theme name.'),
