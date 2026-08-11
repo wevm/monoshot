@@ -1,11 +1,12 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
+import { useReducedMotion } from 'motion/react'
 import type { ReactElement, ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
 import { Roll } from './Roll.js'
-import { color, font, radius, shadow } from '../theme/tokens.stylex.js'
+import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 /**
  * The one tooltip every hint is drawn in, so moving from one control to the next
@@ -29,6 +30,15 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
 })
+
+/**
+ * How the pill moves from the control it was over to the one it is over now.
+ *
+ * Its transform, which is where Base UI puts the pill, and inline because the
+ * library writes `transition: none` there for the frame it mounts, which only a
+ * style of its own outranks.
+ */
+const travel = `transform ${motion.fast} ${motion.inOut}`
 
 /**
  * The hint rolling to what it says next.
@@ -87,8 +97,6 @@ function pace() {
   const moved = () => {
     resting = false
     clearTimeout(settling)
-    // Out of the way while the pointer is going somewhere.
-    if (aim) aimAt(undefined)
     settling = setTimeout(() => {
       resting = true
       if (pending) aimAt(pending)
@@ -148,9 +156,11 @@ export namespace Tooltip {
       waiting = setTimeout(() => aimAt(undefined), linger)
       return
     }
-    // Only once the pointer has stopped: on its way it is passing this control
-    // rather than asking about it.
-    if (resting) aimAt(at)
+    // Once the pointer has stopped, since on its way it is passing this control
+    // rather than asking about it. A hint already up answers at once: the wait
+    // is for the first question, and the ones after it are the same question
+    // moving along a row.
+    if (resting || aim) aimAt(at)
   }
 
   /** Props for {@link Tooltip}. */
@@ -164,7 +174,12 @@ export namespace Tooltip {
 
 /** The hint for whatever a {@link Tooltip} wraps. */
 function Wrapped() {
-  return <Base.Root handle={shared}>{({ payload }) => <Pill label={payload ?? ''} />}</Base.Root>
+  const [open, setOpen] = useState(false)
+  return (
+    <Base.Root handle={shared} onOpenChange={setOpen}>
+      {({ payload }) => <Pill label={payload ?? ''} open={open} />}
+    </Base.Root>
+  )
 }
 
 /** The hint for whatever {@link Tooltip.point} was last pointed at. */
@@ -191,7 +206,7 @@ function Aimed() {
   }, [shown])
   return (
     <Base.Root open={aimed !== undefined}>
-      <Pill anchor={anchor} label={shown?.label ?? ''} />
+      <Pill anchor={anchor} label={shown?.label ?? ''} open={aimed !== undefined} />
     </Base.Root>
   )
 }
@@ -208,14 +223,23 @@ function Aimed() {
 function Pill(props: {
   anchor?: Element | { getBoundingClientRect: () => DOMRect } | undefined
   label: string
+  open: boolean
 }) {
-  const { anchor, label } = props
+  const { anchor, label, open } = props
+  const still = useReducedMotion()
+  // What it was last saying, which is how a move between two controls is told
+  // apart from a pill being placed: a pill being placed has no transform to move
+  // from, so moving it means moving it out of the corner the page begins at.
+  const said = useRef<string | undefined>(undefined)
+  const moving = open && said.current !== undefined && said.current !== label
+  said.current = open ? label : undefined
   return (
     <Base.Portal>
       <Base.Positioner
         anchor={anchor}
         side="top"
         sideOffset={6}
+        style={{ transition: still || !moving ? 'none' : travel }}
         {...stylex.props(styles.positioner)}
       >
         <Base.Popup {...stylex.props(styles.popup, text.label13)}>
