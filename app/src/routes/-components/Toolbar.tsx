@@ -6,6 +6,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
+import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
@@ -35,6 +36,9 @@ const styles = stylex.create({
   // The color row is a fixed set of chips, so it sizes to them and centers on
   // the bar. Matching the bar would stretch or squeeze it every time the theme
   // name changes length.
+  // A width of its own rather than the bar's: the bar is as wide as the name of
+  // whatever is selected, and the grid would reflow every time that changed.
+  panelThemes: { width: 520 },
   panelFit: {
     insetInline: 'auto auto',
     left: '50%',
@@ -122,7 +126,9 @@ const styles = stylex.create({
   rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
   rows: { display: 'flex', flexDirection: 'column', gap: 4, padding: 4 },
-  rowTitle: { color: color.onChromeSecondary, paddingInline: 2 },
+  // Started where the row below it starts: the rows take different insets, and a
+  // label set to one of them hangs off the other.
+  rowTitle: (inset: number) => ({ color: color.onChromeSecondary, paddingInline: inset }),
   // A selected swatch's ring is drawn outside it and a hovered one grows past
   // its box, both of which a scrolling row counts as somewhere to scroll to:
   // the padding is the room they take instead. Enough for a swatch that is both
@@ -252,6 +258,63 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   optionSelected: { backgroundColor: color.chromeActive, color: color.onChrome },
+  // Wide enough that three colors read as a palette rather than as a smudge,
+  // and small enough that two dozen themes are one panel rather than a scroll.
+  themeGrid: {
+    display: 'grid',
+    gap: 6,
+    gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))',
+    padding: 6,
+  },
+  // The artwork in miniature: the backdrop a theme draws, with the colors it
+  // paints code in standing on it.
+  themeBox: (backdrop: string) => ({
+    // Longhands: a shorthand carrying a value this shape is dropped, and the
+    // panel's own surface reads through where the backdrop should be.
+    backgroundImage: backdrop,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+    borderRadius: 8,
+    borderStyle: 'none',
+    // A hairline edge, so a near-black backdrop still reads against the panel.
+    boxShadow: {
+      default: 'inset 0 0 0 1px rgb(255 255 255 / 0.14)',
+      ':focus-visible': shadow.focusRing,
+    },
+    cursor: 'pointer',
+    display: 'grid',
+    height: 34,
+    outline: 'none',
+    // Room for the backdrop to read as the picture or gradient it is, rather
+    // than as a hairline around the colors.
+    padding: 7,
+    placeItems: 'center',
+    position: 'relative',
+    transform: {
+      default: 'scale(1)',
+      '@media (hover: hover) and (pointer: fine)': { default: 'scale(1)', ':hover': 'scale(1.14)' },
+      ':active': 'scale(0.97)',
+    },
+    transitionDuration: motion.fast,
+    transitionProperty: 'transform',
+    transitionTimingFunction: motion.out,
+  }),
+  themeStripes: {
+    display: 'grid',
+    gap: 4,
+    gridAutoColumns: '1fr',
+    gridAutoFlow: 'column',
+    height: '100%',
+    width: '100%',
+  },
+  // A white hairline holds each bar off the picture behind it, the same on every
+  // swatch: an edge taken from a theme's own colors reads on some pictures and
+  // vanishes on others.
+  themeStroke: (paint: string) => ({
+    backgroundColor: paint,
+    borderRadius: 3,
+    boxShadow: `0 0 0 1px ${color.onArtwork}`,
+  }),
   swatch: (background: string) => ({
     backgroundColor: background,
     borderRadius: 4,
@@ -280,7 +343,14 @@ export function Toolbar(props: Toolbar.Props) {
   const travel = Math.abs(swatchIndex - previousSwatchIndex) * swatchStride
   const themeIndex = themes.findIndex((entry) => entry.name === theme)
   const previousThemeIndex = usePrevious(themeIndex)
+  // Measured as the colors below are: how far the ring has to go, so its
+  // overshoot stays the same few pixels wherever in the grid it lands.
+  const themeTravel = Math.abs(themeIndex - previousThemeIndex) * themeStride
   const selected = Theme.info(theme)
+  const sections = [
+    { entries: themes.filter((entry) => Themes.curated(entry.name)), title: 'Curated' },
+    { entries: themes.filter((entry) => !Themes.curated(entry.name)), title: 'Other' },
+  ]
 
   // Clicking the open control closes it, so the bar is its own dismiss target.
   const toggle = (next: Panel) => setPanel((current) => (current === next ? undefined : next))
@@ -331,18 +401,17 @@ export function Toolbar(props: Toolbar.Props) {
           ?.focus()
       return
     }
-    const step =
-      event.key === 'ArrowDown' || event.key === 'ArrowRight'
-        ? 1
-        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
-          ? -1
-          : 0
+    const along = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+    const down = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     const options = [...(surface.current?.querySelectorAll<HTMLElement>('[data-option]') ?? [])]
     const index = options.indexOf(document.activeElement as HTMLElement)
-    if (!step || index < 0) return
+    if ((!along && !down) || index < 0) return
     event.preventDefault()
     event.stopPropagation()
-    options[(index + step + options.length) % options.length]?.focus()
+    const landed = down
+      ? below(options, index, down)
+      : (index + along + options.length) % options.length
+    options[landed]?.focus()
   }
 
   useEffect(() => {
@@ -384,30 +453,45 @@ export function Toolbar(props: Toolbar.Props) {
               transition={{ ...spring, filter: fade, opacity: fade }}
               {...stylex.props(
                 styles.panel,
-                panel === 'background' && styles.panelFit,
+                (panel === 'background' || panel === 'theme') && styles.panelFit,
+                panel === 'theme' && styles.panelThemes,
                 styles.surface,
               )}
             >
               {panel === 'theme' ? (
-                <div {...stylex.props(styles.list)}>
-                  {themes.map((entry) => (
-                    <button
-                      aria-pressed={entry.name === theme}
-                      data-option={entry.name === theme ? 'selected' : ''}
-                      key={entry.name}
-                      onClick={() => onChange({ theme: entry.name })}
-                      onFocus={() => onChange({ theme: entry.name })}
-                      ref={entry.name === theme ? reveal : null}
-                      type="button"
-                      {...stylex.props(
-                        styles.option,
-                        text.copy13,
-                        entry.name === theme && styles.optionSelected,
-                      )}
-                    >
-                      <span {...stylex.props(styles.swatch(swatches[entry.type]))} />
-                      {entry.displayName}
-                    </button>
+                <div {...stylex.props(styles.rows)}>
+                  {sections.map((section) => (
+                    <div key={section.title}>
+                      <span {...stylex.props(styles.rowTitle(6), text.label12)}>
+                        {section.title}
+                      </span>
+                      <div {...stylex.props(styles.themeGrid)}>
+                        {section.entries.map((entry) => {
+                          const shown = Themes.swatch(entry.name)
+                          return (
+                            <button
+                              aria-pressed={entry.name === theme}
+                              data-option={entry.name === theme ? 'selected' : ''}
+                              key={entry.name}
+                              onClick={() => onChange({ theme: entry.name })}
+                              onFocus={() => onChange({ theme: entry.name })}
+                              ref={entry.name === theme ? reveal : null}
+                              title={entry.displayName}
+                              type="button"
+                              {...stylex.props(styles.themeBox(shown.backdrop))}
+                            >
+                              <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
+                              <span {...stylex.props(styles.themeStripes)}>
+                                {shown.colors.map((paint) => (
+                                  <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
+                                ))}
+                              </span>
+                              {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : panel === 'language' ? (
@@ -448,7 +532,7 @@ export function Toolbar(props: Toolbar.Props) {
               ) : panel === 'background' ? (
                 <div {...stylex.props(styles.rows)}>
                   <div>
-                    <span {...stylex.props(styles.rowTitle, text.label12)}>Wallpapers</span>
+                    <span {...stylex.props(styles.rowTitle(10), text.label12)}>Wallpapers</span>
                     <div {...stylex.props(styles.pictureRow)}>
                       {Wallpapers.list.map((wallpaper) => {
                         const value = Wallpapers.background(wallpaper.id)
@@ -466,13 +550,13 @@ export function Toolbar(props: Toolbar.Props) {
                             )}
                           >
                             <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
-                            {background === value && <Ring row="pictures" travel={travel} />}
+                            {background === value && <Ring row="backgrounds" travel={travel} />}
                           </button>
                         )
                       })}
                     </div>
                   </div>
-                  <span {...stylex.props(styles.rowTitle, text.label12)}>Colors</span>
+                  <span {...stylex.props(styles.rowTitle(10), text.label12)}>Colors</span>
                   <div {...stylex.props(styles.colorRow)}>
                     <button
                       aria-pressed={background === 'default'}
@@ -483,7 +567,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                     >
                       <span {...stylex.props(styles.srOnly)}>Default</span>
-                      {background === 'default' && <Ring row="colors" travel={travel} />}
+                      {background === 'default' && <Ring row="backgrounds" travel={travel} />}
                     </button>
                     <button
                       aria-pressed={background === 'none'}
@@ -494,7 +578,7 @@ export function Toolbar(props: Toolbar.Props) {
                       {...stylex.props(styles.swatchButton, styles.swatchNone)}
                     >
                       <span {...stylex.props(styles.srOnly)}>None</span>
-                      {background === 'none' && <Ring row="colors" travel={travel} />}
+                      {background === 'none' && <Ring row="backgrounds" travel={travel} />}
                     </button>
                     <div {...stylex.props(styles.divider)} />
                     {backgrounds.map((value) => (
@@ -508,7 +592,7 @@ export function Toolbar(props: Toolbar.Props) {
                         {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
                       >
                         <span {...stylex.props(styles.srOnly)}>{value}</span>
-                        {background === value && <Ring row="colors" travel={travel} />}
+                        {background === value && <Ring row="backgrounds" travel={travel} />}
                       </button>
                     ))}
                     <div {...stylex.props(styles.divider)} />
@@ -523,7 +607,7 @@ export function Toolbar(props: Toolbar.Props) {
                         value={background.startsWith('#') ? background : '#3b82d6'}
                         {...stylex.props(styles.colorInput)}
                       />
-                      {custom && <Ring row="colors" travel={travel} />}
+                      {custom && <Ring row="backgrounds" travel={travel} />}
                     </label>
                   </div>
                 </div>
@@ -596,6 +680,7 @@ export declare namespace Toolbar {
     background: string
     /** A pinned language, or `auto` to read it from the code. */
     language: BundledLanguage | 'auto'
+    /** A bundled theme's name, or one of the themes composed in the library. */
     theme: Theme.Info['name']
     /** Whether the window shows its title bar. */
     titleBar: boolean
@@ -739,6 +824,35 @@ function Ring(props: { row: string; travel: number }) {
 
 /** One swatch plus its gap: the distance the ring covers per position. */
 const swatchStride = 29
+
+/**
+ * The option a row up or down from this one, by where the two are drawn rather
+ * than by how far apart they are in the list: the themes wrap into a grid, and
+ * the one after this one is beside it.
+ *
+ * Focusing an option picks it, so a key that reads as down has to land below.
+ */
+function below(options: readonly HTMLElement[], index: number, direction: number): number {
+  const from = options[index]?.getBoundingClientRect()
+  if (!from) return index
+  const rows = options
+    .map((option, at) => ({ at, box: option.getBoundingClientRect() }))
+    // Anything sharing this one's row is beside it, whichever way it is drawn.
+    .filter(({ box }) => (direction > 0 ? box.top > from.top + 1 : box.top < from.top - 1))
+  if (!rows.length) return (index + direction + options.length) % options.length
+  const next =
+    direction > 0
+      ? Math.min(...rows.map((row) => row.box.top))
+      : Math.max(...rows.map((row) => row.box.top))
+  const row = rows.filter(({ box }) => Math.abs(box.top - next) < 1)
+  // Nearest along the row, so the column is kept where the grid allows it.
+  return row.reduce((nearest, entry) =>
+    Math.abs(entry.box.left - from.left) < Math.abs(nearest.box.left - from.left) ? entry : nearest,
+  ).at
+}
+
+/** One theme box plus its gap: the distance the ring covers per position. */
+const themeStride = 58
 
 /**
  * The ring overshoots its target and settles back.

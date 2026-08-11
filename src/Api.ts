@@ -227,7 +227,7 @@ export function create(options: create.Options = {}) {
       '/themes',
       OpenApi.validate('query', schema.filter, {
         description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
-        responses: { 200: { description: 'The bundled themes.', schema: schema.themes } },
+        responses: { 200: { description: 'Every theme.', schema: schema.themes } },
         summary: 'List themes',
       }),
       (c) => {

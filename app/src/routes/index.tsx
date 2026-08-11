@@ -15,6 +15,7 @@ import * as Wallpapers from '#/lib/wallpapers.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
 import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
+import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
 import { font, motion } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
@@ -234,7 +235,7 @@ const fallback: Settings = {
   language: 'auto',
   padding: 64,
   radius: 12,
-  theme: 'vitesse-dark',
+  theme: 'golden-gate-dark',
   titleBar: true,
   types: true,
   width: 640,
@@ -268,6 +269,18 @@ function restore(hash: string) {
     } satisfies Settings,
     title: state.title,
   }
+}
+
+/**
+ * The picture the artwork stands on: the one chosen as a backdrop, or the one a
+ * theme is made of. `default` is the theme's own backdrop, and a theme made
+ * from a picture has that picture for one.
+ */
+function backdrop(settings: Settings) {
+  return (
+    Wallpapers.at(settings.background) ??
+    (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
+  )
 }
 
 /** The fragment a link carries for the state on screen. */
@@ -339,6 +352,9 @@ function Page() {
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
+    // Nothing shared, or nothing readable: the codec answers with its own
+    // defaults, and those know only what shiki bundles.
+    if (!Codec.readable(window.location.hash)) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
     setSettings(shared.settings)
@@ -454,22 +470,39 @@ function Page() {
     return () => clearTimeout(timer)
   }, [code, language, settings.types])
 
+  // The picture the artwork stands on, by name: what the effect below watches.
+  const picture = backdrop(settings)?.id
+
   useEffect(() => {
-    const named = Wallpapers.at(settings.background)
-    if (!named) return setWallpaper(undefined)
+    // Cleared first: the artwork would otherwise keep the picture it is holding
+    // while the next one loads, which is the last theme's backdrop under this
+    // theme's colors.
+    setWallpaper(undefined)
+    if (!picture) return
     let active = true
-    void Wallpapers.embed(named.id).then(
-      (picture) => {
-        if (active) setWallpaper(picture)
+    void Wallpapers.embed(picture).then(
+      (source) => {
+        if (active) setWallpaper({ source })
       },
       (cause: Error) => {
         if (active) setNotice(cause.message)
       },
     )
+    // Behind the picture rather than before it: the shell takes the picture's
+    // color once it has been read, and stands on the theme's own until then.
+    // A picture that will not decode still hangs on the wall.
+    void Wallpapers.color(picture).then(
+      (color) => {
+        if (active) setWallpaper((current) => (current ? { ...current, color } : current))
+      },
+      () => {},
+    )
     return () => {
       active = false
     }
-  }, [settings.background])
+    // The picture is what this loads; every other setting leaves it alone, and
+    // a drag on the padding would otherwise reload it on every frame.
+  }, [picture])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 
@@ -517,7 +550,7 @@ function Page() {
       theme,
       ...(types ? { twoslash: types } : {}),
     })
-    const named = Wallpapers.at(settings.background)
+    const named = backdrop(settings)
     const picture = named ? await Wallpapers.embed(named.id) : undefined
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
@@ -527,7 +560,7 @@ function Page() {
         palette: Theme.derive(rendered.theme),
         settings,
         title,
-        wallpaper: picture?.source,
+        wallpaper: picture,
       }),
     )
     try {
@@ -716,7 +749,7 @@ function Page() {
         foreground: frame.palette.page.foreground,
       }
     // A picture owns the surface the same way, in the strongest color it holds.
-    if (wallpaper)
+    if (wallpaper?.color)
       return {
         background: `color-mix(in oklab, ${wallpaper.color} 22%, #08080a)`,
         foreground: frame.palette.page.foreground,

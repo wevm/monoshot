@@ -6,9 +6,23 @@ import * as Theme from './Theme.js'
 
 const frame = Frame.create()
 
+/** The themes this package makes rather than takes from shiki. */
+const composed = [
+  'golden-gate-dark',
+  'golden-gate-light',
+  'mountain-lion',
+  'panther',
+  'sequoia-dark',
+  'sequoia-light',
+  'snow-leopard',
+  'tahoe-dark',
+  'tahoe-light',
+]
+
 describe('list', () => {
-  test('offers a chosen few of what shiki bundles', () => {
-    // Every one is a theme shiki has, and the picker walks them in this order.
+  test('offers a chosen few of what shiki bundles, then the ones made here', () => {
+    // The picker walks them in this order: what shiki brought, then what was
+    // composed from the wallpapers.
     expect(Theme.list().map((entry) => entry.name)).toMatchInlineSnapshot(`
       [
         "aurora-x",
@@ -26,11 +40,22 @@ describe('list', () => {
         "tokyo-night",
         "vitesse-dark",
         "vitesse-light",
+        "golden-gate-dark",
+        "golden-gate-light",
+        "mountain-lion",
+        "panther",
+        "sequoia-dark",
+        "sequoia-light",
+        "snow-leopard",
+        "tahoe-dark",
+        "tahoe-light",
       ]
     `)
-    expect(Theme.list().every((entry) => Object.keys(bundledThemes).includes(entry.name))).toBe(
-      true,
-    )
+    const bundled = Theme.list().filter((entry) => !composed.includes(entry.name))
+    expect(bundled.every((entry) => Object.keys(bundledThemes).includes(entry.name))).toBe(true)
+    // Everything else is one this package composes, and the renderer loads it
+    // by the same name a picker offers.
+    expect(Theme.composed.map((theme) => theme.name)).toEqual(composed)
   })
 
   test('groups into light and dark', () => {
@@ -133,6 +158,76 @@ describe('derive', () => {
         },
       }
     `)
+  })
+})
+
+describe('compose', () => {
+  const colors = ['oklch(0.38 0.06 244)', 'oklch(0.55 0.04 236)', 'oklch(0.86 0.04 94)']
+
+  test('writes every color as hex, which is what reads a theme', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'dark' })
+    const written = [
+      theme.bg,
+      theme.fg,
+      ...(theme.settings ?? []).flatMap((rule) => [
+        rule.settings.background,
+        rule.settings.foreground,
+      ]),
+    ].filter((color) => color !== undefined)
+    expect(written.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(true)
+  })
+
+  test('gives every part of a snippet a color of its own', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'dark' })
+    const scoped = (theme.settings ?? []).filter((rule) => rule.scope)
+    const written = new Set(scoped.map((rule) => rule.settings.foreground))
+    expect(scoped.length).toBeGreaterThan(6)
+    expect(written.size).toBeGreaterThan(5)
+  })
+
+  test('holds a dark theme apart from the background it is read on', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'dark' })
+    const background = lightness(theme.bg as string)
+    const tokens = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => lightness(rule.settings.foreground as string))
+    expect(Math.min(...tokens) - background).toBeGreaterThan(0.2)
+  })
+
+  test('takes a light theme the other way, off a light background', () => {
+    const theme = Theme.compose({ colors, displayName: 'Tahoe', name: 'tahoe', type: 'light' })
+    const background = lightness(theme.bg as string)
+    const tokens = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => lightness(rule.settings.foreground as string))
+    expect(background - Math.max(...tokens)).toBeGreaterThan(0.2)
+  })
+
+  test('leaves a palette with no hue without one', () => {
+    const theme = Theme.compose({
+      colors: ['#808080', '#b0b0b0'],
+      displayName: 'Grey',
+      name: 'grey',
+      type: 'dark',
+    })
+    const written = (theme.settings ?? [])
+      .filter((rule) => rule.scope)
+      .map((rule) => rule.settings.foreground as string)
+    // Every channel equal is grey; a chroma floor would have made these red.
+    expect(written.every((color) => /^#(\w\w)\1\1$/.test(color))).toBe(true)
+  })
+
+  test('fills the roles a picture is too plain to fill itself', () => {
+    const theme = Theme.compose({
+      colors: ['oklch(0.5 0.05 250)'],
+      displayName: 'One',
+      name: 'one',
+      type: 'dark',
+    })
+    const written = new Set(
+      (theme.settings ?? []).filter((rule) => rule.scope).map((rule) => rule.settings.foreground),
+    )
+    expect(written.size).toBeGreaterThan(3)
   })
 })
 

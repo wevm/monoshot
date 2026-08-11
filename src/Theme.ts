@@ -1,6 +1,12 @@
-import { converter, formatCss, parse } from 'culori'
+import { clampChroma, converter, formatCss, formatHex, parse } from 'culori'
 import { bundledThemesInfo } from 'shiki'
-import type { BundledTheme, ThemeRegistrationResolved } from 'shiki'
+
+import { palettes } from './internal/palettes.js'
+
+// Declared before anything module scope reads it: the composed themes are
+// built as this module loads, and they are read through here.
+const oklch = converter('oklch')
+import type { BundledTheme, ThemeRegistrationRaw, ThemeRegistrationResolved } from 'shiki'
 
 /**
  * The themes a frame offers, as pickable metadata. Carries no theme payload.
@@ -145,15 +151,185 @@ export declare namespace derive {
   }
 }
 
-/** Theme metadata as published by shiki. Frozen: callers share one instance. */
+/**
+ * Builds a syntax theme from a handful of colors, most telling first.
+ *
+ * The colors say what the theme is made of; the roles they land in are this
+ * function's to decide, so a set taken from anywhere reads as code rather than
+ * as swatches. Every one is held to a lightness the background can carry, since
+ * a color chosen for a picture owes nothing to the text it would become.
+ *
+ * @example
+ * ```ts twoslash
+ * import { Theme } from 'monoshot'
+ *
+ * const theme = Theme.compose({
+ *   colors: ['#4f9cf0', '#f0a84f', '#8bd18b'],
+ *   displayName: 'Tahoe',
+ *   name: 'tahoe',
+ *   type: 'dark',
+ * })
+ * theme.name
+ * // ^?
+ * ```
+ */
+export function compose<const name extends string>(
+  options: compose.Options<name>,
+): ThemeRegistrationRaw & { name: name } {
+  const { colors, displayName, name, type } = options
+  const parsed = colors.map((color) => toOklch(color)).filter((color) => color !== undefined)
+  const dominant = parsed[0]
+  const hue = dominant && Number.isFinite(dominant.h) ? dominant.h : undefined
+  // A theme needs more parts than a picture reliably offers. What is missing
+  // comes round again from what is there, nudged in hue and lightness rather
+  // than invented: a picture of two blues makes a theme of blues, not one of
+  // blues and the oranges opposite them.
+  const roles = Array.from({ length: 5 }, (_, at) => {
+    const from = parsed[at % Math.max(parsed.length, 1)] ?? { c: 0.1, h: hue ?? 0, l: 0.7 }
+    const round = Math.floor(at / Math.max(parsed.length, 1))
+    return {
+      color: { ...from, h: rotate(from.h, round * 14 * (at % 2 === 0 ? 1 : -1)) },
+      weight: round === 0 ? 1 : round % 2 === 1 ? 0.92 : 1.07,
+    }
+  })
+  const background = hex({
+    c: hue === undefined ? 0 : 0.02,
+    h: hue,
+    l: type === 'dark' ? 0.17 : 0.97,
+  })
+  const foreground = hex({
+    c: hue === undefined ? 0 : 0.01,
+    h: hue,
+    l: type === 'dark' ? 0.9 : 0.28,
+  })
+  /** A picture's color as text on this theme's background. */
+  const token = (color: Oklch, weight = 1) =>
+    hex({
+      // A color with no hue stays without one: a floor on the chroma would
+      // turn a grey picture's tokens red, which is the hue zero stands for.
+      c: Number.isFinite(color.h)
+        ? clamp(color.c * 1.4, type === 'dark' ? 0.06 : 0.05, type === 'dark' ? 0.17 : 0.15)
+        : 0,
+      h: color.h,
+      l: type === 'dark' ? clamp(0.78 * weight, 0.5, 0.92) : clamp(0.46 / weight, 0.24, 0.6),
+    })
+  type Role = { color: Oklch; weight: number }
+  const [keyword, string, callable, constant, entity] = roles as [Role, Role, Role, Role, Role]
+  // Prose the code carries rather than code, so it sits back: the theme's own
+  // hue at a fraction of the chroma the tokens take.
+  const comment = hex({
+    c: hue === undefined ? 0 : 0.02,
+    h: hue,
+    l: type === 'dark' ? 0.55 : 0.6,
+  })
+  const punctuation = hex({
+    c: hue === undefined ? 0 : 0.01,
+    h: hue,
+    l: type === 'dark' ? 0.68 : 0.48,
+  })
+  return {
+    bg: background,
+    // Carried as the literal it was given, so a renderer built with this theme
+    // accepts its name where it accepts a bundled one.
+    name,
+    colors: { 'editor.background': background, 'editor.foreground': foreground },
+    displayName,
+    fg: foreground,
+    // One list, under the name the format gives it: `tokenColors` is the same
+    // field by another name, and a theme carrying both has one of them ignored.
+    // The unscoped rule leads, as what every token falls back to.
+    settings: [
+      { settings: { background, foreground } },
+      { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: comment } },
+      {
+        scope: ['keyword', 'storage', 'storage.type', 'keyword.control', 'keyword.operator.new'],
+        settings: { foreground: token(keyword.color, keyword.weight) },
+      },
+      {
+        scope: ['string', 'string.quoted', 'constant.other.symbol', 'markup.inserted'],
+        settings: { foreground: token(string.color, string.weight) },
+      },
+      {
+        scope: ['entity.name.function', 'support.function', 'meta.function-call'],
+        settings: { foreground: token(callable.color, callable.weight) },
+      },
+      {
+        scope: ['constant.numeric', 'constant.language', 'constant.character', 'support.constant'],
+        settings: { foreground: token(constant.color, constant.weight) },
+      },
+      {
+        scope: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
+        settings: { foreground: token(entity.color, entity.weight) },
+      },
+      // What a snippet is mostly made of reads as the text itself rather than as
+      // one more color: a theme where everything is colored has nothing left to
+      // point with.
+      { scope: ['variable', 'variable.other', 'support.variable'], settings: { foreground } },
+      {
+        scope: ['variable.parameter', 'variable.other.property', 'meta.object-literal.key'],
+        settings: { foreground: token(entity.color, entity.weight * 0.94) },
+      },
+      {
+        scope: ['punctuation', 'meta.brace', 'keyword.operator'],
+        settings: { foreground: punctuation },
+      },
+      {
+        scope: ['entity.name.tag'],
+        settings: { foreground: token(keyword.color, keyword.weight) },
+      },
+      {
+        scope: ['entity.other.attribute-name'],
+        settings: { foreground: token(callable.color, callable.weight) },
+      },
+    ],
+    type,
+  }
+}
+
+export declare namespace compose {
+  type Options<name extends string = string> = {
+    /** The colors the theme is made of, the most telling of them first. */
+    colors: readonly string[]
+    /** Human-readable name, for a picker. */
+    displayName: string
+    /** Name the theme is loaded and rendered by. */
+    name: name
+    /** Whether the theme reads as a light or a dark one. */
+    type: 'dark' | 'light'
+  }
+}
+
+/** Theme metadata. Frozen: callers share one instance. */
 export type Info = {
   /** Human-readable name for a picker. */
   readonly displayName: string
-  /** Identifier accepted by `Frame.render`. */
-  readonly name: BundledTheme
+  /**
+   * Identifier accepted by `Frame.render`: one shiki bundles, or one of the
+   * themes {@link composed} here.
+   */
+  readonly name: BundledTheme | Composed
   /** Whether the theme is a light or dark scheme. */
   readonly type: 'light' | 'dark'
 }
+
+/** The name of a theme composed here, as opposed to one shiki bundles. */
+export type Composed = (typeof palettes)[number]['id']
+
+/**
+ * The themes composed here rather than bundled by shiki, made from the colors
+ * of the default macOS wallpapers.
+ *
+ * A renderer loads one of these by name the way it loads a bundled theme; this
+ * is what it loads.
+ */
+export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) =>
+  compose({
+    colors: palette.colors,
+    displayName: palette.displayName,
+    name: palette.id,
+    type: palette.type,
+  }),
+)
 
 // `bundledThemesInfo` types `id` as a plain string; the set-equality test in
 // `Theme.test.ts` is what keeps this narrowing honest.
@@ -178,8 +354,8 @@ const offered: readonly string[] = [
   'vitesse-light',
 ]
 
-const infos: readonly Info[] = Object.freeze(
-  bundledThemesInfo
+const infos: readonly Info[] = Object.freeze([
+  ...bundledThemesInfo
     .filter((theme) => offered.includes(theme.id))
     .map((theme) =>
       Object.freeze({
@@ -188,9 +364,18 @@ const infos: readonly Info[] = Object.freeze(
         type: theme.type === 'light' ? 'light' : ('dark' as const),
       }),
     ),
-)
+  // The composed ones after, so a picker walks what shiki brought before what
+  // was made here.
+  ...palettes.map((palette) =>
+    Object.freeze({
+      displayName: palette.displayName,
+      name: palette.id as Composed,
+      type: palette.type,
+    }),
+  ),
+])
 
-const byName = new Map(infos.map((entry) => [entry.name as string, entry]))
+const byName = new Map<string, Info>(infos.map((entry) => [entry.name, entry]))
 
 const fallbackBg = { dark: '#101010', light: '#ffffff' }
 const fallbackFg = { dark: '#ededed', light: '#171717' }
@@ -200,8 +385,6 @@ function pick(candidates: readonly (string | undefined)[], fallback: string): st
   for (const candidate of candidates) if (candidate && toOklch(candidate)) return candidate
   return fallback
 }
-
-const oklch = converter('oklch')
 
 type Oklch = { c: number; h?: number | undefined; l: number }
 
@@ -262,6 +445,15 @@ function scopes(scope: string | readonly string[] | undefined): number {
   if (Array.isArray(scope)) return Math.max(scope.length, 1)
   if (typeof scope === 'string') return Math.max(scope.split(',').length, 1)
   return 1
+}
+
+/**
+ * A color as `#rrggbb`, pulled into sRGB on the way: a theme's colors are read
+ * as much by what parses textmate as by what renders CSS, and only this shape
+ * is read by both.
+ */
+function hex(color: Oklch): string {
+  return formatHex(clampChroma({ mode: 'oklch', ...color, h: color.h ?? 0 }, 'oklch')) ?? '#000000'
 }
 
 function css(color: Oklch): string {

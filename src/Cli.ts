@@ -3,11 +3,12 @@ import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { text } from 'node:stream/consumers'
 import { Cli } from 'incur'
-import type { BundledLanguage, BundledTheme } from 'shiki'
+import type { BundledLanguage } from 'shiki'
 import { bundledLanguagesInfo } from 'shiki'
 import * as z from 'zod'
 
 import * as Codec from './Codec.js'
+import type * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
@@ -45,7 +46,7 @@ const settings = z.object({
   lang: z.string().optional().describe('Language to tokenize with. Read from the file otherwise.'),
   padding: z.number().optional().describe('Space around the window, in pixels.'),
   radius: z.number().optional().describe("The window's corner radius, in pixels."),
-  theme: z.string().optional().describe('A shiki theme name.'),
+  theme: z.string().optional().describe('A theme name, as `monoshot themes` lists them.'),
   title: z.string().optional().describe("The window's title."),
   titleBar: z.boolean().optional().describe('Draw the title bar.'),
   width: z.number().optional().describe('Width of the window, in pixels.'),
@@ -188,7 +189,7 @@ export function create() {
       },
     })
     .command('themes', {
-      description: 'List the bundled themes.',
+      description: 'List every theme.',
       mcp: { annotations: { readOnlyHint: true } },
       output: z.array(
         z.object({
@@ -215,7 +216,7 @@ function frame(
   file: string | undefined,
   code: string,
   options: z.output<typeof settings>,
-): { state: Codec.State & { lang: BundledLanguage; theme: BundledTheme } } | Failure {
+): { state: Codec.State & { lang: BundledLanguage; theme: Frame.Name } } | Failure {
   const state = Codec.schema.parse({ ...options, code })
   // The codec falls back rather than failing, which a half-edited URL needs
   // and a command does not: a flag that was replaced was never understood.
@@ -232,7 +233,7 @@ function frame(
   if (theme === undefined)
     return {
       code: 'unknown_theme',
-      message: `\`${state.theme}\` is not a bundled theme. \`monoshot themes\` lists every name.`,
+      message: `\`${state.theme}\` is not a theme. \`monoshot themes\` lists every name.`,
     }
   return { state: { ...state, lang, theme: theme.name } }
 }

@@ -108,19 +108,46 @@ const limit = { decoded: 512_000, fragment: 20_000 } as const
  * ```
  */
 export function deserialize(hash: string): State {
-  const packed = (() => {
-    try {
-      const fragment = hash.replace(/^#/, '')
-      if (fragment.length > limit.fragment) return {}
-      const json = lzString.decompressFromEncodedURIComponent(fragment)
-      if (!json || json.length > limit.decoded) return {}
-      const value: unknown = JSON.parse(json)
-      return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
-    } catch {
-      return {}
-    }
-  })()
+  return schema.parse(fields(read(hash) ?? {}))
+}
+
+/**
+ * Whether a fragment carries state at all, so a caller with defaults of its own
+ * can tell a link it could not read from a visit with no link.
+ *
+ * @example
+ * ```ts twoslash
+ * import { Codec } from 'monoshot'
+ *
+ * Codec.readable('#garbage')
+ * // ^?
+ * ```
+ */
+export function readable(hash: string): boolean {
+  return read(hash) !== undefined
+}
+
+/** The fields a fragment packs, under the names {@link schema} knows. */
+function fields(packed: Record<string, unknown>): Record<string, unknown> {
   const state: Record<string, unknown> = {}
   for (const [field, key] of Object.entries(keys)) state[field] = packed[key]
-  return schema.parse(state)
+  return state
+}
+
+/** What a fragment unpacks to, or nothing when it unpacks to no object. */
+function read(hash: string): Record<string, unknown> | undefined {
+  return (() => {
+    try {
+      const fragment = hash.replace(/^#/, '')
+      if (!fragment || fragment.length > limit.fragment) return undefined
+      const json = lzString.decompressFromEncodedURIComponent(fragment)
+      if (!json || json.length > limit.decoded) return undefined
+      const value: unknown = JSON.parse(json)
+      return typeof value === 'object' && value !== null
+        ? (value as Record<string, unknown>)
+        : undefined
+    } catch {
+      return undefined
+    }
+  })()
 }

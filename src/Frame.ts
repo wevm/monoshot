@@ -15,6 +15,7 @@ import type {
   Highlighter,
   RegexEngine,
   ShikiTransformer,
+  ThemeRegistrationRaw,
   ThemeRegistrationResolved,
   ThemedToken,
 } from 'shiki'
@@ -35,7 +36,9 @@ import type {
  * // ^?
  * ```
  */
-export function create(options: create.Options = {}): create.ReturnType {
+export function create<const themes extends Themes = []>(
+  options: create.Options<themes> = {},
+): create.ReturnType<themes> {
   const { engine, langs = [], themes = [] } = options
 
   // Holds a TypeScript compiler, so it is built once for the renderer rather
@@ -107,7 +110,7 @@ export function create(options: create.Options = {}): create.ReturnType {
   // racing to build a highlighter each.
   let highlighter: Promise<Highlighter> | undefined
 
-  async function resolve(parameters: load.Options): Promise<Highlighter> {
+  async function resolve(parameters: load.Options<themes>): Promise<Highlighter> {
     const { lang, theme } = parameters
     // A rejected promise must not be cached, or one transient failure would
     // poison every later render on this renderer.
@@ -117,7 +120,13 @@ export function create(options: create.Options = {}): create.ReturnType {
     })
     const instance = await highlighter
     await Promise.all([
-      instance.getLoadedThemes().includes(theme) ? undefined : instance.loadTheme(theme),
+      // Loaded already, or composed rather than bundled, or one shiki has:
+      // whatever is none of those is what the load rejects on.
+      instance.getLoadedThemes().includes(theme)
+        ? undefined
+        : instance.loadTheme(
+            Theme.composed.find((one) => one.name === theme) ?? (theme as BundledTheme),
+          ),
       instance.getLoadedLanguages().includes(lang) ? undefined : instance.loadLanguage(lang),
     ])
     return instance
@@ -157,7 +166,7 @@ export function create(options: create.Options = {}): create.ReturnType {
 
   // A closure rather than a sibling method: an operation read off a destructured
   // renderer has no receiver to resolve.
-  async function highlight(parameters: render.Options): Promise<render.ReturnType> {
+  async function highlight(parameters: render.Options<themes>): Promise<render.ReturnType> {
     const { code, lang, theme, twoslash = false } = parameters
     const [instance, annotations] = await Promise.all([
       resolve({ lang, theme }),
@@ -240,14 +249,29 @@ export function create(options: create.Options = {}): create.ReturnType {
       const instance = await resolve({ lang, theme })
       return {
         theme: structuredClone(instance.getTheme(theme)),
-        tokens: instance.codeToTokensBase(code, { lang, theme }),
+        tokens: instance.codeToTokensBase(code, { lang, theme: theme as BundledTheme }),
       }
     },
   }
 }
 
+/**
+ * A theme to render with: one shiki bundles, one this package composes, or the
+ * name of one handed to {@link create} as a theme of its own.
+ *
+ * Named rather than a plain string, so a misspelled theme is a type error here
+ * instead of a rejected load at runtime.
+ */
+export type Name<themes extends Themes = []> =
+  | BundledTheme
+  | Theme.Composed
+  | Extract<themes[number], { name: string }>['name']
+
+/** What {@link create} accepts as themes to preload. */
+type Themes = readonly (BundledTheme | ThemeRegistrationRaw)[]
+
 export declare namespace create {
-  type Options = {
+  type Options<themes extends Themes = []> = {
     /**
      * How the grammars are matched. Defaults to shiki's own, which compiles
      * WebAssembly at runtime and so cannot start where that is disallowed.
@@ -264,11 +288,14 @@ export declare namespace create {
     engine?: RegexEngine | 'javascript' | undefined
     /** Languages to preload. Anything else loads on first use. */
     langs?: readonly BundledLanguage[] | undefined
-    /** Themes to preload. Anything else loads on first use. */
-    themes?: readonly BundledTheme[] | undefined
+    /**
+     * Themes to preload, and themes of the caller's own: a raw theme's `name`
+     * is accepted by this renderer's `render`, `load`, and `tokens`.
+     */
+    themes?: themes | undefined
   }
 
-  type ReturnType = {
+  type ReturnType<themes extends Themes = []> = {
     /**
      * Releases the highlighter and the grammars it loaded. The renderer stays
      * usable: the next `render` builds a fresh highlighter.
@@ -278,13 +305,13 @@ export declare namespace create {
      * Loads a theme and language ahead of time so the next `render` is
      * immediate. The highlighter itself stays private to the instance.
      */
-    load: (options: load.Options) => Promise<void>
+    load: (options: load.Options<themes>) => Promise<void>
     /**
      * Highlights code and returns the markup a frame renders.
      *
      * Rejects when shiki cannot load the requested theme or language.
      */
-    render: (options: render.Options) => Promise<render.ReturnType>
+    render: (options: render.Options<themes>) => Promise<render.ReturnType>
     /**
      * Renders a frame as a standalone document: chrome, backdrop, and code in
      * one HTML string with no scripts and no external requests.
@@ -301,22 +328,22 @@ export declare namespace create {
      * Tokenizes code without rendering it, for a surface that draws its own
      * text. An editor colors its own document from these.
      */
-    tokens: (options: tokens.Options) => Promise<tokens.ReturnType>
+    tokens: (options: tokens.Options<themes>) => Promise<tokens.ReturnType>
   }
 }
 
 export declare namespace load {
-  type Options = {
+  type Options<themes extends Themes = []> = {
     /** Language grammar to load. */
     lang: BundledLanguage
     /** Theme to load. */
-    theme: BundledTheme
+    theme: Name<themes>
   }
 }
 
 export declare namespace tokens {
   /** Tokenizing resolves no types, so a query is left as the comment it is. */
-  type Options = Omit<render.Options, 'twoslash'>
+  type Options<themes extends Themes = []> = Omit<render.Options<themes>, 'twoslash'>
 
   type ReturnType = {
     /** The resolved theme, ready for `Theme.derive`. A copy, safe to mutate. */
@@ -328,20 +355,24 @@ export declare namespace tokens {
 
 export declare namespace toDocument {
   /** What to render, and the frame to render it in. */
-  type Options = Omit<Document.Options, 'annotated' | 'html' | 'palette'> & render.Options
+  type Options<themes extends Themes = []> = Omit<
+    Document.Options,
+    'annotated' | 'html' | 'palette'
+  > &
+    render.Options<themes>
 
   /** The frame as one standalone HTML document. */
   type ReturnType = string
 }
 
 export declare namespace render {
-  type Options = {
+  type Options<themes extends Themes = []> = {
     /** Source to highlight. */
     code: string
     /** Language to tokenize with. */
     lang: BundledLanguage
     /** Theme to color with. */
-    theme: BundledTheme
+    theme: Name<themes>
     /**
      * Draw the types a `^?` query asks for, in flow.
      *

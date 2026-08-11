@@ -51,6 +51,20 @@ describe('serialize', () => {
   })
 })
 
+describe('readable', () => {
+  test('reads a fragment this codec wrote', () => {
+    expect(Codec.readable(Codec.serialize(state))).toBe(true)
+  })
+
+  test('says nothing was shared for a fragment it cannot unpack', () => {
+    expect(Codec.readable('')).toBe(false)
+    expect(Codec.readable('#')).toBe(false)
+    expect(Codec.readable('#garbage')).toBe(false)
+    // Compressed, and not an object once unpacked.
+    expect(Codec.readable(`#${lzString.compressToEncodedURIComponent('"a string"')}`)).toBe(false)
+  })
+})
+
 describe('deserialize', () => {
   test('reads a fragment with or without its leading hash', () => {
     const hash = Codec.serialize(state)
