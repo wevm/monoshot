@@ -45,7 +45,7 @@ const settings = z.object({
   lang: z.string().optional().describe('Language to tokenize with. Read from the file otherwise.'),
   padding: z.number().optional().describe('Space around the window, in pixels.'),
   radius: z.number().optional().describe("The window's corner radius, in pixels."),
-  theme: z.string().optional().describe('A shiki theme name.'),
+  theme: z.string().optional().describe('A theme name, as `monoshot themes` lists them.'),
   title: z.string().optional().describe("The window's title."),
   titleBar: z.boolean().optional().describe('Draw the title bar.'),
   width: z.number().optional().describe('Width of the window, in pixels.'),
@@ -188,7 +188,7 @@ export function create() {
       },
     })
     .command('themes', {
-      description: 'List the themes on offer.',
+      description: 'List every theme.',
       mcp: { annotations: { readOnlyHint: true } },
       output: z.array(
         z.object({
@@ -232,7 +232,7 @@ function frame(
   if (theme === undefined)
     return {
       code: 'unknown_theme',
-      message: `\`${state.theme}\` is not a theme on offer. \`monoshot themes\` lists every name.`,
+      message: `\`${state.theme}\` is not a theme. \`monoshot themes\` lists every name.`,
     }
   return { state: { ...state, lang, theme: theme.name } }
 }
