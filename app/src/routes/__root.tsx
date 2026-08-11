@@ -35,6 +35,7 @@ function Layout() {
     <Tooltip.Provider delay={300}>
       <StylexDevReload />
       <Outlet />
+      <Tooltip.Surface />
     </Tooltip.Provider>
   )
 }

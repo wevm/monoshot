@@ -316,7 +316,7 @@ export function Frame(props: Frame.Props) {
             axis="y"
             edge="start"
             factor={-1}
-            label="Padding, top edge"
+            label="Padding"
             onDragging={setDragging}
             max={paddingMax}
             min={0}
@@ -328,7 +328,7 @@ export function Frame(props: Frame.Props) {
             axis="y"
             edge="end"
             factor={1}
-            label="Padding, bottom edge"
+            label="Padding"
             onDragging={setDragging}
             max={paddingMax}
             min={0}
@@ -344,7 +344,7 @@ export function Frame(props: Frame.Props) {
             axis="x"
             edge="start"
             factor={-2}
-            label="Frame width, left edge"
+            label="Width"
             onDragging={setDragging}
             max={widthMax}
             min={widthMin}
@@ -356,7 +356,7 @@ export function Frame(props: Frame.Props) {
             axis="x"
             edge="end"
             factor={2}
-            label="Frame width, right edge"
+            label="Width"
             onDragging={setDragging}
             max={widthMax}
             min={widthMin}
@@ -370,7 +370,7 @@ export function Frame(props: Frame.Props) {
             axis="xy"
             edge="end"
             factor={-2}
-            label="Corner radius"
+            label="Radius"
             max={24}
             min={0}
             onChange={onRadiusChange}
