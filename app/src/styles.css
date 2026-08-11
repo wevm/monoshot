@@ -538,29 +538,3 @@
   cursor: default;
   opacity: 0.15;
 }
-
-/* The tooltip's contents, swapped as the pill travels from one control to the
-   next. Base UI draws the hint it was showing beside the one it is showing now,
-   so without this the two read as one string while the pill moves. */
-.tooltip-viewport {
-  display: grid;
-  overflow: hidden;
-  position: relative;
-}
-
-.tooltip-viewport > [data-previous],
-.tooltip-viewport > [data-current] {
-  transition: opacity var(--motion-fast) var(--motion-out);
-}
-
-.tooltip-viewport > [data-previous],
-.tooltip-viewport > [data-current][data-starting-style] {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tooltip-viewport > [data-previous],
-  .tooltip-viewport > [data-current] {
-    transition-duration: 0s;
-  }
-}

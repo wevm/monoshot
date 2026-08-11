@@ -10,6 +10,7 @@ import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
+import { Roll } from '#/ui/Roll.js'
 import { Tooltip } from '#/ui/Tooltip.js'
 import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
@@ -120,11 +121,6 @@ const styles = stylex.create({
   itemValue: { color: color.onChrome },
   // The row is exactly one line tall and clips, so a rolling character can
   // never ride up over the label above it.
-  rollRow: { display: 'flex', lineHeight: 1.4, overflow: 'hidden', position: 'relative' },
-  // One cell per character; both the outgoing and incoming glyph share it, so
-  // the row keeps its width while a character changes.
-  rollCell: { display: 'grid', justifyItems: 'center', position: 'relative' },
-  rollGlyph: { gridArea: '1 / 1', whiteSpace: 'pre' },
   divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
   rows: { display: 'flex', flexDirection: 'column', gap: 4, padding: 4 },
   // Started where the row below it starts: the rows take different insets, and a
@@ -778,45 +774,6 @@ function usePrevious<value>(value: value): value {
  * character changes, the way an odometer leaves settled digits alone. Words
  * roll whole: a shared letter staying put would break the wheel.
  */
-function Roll(props: {
-  digits?: boolean | undefined
-  style: stylex.StyleXStyles[]
-  up: boolean
-  value: string
-}) {
-  const { digits, style, up, value } = props
-  const offset = up ? '-100%' : '100%'
-  const from = up ? '100%' : '-100%'
-  // Every change gets a fresh key, so a value returning while its predecessor
-  // is still leaving enters as a new glyph from below instead of reversing the
-  // one in flight. Digits keep their character as the key: an unchanged digit
-  // has nothing to animate.
-  const [seen, setSeen] = useState({ count: 0, value })
-  if (seen.value !== value) setSeen({ count: seen.count + 1, value })
-  return (
-    <span {...stylex.props(styles.rollRow, style)}>
-      {(digits ? [...value] : [value]).map((character, index) => (
-        // Position is the identity here: the character is the animating key.
-        // eslint-disable-next-line react/no-array-index-key
-        <span key={index} {...stylex.props(styles.rollCell)}>
-          <AnimatePresence initial={false} mode="popLayout">
-            <m.span
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: offset }}
-              initial={{ opacity: 0, y: from }}
-              key={digits ? character : `${character}-${seen.count}`}
-              transition={roll}
-              {...stylex.props(styles.rollGlyph)}
-            >
-              {character}
-            </m.span>
-          </AnimatePresence>
-        </span>
-      ))}
-    </span>
-  )
-}
-
 /**
  * The selection ring. One element shared across every swatch, so choosing a
  * color slides it from the old swatch to the new rather than blinking across.
@@ -881,9 +838,6 @@ function ring(travel: number) {
   const bounce = Math.min(0.5, Math.max(0.24, 8 / Math.max(travel, 1) / 0.4))
   return { bounce, duration: 0.45, type: 'spring' } as const
 }
-
-/** Short and firm: the value should land, not float. */
-const roll = { damping: 30, stiffness: 420, type: 'spring' } as const
 
 /**
  * Centers the selected theme in the list. Sets `scrollTop` directly because

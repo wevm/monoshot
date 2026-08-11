@@ -1,10 +1,11 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
-import { useReducedMotion } from 'motion/react'
+import { motion as m, useReducedMotion } from 'motion/react'
 import type { ReactElement } from 'react'
 import { useState } from 'react'
 
 import { text } from '#/theme/text.js'
+import { Roll } from './Roll.js'
 import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 /**
@@ -15,15 +16,9 @@ import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 const shared = Base.createHandle<string>()
 
 const styles = stylex.create({
-  positioner: {
-    // The size the pill was measured to be, so what gets centred over a control
-    // is the pill rather than the point it grows from.
-    height: 'var(--positioner-height)',
-    width: 'var(--positioner-width)',
-    // Over whatever it is about, including the surfaces that float: a hint about
-    // a control inside a popover is drawn on top of the popover.
-    zIndex: 20,
-  },
+  // Over whatever it is about, including the surfaces that float: a hint about a
+  // control inside a popover is drawn on top of the popover.
+  positioner: { zIndex: 20 },
   popup: {
     backgroundColor: color.background,
     borderRadius: radius.control,
@@ -31,44 +26,33 @@ const styles = stylex.create({
     color: color.gray1000,
     // The portal lands under `body`, outside the element that sets the font.
     fontFamily: font.mono,
-    // What the viewport measured the hint it is showing to be, so a longer name
-    // opens the pill out rather than snapping it wider.
-    height: 'var(--popup-height)',
     paddingBlock: 4,
     paddingInline: 8,
-    transitionDuration: motion.fast,
-    transitionProperty: 'height, width',
-    transitionTimingFunction: motion.out,
     whiteSpace: 'nowrap',
-    width: 'var(--popup-width)',
-    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0s' },
   },
 })
-
-/** What moving from one control to another changes: where the pill is, and how
- * wide it has to be to say what it says. */
-const moves = ['bottom', 'height', 'left', 'right', 'top', 'width']
 
 /**
  * How the pill travels from the control it was over to the one it is over now.
  *
- * The placement itself, since that is what Base UI writes rather than a
- * transform, and inline because it writes `transition: none` there for the frame
- * the pill mounts, which only a style of its own outranks.
+ * Its transform, which is where Base UI puts the pill, and inline because the
+ * library writes `transition: none` there for the frame it mounts, which only a
+ * style of its own outranks.
  */
-const travel = moves.map((property) => `${property} ${motion.fast} ${motion.out}`).join(', ')
+const travel = `transform ${motion.fast} ${motion.out}`
 
 /**
- * The same, over no time worth seeing, for the frame the pill is first placed in:
- * a pill opening has nowhere to travel from, and would otherwise arrive from
- * wherever the page begins.
+ * The same, over no time worth seeing, for the frame the pill is first placed in.
  *
- * Written rather than left out, because the library reads the transition to
- * decide which edge to hold the pill by: with none it holds the first placement
- * by `top` and every later one by `bottom`, leaving the first move between two
- * values that cannot be interpolated.
+ * A pill opening has nowhere to travel from: it is put where it belongs, and
+ * without this it would arrive there from the corner of the page. Written rather
+ * than left out, since the library reads the transition to decide how to hold the
+ * pill, and holding it one way to open and another to travel is a jump.
  */
-const placing = moves.map((property) => `${property} 1ms linear`).join(', ')
+const placing = `transform 1ms linear`
+
+/** The pill taking the width of what it says next, as the toolbar's bar does. */
+const morph = { bounce: 0, duration: 0.3, type: 'spring' } as const
 
 /**
  * Hover and focus tooltip around a single focusable child. Reaches the one
@@ -112,10 +96,21 @@ export namespace Tooltip {
               style={{ transition: still ? 'none' : placed ? travel : placing }}
               {...stylex.props(styles.positioner)}
             >
-              <Base.Popup {...stylex.props(styles.popup, text.label13)}>
-                {/* Styled in `styles.css`: the swap it draws is between two
-                    containers of its own, which no rule here can reach. */}
-                <Base.Viewport className="tooltip-viewport">{payload}</Base.Viewport>
+              {/*
+               * The hint rolls rather than being drawn by a `Tooltip.Viewport`,
+               * which animates between two of its own containers: it takes the
+               * pill out of the flow to do that, leaving the positioner with no
+               * size until it has been measured, so the first placement is
+               * computed for a box of nothing and corrected a frame later. The
+               * correction is a pill sliding in from beside the control.
+               *
+               * Size only, since where the pill is belongs to the placement above.
+               */}
+              <Base.Popup
+                render={<m.div layout="size" transition={morph} />}
+                {...stylex.props(styles.popup, text.label13)}
+              >
+                <Roll value={payload ?? ''} />
               </Base.Popup>
             </Base.Positioner>
           </Base.Portal>
