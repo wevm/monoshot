@@ -192,26 +192,21 @@ describe('create', () => {
     // described without being validated, or validated without being described.
     expect((spec.paths['/themes'] as { get: { parameters: unknown } }).get.parameters)
       .toMatchInlineSnapshot(`
-      [
-        {
-          "in": "query",
-          "name": "type",
-          "required": false,
-          "schema": {
-            "anyOf": [
-              {
-                "const": "dark",
-                "type": "string",
-              },
-              {
-                "const": "light",
-                "type": "string",
-              },
-            ],
+        [
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "dark",
+                "light",
+              ],
+              "type": "string",
+            },
           },
-        },
-      ]
-    `)
+        ]
+      `)
     const document = spec.paths['/document'] as {
       post: { requestBody: { content: Record<string, { schema: { properties: object } }> } }
     }
@@ -237,7 +232,7 @@ describe('create', () => {
     expect(status).toBe(400)
     expect(body).toMatchInlineSnapshot(`
       {
-        "error": "theme: \`nope\` is not offered.",
+        "error": "theme: unknown value \`nope\`.",
       }
     `)
   })
