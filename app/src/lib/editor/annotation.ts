@@ -1,3 +1,4 @@
+import { Tooltip } from '#/ui/Tooltip.js'
 import type { Token } from './highlight.js'
 
 /** A type, tokenized so it can be painted in the same colors as the code. */
@@ -86,7 +87,15 @@ function control(action: Action): HTMLElement {
   button.className = 'twoslash-pin'
   button.type = 'button'
   button.ariaLabel = action.label
-  button.title = action.label
+  // The hint every other control in the app draws, asked for by hand: a button
+  // written rather than rendered has nothing for a trigger to wrap. On focus as
+  // well as on hover, since a pin is reached by keyboard as readily as by pointer.
+  const named = () => Tooltip.point({ at: button, label: action.label })
+  const done = () => Tooltip.point()
+  button.addEventListener('pointerenter', named)
+  button.addEventListener('focus', named)
+  button.addEventListener('pointerleave', done)
+  button.addEventListener('blur', done)
   button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${action.icon ?? pin}"/></svg>`
   // Pointer down rather than click: the editor would otherwise take the focus
   // back and dismiss the hover before the click landed. Plain primary presses
@@ -96,6 +105,9 @@ function control(action: Action): HTMLElement {
       return
     event.preventDefault()
     event.stopPropagation()
+    // Before it acts, since acting redraws the surface this sits on: a button
+    // taken off the page under the pointer never hears the pointer leave.
+    Tooltip.point()
     action.select()
   })
   return button

@@ -6,6 +6,7 @@ import type { ViewUpdate } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Notations from './notations.js'
+import { Tooltip } from '#/ui/Tooltip.js'
 import { keep, keptUnder } from './problems.js'
 
 // Lucide, at the size a control is set in: scan, highlighter, plus, minus.
@@ -162,6 +163,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
 
   function destroy() {
     gone = true
+    Tooltip.point()
     view.dom.removeEventListener('mousemove', track)
     view.dom.removeEventListener('mouseover', track)
     view.dom.removeEventListener('mouseleave', clear)
@@ -364,6 +366,9 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     if (!row) {
       delete strip.dataset['shown']
       showing = undefined
+      // The controls go without the pointer leaving them, so nothing else says
+      // the hint about one is no longer about anything.
+      Tooltip.point()
       return
     }
     // Centred on the row rather than hung from its top: the strip is its own
@@ -374,6 +379,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     strip.dataset['shown'] = ''
     if (showing === key) return
     showing = key
+    Tooltip.point()
     strip.replaceChildren(...controls(row))
   }
 
@@ -437,6 +443,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     return order.map((kind) => {
       const button = control({
         active: row.takes === true && row.carried?.includes(kind) === true,
+        disabled: row.takes !== true,
         hold: () => {
           // What the press decides for the row it started on is what it carries
           // to every row it reaches, rather than flipping each in turn.
@@ -454,7 +461,6 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
         select: () => toggle(line, kind),
       })
       button.dataset['kind'] = kind
-      button.disabled = row.takes !== true
       return button
     })
   }
@@ -463,6 +469,8 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   function control(options: {
     active?: boolean | undefined
     color?: string | undefined
+    /** Set when the row offers nothing this control can do to it. */
+    disabled?: boolean | undefined
     /** What a press by pointer does, when it does more than a press by key. */
     hold?: (() => void) | undefined
     icon: string
@@ -476,9 +484,22 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // the same button whether pressing it writes a mark or takes one away.
     button.setAttribute('aria-pressed', String(options.active === true))
     if (options.color) button.style.setProperty('--rail-color', options.color)
+    button.disabled = options.disabled === true
     button.type = 'button'
-    button.title = options.label
     button.setAttribute('aria-label', options.label)
+    // The hint every other control in the app draws, asked for by hand: a button
+    // written rather than rendered has nothing for a trigger to wrap. A disabled
+    // one hears no pointer, so what it would have said stays on the attribute
+    // the browser draws itself.
+    if (button.disabled) button.title = options.label
+    else {
+      const named = () => Tooltip.point({ at: button, label: options.label })
+      const done = () => Tooltip.point()
+      button.addEventListener('pointerenter', named)
+      button.addEventListener('focus', named)
+      button.addEventListener('pointerleave', done)
+      button.addEventListener('blur', done)
+    }
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
     // Ahead of the click: the editor would otherwise take focus and drop the
     // caret on whatever the control sits over.

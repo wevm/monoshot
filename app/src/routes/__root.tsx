@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 
 import * as Scheme from '#/lib/scheme.js'
 import appCss from '#/styles.css?url'
+import { Tooltip } from '#/ui/Tooltip.js'
 import { motion } from '../theme/tokens.stylex.js'
 
 export const Route = createRootRoute({
@@ -31,10 +32,11 @@ function Layout() {
   // Every route reads the stored scheme, not just the one that can change it.
   useEffect(() => Scheme.hydrate(), [])
   return (
-    <>
+    <Tooltip.Provider>
       <StylexDevReload />
       <Outlet />
-    </>
+      <Tooltip.Surface />
+    </Tooltip.Provider>
   )
 }
 
