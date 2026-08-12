@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
+import * as Links from '#/lib/links.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
 import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
@@ -623,9 +624,26 @@ function Page() {
   function copyUrl() {
     // Built from state rather than read from the address bar, so a copy never
     // waits on the debounced write.
-    const url = new URL(window.location.href)
-    url.hash = share({ code, settings, title })
-    void navigator.clipboard.writeText(url.toString())
+    const state = share({ code, settings, title })
+    const long = new URL(window.location.href)
+    long.hash = state
+    // The one moment the snippet leaves the browser, and only because a link
+    // that previews itself has to be one a server can read. A deployment
+    // without the store, or a request that fails, still copies a link.
+    const text = Links.shorten(state).catch(() => long.toString())
+    // Handed over as a promise where that is available: Safari only honors a
+    // clipboard write that starts in the gesture that asked for it, and the
+    // short link is a round trip away. A browser without `ClipboardItem`
+    // throws on the constructor rather than rejecting, so the shape is checked
+    // rather than caught.
+    const rich =
+      typeof ClipboardItem === 'function' && typeof navigator.clipboard.write === 'function'
+    const written = rich
+      ? navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': text.then((value) => new Blob([value])) }),
+        ])
+      : text.then((value) => navigator.clipboard.writeText(value))
+    void written.catch(() => setNotice('The link could not be copied.'))
   }
 
   const [measure, rect] = useEdges()

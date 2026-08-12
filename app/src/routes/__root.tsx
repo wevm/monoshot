@@ -4,20 +4,46 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 
 import * as Scheme from '#/lib/scheme.js'
+import * as Site from '#/lib/site.js'
 import appCss from '#/styles.css?url'
 import { Tooltip } from '#/ui/Tooltip.js'
 import { motion } from '../theme/tokens.stylex.js'
+
+const title = 'monoshot'
+const description = 'Render code images with type-aware annotations.'
+/** Drawn by `gen:og`, which records what it rendered at. */
+const card = { height: '651', path: '/og.png', width: '1200' } as const
 
 export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'monoshot' },
-      { name: 'description', content: 'Render code images with type-aware annotations.' },
+      { title },
+      { name: 'description', content: description },
+      // The preview is a frame this renderer drew, which is the product
+      // showing its own output. Absolute URLs throughout: a crawler has no
+      // page to resolve a relative one against.
+      { property: 'og:type', content: 'website' },
+      { property: 'og:site_name', content: title },
+      { property: 'og:title', content: title },
+      { property: 'og:description', content: description },
+      { property: 'og:url', content: Site.origin },
+      { property: 'og:image', content: Site.url(card.path) },
+      { property: 'og:image:width', content: card.width },
+      { property: 'og:image:height', content: card.height },
+      {
+        property: 'og:image:alt',
+        content: 'A code frame with a resolved type drawn under a query',
+      },
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: title },
+      { name: 'twitter:description', content: description },
+      { name: 'twitter:image', content: Site.url(card.path) },
     ],
     scripts: [{ children: schemeScript }],
     links: [
+      { rel: 'canonical', href: Site.origin },
       { rel: 'stylesheet', href: appCss },
       // StyleX dev CSS is served by the unplugin's dev middleware; the built
       // CSS is appended to the styles.css asset, so prod needs no extra link.

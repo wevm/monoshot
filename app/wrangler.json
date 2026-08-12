@@ -11,5 +11,24 @@
   },
   "browser": {
     "binding": "BROWSER"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "LINKS",
+      "id": "e6b74cf6ac9241ec99319e6d45fed766"
+    }
+  ],
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "SHARE_RATE",
+        "type": "ratelimit",
+        "namespace_id": "1001",
+        "simple": {
+          "limit": 20,
+          "period": 60
+        }
+      }
+    ]
   }
 }
