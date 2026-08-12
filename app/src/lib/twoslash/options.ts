@@ -11,6 +11,9 @@ export const compilerOptions = {
   checkJs: true,
   lib: ['esnext', 'dom'],
   module: 99,
+  // Bundler, the only dialect that both reads `exports` subpaths and takes the
+  // extensionless relative imports snippets are written with.
+  moduleResolution: 100,
   // Twoslash compiles strict, which marks every untyped parameter: a missing
   // annotation rather than a mistake, in a snippet that left its context
   // behind.
