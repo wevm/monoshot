@@ -11,5 +11,11 @@
   },
   "browser": {
     "binding": "BROWSER"
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "LINKS",
+      "id": "0000000000000000000000000000000f"
+    }
+  ]
 }
