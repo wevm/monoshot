@@ -239,7 +239,7 @@ describe('create', () => {
       expect(output).toMatchInlineSnapshot(`
         {
           "code": "unknown_theme",
-          "message": "\`nope\` is not offered. \`monoshot themes\` lists every name.",
+          "message": "Unknown theme \`nope\`. Run \`monoshot themes\` to list the available themes.",
         }
       `)
     })

@@ -3,6 +3,8 @@
 import lzString from 'lz-string'
 import * as z from 'zod'
 
+import * as Theme from './Theme.js'
+
 /**
  * Everything a shared link carries. Every field falls back rather than
  * failing, so a truncated or hand-edited link still opens something usable.
@@ -15,8 +17,7 @@ export const schema = z.object({
    */
   background: z
     .union([
-      z.literal('default'),
-      z.literal('none'),
+      z.enum(['default', 'none']),
       z.string().regex(/^#[0-9a-f]{6}$/i),
       z.string().regex(/^wallpaper:[a-z0-9-]+$/),
     ])
@@ -29,8 +30,8 @@ export const schema = z.object({
   padding: z.number().int().min(0).max(256).catch(64),
   /** Corner radius of the window, in pixels. */
   radius: z.number().int().min(0).max(24).catch(12),
-  /** A shiki theme name. */
-  theme: z.string().catch('vitesse-dark'),
+  /** A theme name, as `Theme.list` offers them. */
+  theme: z.enum(Theme.names).catch('vitesse-dark'),
   /** The window's title, which is empty when it has none. */
   title: z.string().catch(''),
   /** Whether the window wears a title bar. */

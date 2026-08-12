@@ -6,7 +6,7 @@ import { palettes } from './internal/palettes.js'
 // Declared before anything module scope reads it: the composed themes are
 // built as this module loads, and they are read through here.
 const oklch = converter('oklch')
-import type { BundledTheme, ThemeRegistrationRaw, ThemeRegistrationResolved } from 'shiki'
+import type { ThemeRegistrationRaw, ThemeRegistrationResolved } from 'shiki'
 
 /**
  * The themes a frame offers, as pickable metadata. Carries no theme payload.
@@ -22,6 +22,9 @@ export function list(): readonly Info[] {
 export function info(name: string): Info | undefined {
   return byName.get(name)
 }
+
+/** A theme name {@link list} offers. */
+export type Name = (typeof names)[number]
 
 /**
  * The hues a mark carries, which mean what they mean whatever the theme: a
@@ -307,7 +310,7 @@ export type Info = {
    * Identifier accepted by `Frame.render`: one shiki bundles, or one of the
    * themes {@link composed} here.
    */
-  readonly name: BundledTheme | Composed
+  readonly name: Name
   /** Whether the theme is a light or dark scheme. */
   readonly type: 'light' | 'dark'
 }
@@ -336,7 +339,7 @@ export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) 
 // The container is frozen as well as its entries: `list()` hands out this very
 // array, so an ordinary `sort()` would reorder it for every later caller.
 /** The themes offered, in the order a picker walks them. */
-const offered: readonly string[] = [
+const offered = [
   'aurora-x',
   'dracula',
   'github-dark',
@@ -352,15 +355,21 @@ const offered: readonly string[] = [
   'tokyo-night',
   'vitesse-dark',
   'vitesse-light',
-]
+] as const
+
+/**
+ * Every name {@link list} offers, in the same order. A schema reads this to
+ * enumerate what it accepts; a picker reads {@link list} for the labels.
+ */
+export const names = [...offered, ...palettes.map((palette) => palette.id)] as const
 
 const infos: readonly Info[] = Object.freeze([
   ...bundledThemesInfo
-    .filter((theme) => offered.includes(theme.id))
+    .filter((theme) => offered.some((name) => name === theme.id))
     .map((theme) =>
       Object.freeze({
         displayName: theme.displayName,
-        name: theme.id as BundledTheme,
+        name: theme.id as Name,
         type: theme.type === 'light' ? 'light' : ('dark' as const),
       }),
     ),
@@ -369,7 +378,7 @@ const infos: readonly Info[] = Object.freeze([
   ...palettes.map((palette) =>
     Object.freeze({
       displayName: palette.displayName,
-      name: palette.id as Composed,
+      name: palette.id,
       type: palette.type,
     }),
   ),
