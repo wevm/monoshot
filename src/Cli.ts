@@ -41,11 +41,14 @@ const languages = new Map<string, BundledLanguage>(
  * {@link Codec.schema} defines the defaults.
  */
 const settings = z.object({
-  background: z.string().optional().describe('`default`, `none`, or a `#rrggbb` color.'),
+  background: z
+    .string()
+    .optional()
+    .describe('Frame background: `default`, `none`, or a `#rrggbb` color.'),
   lang: z
     .string()
     .optional()
-    .describe('Syntax language. Inferred from the file extension by default.'),
+    .describe('Syntax language. Defaults to the language inferred from the file extension.'),
   padding: z.number().optional().describe('Space around the window, in pixels.'),
   radius: z.number().optional().describe('Window corner radius, in pixels.'),
   theme: z.string().optional().describe('Theme name from `monoshot themes`.'),
@@ -59,7 +62,7 @@ const typed: ReadonlySet<string> = new Set(['javascript', 'jsx', 'tsx', 'typescr
 
 /** File-based snippet input. */
 const source = z.object({
-  file: z.string().optional().describe('Path to a source file, or `-` to read standard input.'),
+  file: z.string().optional().describe('Source file path, or `-` for standard input.'),
 })
 
 /** Inline snippet input. */
@@ -82,10 +85,11 @@ const linked = settings.extend({
  */
 export function create() {
   return Cli.create('monoshot', {
-    description: 'Render code as images with resolved types for `^?` queries.',
+    description:
+      'Create code images with syntax highlighting, customizable themes, and type-aware annotations.',
     mcp: {
       instructions:
-        'Renders a source file or inline snippet as a PNG or share link, and can open the link in a browser. For JavaScript and TypeScript, `^?` queries render their resolved types. `themes` lists valid `--theme` values.',
+        'Turn code into images or shareable links. Supports syntax highlighting, themes, and type annotations for JavaScript and TypeScript. Use `themes` to list available themes.',
     },
     version,
   })
