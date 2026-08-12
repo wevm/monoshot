@@ -117,9 +117,10 @@ const styles = stylex.create({
     justifyContent: 'center',
     minHeight: 320,
   },
-  // The whole guide region beside the artwork is the target; its contents sit
-  // at the page edge, chevron outboard and destination name inboard. The band
-  // stops short of the artwork so the frame's own width handle stays reachable.
+  // Half the region beside the artwork is the target, taken from the page's own
+  // edge where its contents sit: chevron outboard, destination name inboard. The
+  // half nearer the artwork is left alone, so reaching past the frame's width
+  // handle is not also reaching for another theme.
   arrow: {
     alignItems: 'center',
     backgroundColor: 'transparent',
@@ -823,7 +824,7 @@ function Page() {
               styles.arrowAt({
                 height: rect.bottom - rect.top,
                 top: rect.top,
-                width: Math.max(0, rect.left - 12),
+                width: Math.max(0, rect.left - 12) / 2,
               }),
             )}
           >
@@ -850,7 +851,7 @@ function Page() {
               styles.arrowAt({
                 height: rect.bottom - rect.top,
                 top: rect.top,
-                width: Math.max(0, rect.width - rect.right - 12),
+                width: Math.max(0, rect.width - rect.right - 12) / 2,
               }),
             )}
           >
