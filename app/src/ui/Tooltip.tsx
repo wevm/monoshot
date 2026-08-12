@@ -55,6 +55,7 @@ let aim: Aim | undefined
 let pending: Aim | undefined
 let resting = true
 let hiding: ReturnType<typeof setTimeout> | undefined
+let stood: number | undefined
 let settling: ReturnType<typeof setTimeout> | undefined
 const watching = new Set<() => void>()
 
@@ -67,6 +68,7 @@ function watch(watcher: () => void) {
 
 function aimAt(at: Aim | undefined) {
   aim = at
+  stood = undefined
   for (const watcher of watching) watcher()
 }
 
@@ -117,12 +119,18 @@ function pace() {
   const moved = () => {
     resting = false
     clearTimeout(settling)
-    // Out of the way while the pointer travels: the strip travels with it, so
-    // sliding along the code keeps the same control under the pointer the whole
-    // way down and the hint rides along. Shortly rather than at once, since a
-    // pointer on its way to the next control gets there first and calls it off,
-    // which is what lets the hint travel between two of them.
-    if (aim) hideSoon()
+    // Out of the way while the pointer drags a control along: the strip follows
+    // the pointer down the code, so sweeping it keeps one control underneath the
+    // whole way and the hint rides along.
+    //
+    // Read off the control rather than off the pointer, since the pointer moves
+    // in both cases: one going from one control to the next leaves them where
+    // they are, and the hint travels between them instead.
+    if (aim) {
+      const top = aim.at.getBoundingClientRect().top
+      if (stood !== undefined && Math.abs(top - stood) > 0.5) hideSoon()
+      stood = top
+    }
     settling = setTimeout(() => {
       resting = true
       if (pending) aimAt(pending)
