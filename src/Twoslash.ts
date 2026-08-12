@@ -15,7 +15,7 @@ export type Annotation = {
   name: string
   /** The type, formatted the way the language service returned it. */
   text: string
-  /** Offset just past the identifier, so `source.slice(from, to)` is `name`. */
+  /** Exclusive end offset of the identifier. */
   to: number
 }
 
@@ -29,7 +29,7 @@ export type Diagnostic = {
   level: 'error' | 'message' | 'suggestion' | 'warning'
   /** Diagnostic message reported by the compiler. */
   text: string
-  /** Offset just past the span the message is about. */
+  /** Exclusive end offset of the diagnostic span. */
   to: number
 }
 
@@ -129,7 +129,7 @@ export function annotate(result: annotate.Input): Result {
   const hovers: Annotation[] = []
   const queries: Annotation[] = []
   for (const node of result.nodes) {
-    // A node the language service found no type or message for says nothing.
+    // Omit nodes without language-service output.
     if (node.text === undefined) continue
     const from = raw(node.start, removals)
     if (node.type === 'error') {

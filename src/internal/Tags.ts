@@ -23,9 +23,8 @@ const closing = /[ \t]*(?:\*\/|-->)[ \t]*$/
  * Draws the tags a snippet carries as rows of prose, the way a resolved run
  * would draw them.
  *
- * A tag is a mark the snippet carries rather than something a compiler found,
- * so it is drawn whatever the snippet is written in: without this, a tag in a
- * language no compiler reads stays an ordinary comment.
+ * Tags are source annotations rather than compiler output, so the transformer
+ * renders them for every supported source language.
  */
 export function transformer(): ShikiTransformer {
   return {
@@ -55,7 +54,7 @@ function row(name: string, text: string): Content {
   }
 }
 
-/** What a line says, read off the tokens it was drawn as. */
+/** Returns the text content represented by a rendered line. */
 function prose(node: Content | Element): string {
   if (node.type === 'text') return node.value
   if (node.type !== 'element') return ''

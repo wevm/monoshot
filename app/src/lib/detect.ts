@@ -29,9 +29,8 @@ type Language = {
 }
 
 /**
- * Every language the frame can be rendered in, tracking ray.so's list. Shiki
- * loads a grammar the first time it is asked for, so the length of this list
- * costs nothing until one is picked.
+ * Every language the frame can render, tracking ray.so's list.
+ * Entries contain metadata only; Shiki loads grammar data after selection.
  */
 export const languages: readonly Language[] = [
   { id: 'astro', title: 'Astro' },
@@ -100,7 +99,7 @@ export const languages: readonly Language[] = [
  * The grammars detection can recognise, which is a subset: highlight.js bundles
  * every one eagerly, and it has no grammar at all for several of the above.
  * Registered one at a time rather than through the default bundle, which
- * carries all ~190 languages highlight.js knows.
+ * contains all approximately 190 languages supported by highlight.js.
  */
 const detectable: readonly { grammar: LanguageFn; id: BundledLanguage; name: string }[] = [
   { grammar: bash, id: 'bash', name: 'bash' },
@@ -148,7 +147,7 @@ export function title(id: BundledLanguage): string {
 }
 
 /**
- * The language a snippet reads as, or nothing when the guess is too weak to
+ * Returns the detected language, or `undefined` when confidence is insufficient to
  * act on. A caller keeps the language it has in that case, rather than
  * recoloring on a coin toss.
  */

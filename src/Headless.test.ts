@@ -7,7 +7,7 @@ import * as Headless from './Headless.js'
 
 /**
  * Rendering needs a real browser, which a CI runner does not have. The test
- * reports that it skipped rather than passing on nothing.
+ * reports that it skipped instead of returning an empty value.
  */
 const chrome = [
   process.env['PUPPETEER_EXECUTABLE_PATH'],
@@ -40,7 +40,7 @@ describe('create', () => {
     const renderer = Headless.create({ executable })
     await renderer.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
     process.kill(Number(fs.readFileSync(pidFile, 'utf8').trim()), 'SIGKILL')
-    // Nothing here observes the renderer noticing, so give the closed pipe a
+    // Allow the renderer to observe the closed pipe before asserting.
     // turn of the loop to reach it.
     await new Promise((resolve) => setTimeout(resolve, 1000))
 

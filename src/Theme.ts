@@ -27,11 +27,9 @@ export function info(name: string): Info | undefined {
 export type Name = (typeof names)[number]
 
 /**
- * The hues a mark carries, which mean what they mean whatever the theme: a
- * deletion reads as a deletion in every one of them.
+ * Stable semantic colors for source annotations across every theme.
  *
- * Read by whatever draws a marked snippet, so an editor showing the marks live
- * and the image it exports agree on what they look like.
+ * Shared by the editor and image renderer to keep annotation colors consistent.
  */
 export const marks = {
   /** An added line, and an `@annotate` tag. */
@@ -89,13 +87,13 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const lightness = clamp(type === 'dark' ? bg.l + shift : bg.l - shift, 0.16, 0.94)
 
   return {
-    // Nearly black, tinted by the theme's own hue, so the app chrome recedes
-    // behind the artwork whatever the theme.
+    // Use a dark surface tinted by the theme hue to maintain separation between
+    // application chrome and artwork.
     page: {
       background: css({
         c: hue === undefined ? 0 : 0.05,
         h: hue,
-        // Sits just off the window rather than falling away to black, so the
+        // Keep the final stop near the window color instead of fading to black.
         // theme still reads in the shell.
         l: type === 'dark' ? clamp(bg.l + 0.06, 0.16, 0.32) : 0.2,
       }),
@@ -181,10 +179,8 @@ export function compose<const name extends string>(
   const parsed = colors.map((color) => toOklch(color)).filter((color) => color !== undefined)
   const dominant = parsed[0]
   const hue = dominant && Number.isFinite(dominant.h) ? dominant.h : undefined
-  // A theme needs more parts than a picture reliably offers. What is missing
-  // comes round again from what is there, nudged in hue and lightness rather
-  // than invented: a picture of two blues makes a theme of blues, not one of
-  // blues and the oranges opposite them.
+  // Repeat available colors with small hue and lightness adjustments when the
+  // source palette has fewer colors than the syntax theme requires.
   const roles = Array.from({ length: 5 }, (_, at) => {
     const from = parsed[at % Math.max(parsed.length, 1)] ?? { c: 0.1, h: hue ?? 0, l: 0.7 }
     const round = Math.floor(at / Math.max(parsed.length, 1))
@@ -207,7 +203,7 @@ export function compose<const name extends string>(
   const token = (color: Oklch, weight = 1) =>
     hex({
       // A color with no hue stays without one: a floor on the chroma would
-      // turn a grey picture's tokens red, which is the hue zero stands for.
+      // shift an achromatic picture's tokens toward the zero-degree red hue.
       c: Number.isFinite(color.h)
         ? clamp(color.c * 1.4, type === 'dark' ? 0.06 : 0.05, type === 'dark' ? 0.17 : 0.15)
         : 0,
@@ -216,8 +212,7 @@ export function compose<const name extends string>(
     })
   type Role = { color: Oklch; weight: number }
   const [keyword, string, callable, constant, entity] = roles as [Role, Role, Role, Role, Role]
-  // Prose the code carries rather than code, so it sits back: the theme's own
-  // hue at a fraction of the chroma the tokens take.
+  // Render comments with reduced chroma to distinguish prose from code tokens.
   const comment = hex({
     c: hue === undefined ? 0 : 0.02,
     h: hue,
@@ -262,9 +257,8 @@ export function compose<const name extends string>(
         scope: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
         settings: { foreground: token(entity.color, entity.weight) },
       },
-      // What a snippet is mostly made of reads as the text itself rather than as
-      // one more color: a theme where everything is colored has nothing left to
-      // point with.
+      // Keep common variables at the foreground color so accent colors retain
+      // semantic emphasis.
       { scope: ['variable', 'variable.other', 'support.variable'], settings: { foreground } },
       {
         scope: ['variable.parameter', 'variable.other.property', 'meta.object-literal.key'],
@@ -332,10 +326,8 @@ export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) 
   }),
 )
 
-// `bundledThemesInfo` types `id` as a plain string; the set-equality test in
-// `Theme.test.ts` is what keeps this narrowing honest.
-// The container is frozen as well as its entries: `list()` hands out this very
-// array, so an ordinary `sort()` would reorder it for every later caller.
+// `bundledThemesInfo` types `id` as a plain string; `Theme.test.ts` verifies the
+// narrowing. Freeze the array because `list()` returns this shared instance.
 /** The themes offered, in the order a picker walks them. */
 const offered = [
   'aurora-x',

@@ -82,13 +82,12 @@
     word-break: break-word;
   }
 
-  /* Every identifier that has a type says so while the pointer is in the
-     editor, the way a type-aware editor marks what it knows about. */
+  /* Reveal resolved-type markers while the pointer is inside the editor. */
   .twoslash-mark {
     /* Always decorated, revealed on approach: fading the color rather than
        adding the marks means they can transition at all, and it keeps the
-       reveal out of the editor's state. Dimmed, so they answer "what can I
-       hover" without competing with the code they sit under. */
+       reveal out of editor state. Keep markers subtle to avoid competing with
+       the source text. */
     text-decoration: underline dotted transparent;
     text-underline-offset: 4px;
     transition: text-decoration-color var(--motion-fast) var(--motion-out);
@@ -100,13 +99,12 @@
 
   /* What is wrong with a token outranks what type it holds, so the mark that
      advertises the type steps aside for the squiggle rather than sitting under
-     it. The hover reads the same way: it shows the complaint, not the type. */
+     it. The hover similarly prioritizes the diagnostic over the type. */
   .twoslash-mark:has(.cm-lintRange) {
     text-decoration: none;
   }
 
-  /* A type arriving: it settles from just above, so the eye follows it down to
-     where it lands rather than finding it already there. */
+  /* Enter type annotations from above to connect them visually to source text. */
   @keyframes twoslash-in {
     from {
       opacity: 0;
@@ -154,16 +152,11 @@
     scrollbar-width: thin;
   }
 
-  /* Beside the type's first line, just off the surface: near the word it
-     describes, clear of the notch, and out of flow entirely, so nothing
-     reflows when they appear. */
+  /* Position annotation controls beside the first line and outside layout flow. */
   .twoslash-controls {
     display: flex;
     gap: 2px;
-    /* Toward the code by default, and away from it when the window's edge is
-       too close to hold them: near column 0 there is nothing to the left. */
-    /* The room the editor's inset leaves to the left of column 0, so they fit
-       there whatever column a type is pinned at. */
+    /* Position controls toward the code, using the editor inset for space near column 0. */
     margin-right: 2px;
     /* Out of the picture until reached for. They still take hits while they are
        invisible, so the pointer passing over them brings them out. */
@@ -197,8 +190,7 @@
     transform: translateX(0);
   }
 
-  /* Nothing to bridge out here: the surface and its controls each say when they
-     are reached for, and the gap between them is not a place to fall through. */
+  /* External controls and their surface manage hover independently. */
   .twoslash-controls[data-outside]::after {
     content: none;
   }
@@ -243,8 +235,7 @@
     width: 2px;
   }
 
-  /* A pinned block sits in the code's own column, so at column 0 there is
-     nothing to its left and the scroller clips whatever hangs off that edge.
+  /* A pinned block sits in the code column, so the scroller clips controls at column 0.
      The window's own inset moves inside the scroller instead: the editor
      reaches the window's edge and gives the inset back as content padding, so
      the code does not move and the pin has room to paint at every column.
@@ -292,7 +283,7 @@
   }
 
   /* The hover floats over code, so the same tint is composited onto the window
-     rather than left transparent. Same color, but nothing reads through it.
+     rather than left transparent, preventing code from showing through.
      It appears often, so it barely moves: enough to register, not to notice. */
   .cm-tooltip .twoslash {
     animation: twoslash-in var(--motion-fast) var(--motion-out) both;
@@ -338,9 +329,8 @@
     padding-inline-start: var(--twoslash-start);
   }
 
-  /* Whatever the block gave up on the left, the notch takes back, so it still
-     lands on the word. Sized in the code's font, not the annotation's: `ch`
-     resolves against whatever element uses it, and the block counted its
+  /* Offset the notch by the block's left adjustment so it remains aligned with
+     the identifier. Use the code font because `ch` resolves against its element, and the block counted
      columns at 14px. The notch carries no text, so this only fixes the unit. */
   .twoslash-block > .twoslash::before {
     font-size: var(--code-font-size);
@@ -372,8 +362,7 @@
   }
 }
 
-/* Motion is the reveal, not the message: without it the surfaces still arrive,
-   they just stop travelling to get there. */
+/* Reduced motion preserves visibility changes without positional movement. */
 @media (prefers-reduced-motion: reduce) {
   @keyframes twoslash-in {
     from {
@@ -392,15 +381,13 @@
   }
 }
 
-/* The controls beside a line, drawn outside the window: it clips, so nothing in
-   it could reach past its edge. Positioned by the editor, which knows where each
-   line sits. */
+/* Position line controls outside the clipping window using editor measurements. */
 /* What notices the pointer on a row, covering it and the gap between it and the
    window: crossing that gap is on the way to the controls. */
 .rail-reach {
   height: var(--rail-height, 0);
   left: calc(var(--rail-left, 0px) - var(--rail-gap, 0px));
-  /* The host takes no pointer of its own, so what covers a row asks for one. */
+  /* Enable pointer events on each row-sized target. */
   pointer-events: auto;
   position: absolute;
   top: var(--rail-top, 0);

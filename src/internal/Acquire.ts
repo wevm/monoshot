@@ -30,8 +30,8 @@ export async function acquire(options: acquire.Options): Promise<void> {
     )
     done += wanted.length
 
-    // Every package's own declarations can name further packages, so the next
-    // round is whatever this one just pulled in.
+    // Package declarations can reference additional packages, which form the
+    // next acquisition round.
     queue = packages.flatMap((entry) => {
       const found: string[] = []
       for (const [path, source] of Object.entries(entry.files)) {
@@ -41,7 +41,7 @@ export async function acquire(options: acquire.Options): Promise<void> {
       return found
     })
     // Counted after the next round is known, and over the names that will
-    // actually be fetched: a package named twice is one request, and a total
+    // require fetching: duplicate package names share one request, and a total
     // counting it twice never arrives at itself.
     onProgress?.(done, done + new Set(queue.filter((name) => !seen.has(name))).size)
   }
@@ -67,7 +67,7 @@ export declare namespace acquire {
     /** The virtual file system to fill, keyed by absolute path. */
     files: Map<string, string>
     /**
-     * Reads one package's declarations. Answers `undefined` for a package with
+     * Reads one package's declarations. Returns `undefined` for a package with
      * none, which leaves its imports as `any`.
      */
     load: (name: string) => Promise<Package | undefined>

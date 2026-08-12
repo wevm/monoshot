@@ -27,10 +27,8 @@ const styles = stylex.create({
     '--window-border': palette.border,
     '--window-title': palette.title,
   }),
-  // Holds the canvas and its resize handles, and reveals them on approach:
-  // a 20px strip is too small to find by hovering it directly. They surface
-  // faintly over the whole frame and come up to full only for the one being
-  // reached for, so the artwork stays the thing you are looking at.
+  // Reveal resize handles across the frame because their 20px edge targets are
+  // difficult to discover directly. Emphasize only the active handle.
   root: {
     '--handle-opacity': { default: 0, ':hover': 0.45 },
     position: 'relative',
@@ -86,7 +84,7 @@ const styles = stylex.create({
   // trail every move and leave the handles off their edges mid-gesture.
   dragging: { transitionDuration: '0s' },
   width: (value: number) => ({ width: value }),
-  // Grab targets sit on the edge and stay out of the way until pointed at.
+  // Resize targets remain transparent until hovered or focused.
   handle: {
     alignItems: 'center',
     backgroundColor: 'transparent',
@@ -139,10 +137,8 @@ const styles = stylex.create({
       'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
   },
   fill: (value: string) => ({ backgroundColor: value }),
-  // Covered rather than tiled or fitted: the artwork is cropped to whatever
-  // shape it is dragged to, the way a desktop crops one to a display. Held to
-  // the viewport when the page draws the same picture, so the two are one
-  // picture with the artwork as the bright part of it.
+  // Crop the image to the artwork bounds. Fixed attachment aligns the artwork
+  // with the same image used as the page background.
   wallpaper: (picture: { attachment: 'fixed' | 'scroll'; source: string }) => ({
     backgroundAttachment: picture.attachment,
     backgroundImage: `url("${picture.source}")`,
@@ -160,7 +156,7 @@ const styles = stylex.create({
   },
   radius: (value: number) => ({ borderRadius: value }),
   windowShadow: { '--window-shadow': shadow.window },
-  // Collapses to nothing, so the window height follows it continuously.
+  // Hide overflow so the window height tracks the animated title bar.
   titleBarShell: { overflow: 'hidden' },
   titleBar: {
     alignItems: 'center',
@@ -189,7 +185,7 @@ const styles = stylex.create({
     '::placeholder': { color: 'var(--window-title)' },
   },
   body: { paddingBlock: 4, paddingInline: 'var(--editor-inset)' },
-  // Without the title bar the code needs its own breathing room at the top.
+  // Reserve top padding for code when the title bar is hidden.
   bodyBare: { paddingBlock: 8 },
 })
 
@@ -221,8 +217,7 @@ export function Frame(props: Frame.Props) {
   // client-only, so the server branch is a fallback rather than a real case.
   const widthMax =
     typeof window === 'undefined' ? 1280 : Math.max(width, Math.min(1280, window.innerWidth - 320))
-  // The window keeps a usable width whatever the artwork is sized to. Both
-  // bounds move together, so neither handle can squeeze the code away.
+  // Move both bounds together to preserve a usable code width.
   const paddingMax = Frame.maxPadding(width)
   const widthMin = Frame.minWidth(padding)
 
@@ -252,9 +247,8 @@ export function Frame(props: Frame.Props) {
               title: palette.window.title,
               to: palette.backdrop.to,
             }),
-            // The theme's own backdrop, which also stands in while a picture
-            // loads: naming one never leaves the artwork on nothing. Out of the
-            // way once the picture is here, since both paint the same property.
+            // Use the theme backdrop while an image loads, then replace it
+            // because both values set the same background property.
             // Every picture, not only the ones there are: a fragment naming one
             // that has since gone would otherwise leave the canvas transparent.
             !wallpaper && (background === 'default' || Wallpapers.names(background))
@@ -482,9 +476,9 @@ declare namespace Handle {
     edge: 'start' | 'end'
     /** Value change per pixel of pointer travel, signed by which edge moves. */
     factor: number
-    /** Accessible name, which says which edge of what this one moves. */
+    /** Accessible name identifying the resized edge and region. */
     label: string
-    /** What the tooltip says, when the name is longer than a hint wants. */
+    /** Short tooltip label when the accessible name requires more detail. */
     hint?: string | undefined
     max: number
     min: number
@@ -568,9 +562,8 @@ export namespace Frame {
   }
 
   /**
-   * Sizes the frame can actually render. The codec bounds each field on its
-   * own, so a link can still pair a padding with a width that leaves the code
-   * no room: the padding is kept and the artwork grows to fit it.
+   * Returns renderable frame dimensions. If padding leaves insufficient code
+   * width, this function increases the artwork width.
    */
   export function fit(size: { padding: number; width: number }) {
     const padding = Math.min(paddingCeiling, Math.max(0, size.padding))
@@ -592,9 +585,8 @@ export namespace Frame {
       <div
         ref={(node) => {
           if (!node) return
-          // Written as a value rather than left to inherit: an export serializes
-          // computed styles, and a custom property standing for another one is
-          // copied unresolved, so the marks would reach nothing.
+          // Resolve the custom property because exports serialize computed styles
+          // without resolving nested custom-property references.
           const inset = getComputedStyle(node).getPropertyValue('--editor-inset')
           node.style.setProperty('--body-inset', inset)
         }}

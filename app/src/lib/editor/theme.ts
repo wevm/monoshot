@@ -16,8 +16,8 @@ function mark(color: string, strength = 16) {
 const shadow = { dark: 'rgb(0 0 0 / 0.6)', light: 'rgb(0 0 0 / 0.18)' } as const
 
 /**
- * Dresses the editor as the window it sits in: the frame already paints the
- * background, so the editor contributes text, caret, and selection only.
+ * Styles the editor to match its frame. The frame supplies the background;
+ * this theme supplies text, caret, selection, and editor-specific surfaces.
  *
  * Metrics come from the shared `--code-*` properties rather than values of its
  * own, so the editor and the rendered frame lay out identically.
@@ -78,7 +78,7 @@ export function theme(palette: Theme.derive.Result): Extension {
       // The code's own colors are painted on the spans inside, which the line
       // cannot talk over without saying so.
       '.cm-line[class*="cm-tag-"] span': { color: 'inherit !important' },
-      // Focus says which lines matter, so the rest recede.
+      // Dim lines outside focused ranges.
       '.cm-line.cm-mark-blur': { opacity: 0.4 },
       '.cm-line.cm-mark-highlight': mark(palette.window.foreground, 8),
       '.cm-line.cm-mark-remove': mark(Theme.marks.remove),
@@ -89,8 +89,7 @@ export function theme(palette: Theme.derive.Result): Extension {
       '.cm-scroller': {
         fontFamily: 'var(--code-font-family)',
         // Every line reaches past the inset on both sides, which the scroller
-        // would otherwise offer to scroll to. Lines wrap, so there is nothing
-        // out there to reach.
+        // would otherwise create unnecessary horizontal scrolling.
         overflowX: 'hidden',
         lineHeight: 'var(--code-line-height)',
         tabSize: 'var(--code-tab-size)',
@@ -105,7 +104,7 @@ export function theme(palette: Theme.derive.Result): Extension {
         backgroundColor: palette.window.border,
       },
       // The completion menu takes the window's own surface: it opens over the
-      // artwork, and the default styling is a light panel whatever the theme.
+      // artwork, while CodeMirror's default is always a light panel.
       // Elevated rather than flush, because it floats above the code.
       '.cm-tooltip.cm-tooltip-autocomplete': {
         backgroundColor: `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`,
@@ -152,7 +151,7 @@ export function theme(palette: Theme.derive.Result): Extension {
       // coloring that means something else.
       '.cm-completionIcon': { display: 'none' },
       // Underline only: the default lint styling paints a background that
-      // fights whatever the theme colors the token underneath.
+      // obscures the theme's token color.
       '.cm-lintRange': { paddingBottom: '2px' },
       // Only the error class trades CodeMirror's painted squiggle for an
       // underline. A warning, a suggestion, and a message keep the default,
@@ -179,14 +178,12 @@ export function theme(palette: Theme.derive.Result): Extension {
         padding: 0,
       },
       '.cm-diagnostic': { borderLeft: 'none', padding: '6px 10px' },
-      // A pinned complaint reads the way the exported frame draws one: a row of
-      // the window in the hue a removal carries, since that is what it is about.
+      // Match pinned diagnostic presentation to the exported frame.
       '.cm-objection': {
         ...mark(Theme.marks.remove),
         position: 'relative',
         alignItems: 'flex-start',
-        // Set off from the line above, which it is a note on rather than the
-        // next thing to read.
+        // Separate the diagnostic from its source line.
         marginInline: 'calc(-1px - var(--editor-inset))',
         marginTop: '6px',
         color: Theme.marks.remove,

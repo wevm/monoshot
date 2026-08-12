@@ -27,11 +27,8 @@ const notch = 7
 const mark = Decoration.mark({ class: 'twoslash-mark' })
 
 /**
- * Marks every span a type is known for. Derived from the types rather than
- * mapped alongside them, so the underline and the hover can never disagree
- * about where a type belongs. The marks are always here; the stylesheet reveals
- * them when the pointer is over the code, so nothing advertises itself until
- * you go looking.
+ * Marks every span with a resolved type. Deriving marks from type spans keeps
+ * underline and hover positions consistent. CSS reveals marks on editor hover.
  */
 const marks = EditorView.decorations.compute([Types.types], (state) =>
   Decoration.set(
@@ -46,7 +43,7 @@ const marks = EditorView.decorations.compute([Types.types], (state) =>
 /**
  * Shows an identifier's type on hover, and pins it on click. Pinning writes the
  * `^?` line twoslash reads, so a pin is part of the snippet rather than state
- * beside it: it survives a reload, and the export already knows how to draw it.
+ * beside it: it survives reloads and uses the existing export representation.
  */
 export const hover: Extension = [
   Types.types,
@@ -59,28 +56,24 @@ export const hover: Extension = [
       const found = Types.at(view.state, pos)
       const identifier = found && { from: found.from, to: found.to }
       if (!identifier || !found) return null
-      // What is wrong with a token outranks what type it holds, and it is read
-      // on the same surface: one popover, whichever it is showing.
-      const complaint = objection(view.state, identifier)
+      // Prefer diagnostics over type information when both cover the token.
+      const diagnostic = objection(view.state, identifier)
       // Already on screen, either as the block a pin left or as the type a
       // caret line asked for: a hover would only cover what it is about.
-      if (complaint ? kept(view.state, complaint.from) : pinned(view, identifier)) return null
-      const message = complaint && prose(complaint.message)
+      if (diagnostic ? kept(view.state, diagnostic.from) : pinned(view, identifier)) return null
+      const message = diagnostic && prose(diagnostic.message)
       const annotation = found.annotation
       /**
-       * What the surface is showing, so a change behind it is noticed: waving a
-       * complaint off leaves the type in its place, and the popover the press
-       * landed in becomes that rather than closing.
+       * Returns the state represented by the current popover content.
        */
       const showing = (state: EditorState) => {
         const found = objection(state, identifier)
         return `${found?.message ?? ''}|${overlookedAt(state, identifier) ?? ''}`
       }
-      /** The surface for whatever the state is now: a complaint, or a type. */
+      /** Renders the current diagnostic or type annotation. */
       const draw = (state: EditorState) => {
         const found = objection(state, identifier)
-        // A complaint waved off is no longer reported, so the only thing left
-        // saying it was ever there is the offer to hear it again.
+        // Offer restoration when this span contains an ignored diagnostic.
         const waved = found ? undefined : overlookedAt(state, identifier)
         return Annotation.element(
           found ? prose(found.message) : annotation,
@@ -120,11 +113,7 @@ export const hover: Extension = [
           let surface = draw(view.state)
           const root = bridge(surface)
           /**
-           * Points the notch at the word. Runs after placement, which is the
-           * only point at which where the surface actually landed is known: a
-           * tooltip wider than the room to its right is clamped into the
-           * viewport, and a notch pinned at a fixed inset would then point
-           * somewhere left of its word.
+           * Aligns the notch with the identifier after viewport-constrained placement.
            */
           const point = () => {
             if (!word) return
@@ -135,25 +124,16 @@ export const hover: Extension = [
           }
           return {
             dom: root,
-            // The measure phase is the one place a tooltip may ask CodeMirror
-            // where a position sits, so the word is taken here and read back
-            // once the surface has been placed.
+            // Measure the identifier through CodeMirror's tooltip lifecycle.
             getCoords(anchor) {
               word = view.coordsAtPos(anchor)
               // CodeMirror hides a tooltip whose anchor it cannot measure, and
-              // its own default returns the same nothing this does; only the
+              // its default also returns null; only the declared type excludes
               // hook's declared type leaves the case out.
               return word as Rect
             },
-            // Offset belongs on the view, not the spec: CodeMirror reads it off
-            // what `create` returns. Back by the notch's own inset, so the notch
-            // lands on the token rather than a few characters into it. The drop
-            // below the word is the bridge's, not the offset's: CodeMirror hides
-            // the hover as soon as the pointer leaves both the word and the
-            // tooltip, so an offset gap is a moat you cannot cross.
-            //
-            // Back by the reach as well, so widening the tooltip leftwards
-            // leaves the surface itself where it was.
+            // Include the notch inset and bridge width while preserving the
+            // visible surface position.
             offset: { x: -inset - reach, y: 0 },
             positioned: point,
             update(update) {
@@ -161,8 +141,7 @@ export const hover: Extension = [
               if (next === shape) return
               shape = next
               surface = draw(update.state)
-              // The controls on the old surface go with it, and a button taken
-              // off the page under the pointer never hears the pointer leave.
+              // Dismiss tooltip state before replacing its interactive controls.
               Tooltip.point()
               root.replaceChildren(surface)
               point()
@@ -174,13 +153,10 @@ export const hover: Extension = [
       }
     },
     {
-      // Pinning writes the caret line, and the type it puts in flow is the
-      // one the hover is showing: without this the hover outlives the edit
-      // and sits on top of the block it just made.
+      // Close the hover when pinning inserts the corresponding inline type block.
       hideOnChange: true,
-      // The types are already in hand, so waiting only makes the editor feel
-      // slower than it is. One millisecond rather than zero: CodeMirror reads
-      // this as `hoverTime || 300`, so a falsy value restores the default.
+      // Type data is already available. Use one millisecond because CodeMirror
+      // replaces a zero value with its 300ms default.
       hoverTime: 1,
     },
   ),
@@ -215,8 +191,7 @@ function prose(message: string): Annotation.Annotation {
 function covered(view: EditorView, identifier: { from: number }, lines: number) {
   const { doc } = view.state
   const start = doc.lineAt(identifier.from).number
-  // A complaint kept on screen draws directly under its line, which is exactly
-  // the space a popover would open into.
+  // A pinned diagnostic occupies the space below its source line.
   if (keptUnder(view.state, start) !== undefined) return true
   const end = Math.min(doc.lines, start + lines + 1)
   for (let line = start + 1; line <= end; line++)
@@ -233,7 +208,7 @@ function bridge(surface: HTMLElement): HTMLElement {
   return root
 }
 
-/** The `^?` line under an identifier's line, whatever it points at. */
+/** Returns the `^?` line immediately below an identifier. */
 function caretBelow(view: EditorView, identifier: { from: number }) {
   const { doc } = view.state
   const line = doc.lineAt(identifier.from)

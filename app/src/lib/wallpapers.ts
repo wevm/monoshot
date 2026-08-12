@@ -17,7 +17,7 @@ export type Wallpaper = { id: string; name: string }
 /** A loaded wallpaper: the image itself, and the color it reads as. */
 export type Picture = {
   /**
-   * The strongest color in the picture, for whatever is tinted to match it.
+   * Dominant image color used to tint related UI.
    * Absent until it has been read, which the picture does not wait for.
    */
   color?: string | undefined
@@ -43,19 +43,19 @@ export function background(id: string) {
   return `${prefix}${id}`
 }
 
-/** The wallpaper a background names, or nothing when it names a color. */
+/** Returns the wallpaper referenced by a background, or `undefined` for colors. */
 export function at(background: string): Wallpaper | undefined {
   if (!background.startsWith(prefix)) return undefined
   const id = background.slice(prefix.length)
   return list.find((wallpaper) => wallpaper.id === id)
 }
 
-/** Whether a background names a wallpaper, whether or not one answers to it. */
+/** Whether a background references a wallpaper identifier. */
 export function names(background: string): boolean {
   return background.startsWith(prefix)
 }
 
-/** The wallpaper of that id, or nothing when it names none. */
+/** Returns the wallpaper with the specified identifier, when available. */
 export function byId(id: string): Wallpaper | undefined {
   return list.find((wallpaper) => wallpaper.id === id)
 }
@@ -93,7 +93,7 @@ export function embed(id: string): Promise<string> {
  *
  * Asked for apart from the picture rather than with it: reading the color means
  * decoding the image, and a backdrop that waited for that would be held back by
- * work nothing on screen is waiting for.
+ * work that does not block visible content.
  */
 export function color(id: string): Promise<string> {
   const held = cast.get(id)
@@ -153,7 +153,7 @@ async function strongest(source: string): Promise<string> {
     read += 1
     const chroma = color.c
     // A grey pixel carries no hue to weigh, and enough of them would otherwise
-    // drag every arc toward whatever little tint they hold.
+    // shift every hue toward weak chromatic noise.
     if (chroma <= 0.02 || !Number.isFinite(color.h)) continue
     const hue = color.h ?? 0
     const arc = Math.floor(hue / 30)

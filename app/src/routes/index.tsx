@@ -50,9 +50,8 @@ const styles = stylex.create({
     backgroundColor: surface.background,
     color: surface.foreground,
   }),
-  // The artwork's own picture, carried across the shell under a wash of the
-  // page's color: the same picture at full strength either side of the
-  // artwork's edge would leave nothing to see that edge by.
+  // Extend the artwork image across the page under a color overlay that keeps
+  // the artwork boundary visible.
   canvasPicture: (picture: { scrim: string; source: string }) => ({
     // Held to the viewport, which the artwork's own copy is held to as well: one
     // picture across both, rather than each covering its own box with a
@@ -158,8 +157,7 @@ const styles = stylex.create({
   },
   arrowInnerEnd: { flexDirection: 'row-reverse' },
   arrowInnerPressed: { transform: 'scale(0.92)' },
-  // A key cap carrying the arrow key that does the same thing. Both surfaces
-  // mix from the inherited text color, so it sits on any theme's page.
+  // Display the corresponding arrow key using colors derived from the page theme.
   arrowKey: {
     alignItems: 'center',
     backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
@@ -191,8 +189,8 @@ const styles = stylex.create({
 /** Held still so the editor is not reconfigured with a fresh array each render. */
 const empty: Editor.Props['types'] = []
 
-/** The same, for a document the compiler has said nothing about yet. */
-const nothing: readonly number[] = []
+/** Stable empty offset list used before compiler results are available. */
+const emptyOffsets: readonly number[] = []
 
 const quiet: Editor.Props['diagnostics'] = []
 
@@ -200,10 +198,8 @@ const quiet: Editor.Props['diagnostics'] = []
 type Settings = Toolbar.State & { padding: number; radius: number; width: number }
 
 /**
- * Everything the offscreen copy draws, taken together the moment an export is
- * asked for. A capture spans several awaits, and the page stays editable
- * throughout, so reading the live values would pair this code with a later
- * title, palette, or geometry.
+ * Snapshot of offscreen export content. Captures span asynchronous operations,
+ * so this prevents later edits from changing title, palette, or geometry.
  */
 type Artwork = {
   /** Styles the annotated markup needs, when the render produced any. */
@@ -255,8 +251,7 @@ function restore(hash: string) {
       ? 'auto'
       : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
   return {
-    // A fragment that does not decode reads the same as no fragment at all, so
-    // an empty document falls back rather than opening on nothing.
+    // Use the sample when a fragment is unreadable or contains an empty document.
     code: state.code || sample,
     settings: {
       background: state.background,
@@ -353,8 +348,7 @@ function Page() {
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
-    // Nothing shared, or nothing readable: the codec answers with its own
-    // defaults, and those know only what shiki bundles.
+    // Retain application defaults when the fragment is absent or unreadable.
     if (!Codec.readable(window.location.hash)) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
@@ -371,8 +365,8 @@ function Page() {
   // that did match stays until one for this document arrives. The editor maps
   // what it already holds through the edits between.
   const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
-  /** Complaints the writer waved off, which the picture leaves out too. */
-  const [ignored, setIgnored] = useState<readonly number[]>(nothing)
+  /** Diagnostic offsets ignored by both the editor and exported image. */
+  const [ignored, setIgnored] = useState<readonly number[]>(emptyOffsets)
   // Seeded with the default snippet's types, resolved at build time: the
   // worker that resolves them carries a compiler, and a first visit would
   // download it to draw a document nobody has touched.
@@ -404,7 +398,7 @@ function Page() {
   }, [code, settings.language])
 
   // The sample was resolved as one language at build time, and reads as that
-  // one whatever detection makes of it. Detection still owns every other
+  // one regardless of detection. Detection still controls every other
   // document, including one it cannot place, which stays TypeScript.
   const language =
     settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
@@ -442,9 +436,7 @@ function Page() {
   // which would block typing on this thread. Debounced, because resolving a
   // document costs more than drawing one.
   useEffect(() => {
-    // Anything still in flight was asked about the previous document, so it is
-    // dropped here rather than when its replacement goes out: the debounce is
-    // long enough for a stale answer to land inside it.
+    // Invalidate previous-document work before the debounce window can accept a stale result.
     resolver.current?.invalidate()
     // Turned off, the snippet is read as text: the compiler is what draws the
     // types, the squiggles, and the blocks a `^?` leaves behind.
@@ -520,7 +512,7 @@ function Page() {
     // can still be loading. The spans are offsets into the document that was
     // resolved, so an edit reruns this and drops them rather than marking the
     // wrong words. The editor keeps mapping the spans it already holds.
-    // The dialect too, not just the text: the same source is valid in one and
+    // Validate the dialect as well as text because the same source is valid in one and
     // an error in another, so a reply from before a language change describes
     // a document this one no longer is.
     if (resolved.document !== code || resolved.lang !== dialects[language as keyof typeof dialects])
@@ -570,9 +562,7 @@ function Page() {
       // Fonts first: capturing before they load bakes in fallback metrics.
       await document.fonts.ready
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      // The copy mounts fresh, so everything in it is partway through its
-      // entrance. A type fading in from nothing would be captured at nothing:
-      // present, taking its space, and invisible.
+      // Complete entry animations before capture to avoid exporting transparent content.
       for (const animation of node.getAnimations({ subtree: true }))
         if (animation.playState !== 'idle') animation.finish()
       const size = node.getBoundingClientRect()
@@ -594,12 +584,8 @@ function Page() {
   function take(options: Export.capture.Options) {
     const id = (attempt.current += 1)
     setNotice(undefined)
-    // Read now rather than when the queue reaches this export: the page stays
-    // editable while an earlier one runs, and this one is of the moment it was
-    // asked for.
-    // The exported markup turns `^?` lines into blocks, so it wants the
-    // queries rather than every identifier's type. Only ones resolved against
-    // this document: an older answer's offsets would mark the wrong words.
+    // Snapshot inputs now because the page remains editable while queued exports run.
+    // Exported markup uses `^?` query results resolved against this document.
     // Only a run resolved against this very document: an older one carries
     // offsets into text that is no longer here.
     const found = resolved?.document === code ? resolved.types : undefined
@@ -622,8 +608,7 @@ function Page() {
 
   function save(options: Export.capture.Options) {
     const { report, run } = take(options)
-    // Named for the title the export was asked under, not for whatever the
-    // field says once the capture finishes.
+    // Derive the filename from the title captured when export starts.
     const name = `${title || 'untitled'}.${options.type}`
     void run.then((blob) => Export.download(blob, { name })).catch(report)
   }
@@ -674,7 +659,7 @@ function Page() {
     void Warm.themes({
       from: settings.theme,
       // The full sweep is a couple of megabytes of chunks, so a metered
-      // connection gets the neighbours the arrows reach and nothing more.
+      // connection preloads only adjacent themes.
       limit: metered() ? 4 : names.length,
       list: names,
       load: (theme) => renderer.load({ lang: 'tsx', theme }),
@@ -692,8 +677,7 @@ function Page() {
       if (event.target.closest('input, textarea, [role="slider"], [contenteditable]')) return
       event.preventDefault()
       step(direction)
-      // Focus the side that fired, so the key press has somewhere to land,
-      // and hold the press just long enough to read as one.
+      // Focus the corresponding control and show brief pressed feedback.
       const arrow = direction === -1 ? previousArrow : nextArrow
       arrow.current?.focus()
       setPressed(direction)
@@ -707,8 +691,7 @@ function Page() {
     }
   }, [])
 
-  // The shortcuts the export menu advertises. Without these the browser answers
-  // them instead, saving the page or copying the selection.
+  // Override browser defaults for shortcuts advertised by the export menu.
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
       if (event.altKey || !(event.ctrlKey || event.metaKey)) return
@@ -772,8 +755,7 @@ function Page() {
       )}
     >
       {rect && (
-        // With a backdrop the guides stop at the artwork; with nothing to
-        // respect at that edge they run the full screen.
+        // Constrain guides to artwork bounds when a backdrop defines visible edges.
         <div aria-hidden {...stylex.props(styles.guides)}>
           {[rect.top, rect.bottom].map((top) =>
             (bleed
@@ -934,8 +916,7 @@ function Page() {
                   language={language}
                   onCodeChange={setCode}
                   onIgnore={setIgnored}
-                  // A language the service cannot read has nothing to offer,
-                  // and the resolver only exists once a document needed one.
+                  // Return no completions for unsupported languages or before resolver creation.
                   onComplete={async (document, position) => {
                     const dialect = settings.types
                       ? dialects[language as keyof typeof dialects]
@@ -978,8 +959,7 @@ function useEdges() {
   const [rect, setRect] = useState<Edges>()
 
   useLayoutEffect(() => {
-    // Without the frame there is nothing to crop, so the guides go with it
-    // rather than framing whatever the error state renders instead.
+    // Remove crop guides when the frame is unavailable.
     if (!node) {
       setRect(undefined)
       return
@@ -1021,9 +1001,8 @@ type Edges = {
 }
 
 /**
- * Whether the platform's own copy already answers this press. The artwork only
- * takes a bare Copy when nothing else would: the editor is where code is copied
- * from, and a selection anywhere is a request for that text.
+ * Whether native copy behavior should handle this keypress.
+ * Inputs, editable content, and active selections retain the platform behavior.
  */
 function copying(event: KeyboardEvent) {
   const { target } = event

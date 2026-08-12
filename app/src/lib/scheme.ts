@@ -43,8 +43,7 @@ export function set(next: Scheme) {
   try {
     localStorage.setItem(storageKey, next)
   } catch {
-    // Private browsing and blocked storage: the scheme still applies for this
-    // session, it just does not persist.
+    // Apply the scheme for this session when storage is unavailable.
   }
   document.documentElement.style.colorScheme = next === 'system' ? '' : next
   for (const listener of listeners) listener()

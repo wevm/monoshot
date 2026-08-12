@@ -16,7 +16,7 @@ const field = StateField.define<Value>({
   ],
 })
 
-/** What a notation asks a line to look like. */
+/** Visual treatment applied by a notation. */
 export type Kind = 'add' | 'focus' | 'highlight' | 'remove'
 
 /** A notation, the lines it marks, and where its comment sits in the source. */
@@ -25,11 +25,11 @@ export type Notation = {
   alone: boolean
   /** Where the comment starts, as a document offset. */
   from: number
-  /** What the notation asks those lines to look like. */
+  /** Visual treatment applied to the selected lines. */
   kind: Kind
   /** The lines it marks, numbered from one as the document numbers them. */
   lines: readonly number[]
-  /** Where the comment ends, as the document offset just past it. */
+  /** Exclusive end offset of the comment. */
   to: number
 }
 
@@ -99,10 +99,10 @@ export function syntax(language: string): Syntax {
 }
 
 /**
- * A notation comment, in the comment syntax of whatever the snippet is written
+ * A notation comment in the snippet language's comment syntax.
  * in. The count suffix, as in `[!code hl:3]`, is how many lines it covers.
  *
- * Every one on the line, not just the last: shiki reads them all, so a line
+ * Match every notation on the line because Shiki processes all of them. A line
  * carrying two would otherwise show one of them as code.
  */
 const pattern =
@@ -148,16 +148,14 @@ export const notations: Extension = field
  * The snippet without what was written to mark it: the notations, the tags, and
  * the caret lines asking for a type.
  *
- * What is copied is the code, the way the exported frame draws it. Whoever
- * pastes it wants the snippet rather than the instructions for drawing it.
+ * Clipboard output contains source code without rendering directives.
  */
 export function bare(text: string): string {
   return text
     .split('\n')
     .filter((line) => {
       if (tags.test(line) || Identifier.caretColumn(line) !== undefined) return false
-      // A line holding only notations goes; a line holding nothing stays, since
-      // that is the shape of the code.
+      // Remove notation-only lines while preserving intentional blank lines.
       return line.trim() === '' || line.replace(pattern, '').trim() !== ''
     })
     .map((line) => {
@@ -187,7 +185,7 @@ export function takesMark(state: EditorState, line: number): boolean {
 }
 
 /**
- * Lines holding nothing but a notation, which the export removes. The editor
+ * Lines containing only a notation, which exports remove. The editor
  * skips their numbers so both surfaces count the code the same way.
  */
 export function removed(state: EditorState): readonly number[] {
@@ -195,12 +193,10 @@ export function removed(state: EditorState): readonly number[] {
 }
 
 /**
- * Turns a mark on or off for a line. A line reads as one thing at a time, so
- * setting one takes off what it carried, except for focus: whether a line is
- * one of the ones that matter is a different question from what it is marked as.
+ * Toggles a line mark. Add, remove, and highlight are mutually exclusive;
+ * focus can coexist because it controls visibility rather than mark style.
  *
- * A notation reaching further than the line goes entirely rather than shrinking:
- * a count is what its writer asked for, and halving it is not.
+ * Removes a multi-line notation instead of changing its requested range.
  */
 export function toggle(
   state: EditorState,
@@ -216,7 +212,7 @@ export function toggle(
     return own ? away(state, own) : { from: text.from, insert: `${comment(kind)}\n` }
   // A mark of this line's own axis, written above it, goes from there. Taken as
   // whole lines rather than one comment at a time: two on neighbouring lines
-  // each claim the break between them, and overlapping ranges apply to nothing.
+  // each include the intervening line break and cannot safely overlap.
   const changes: ChangeSpec[] = emptied(
     state,
     carried
@@ -328,7 +324,7 @@ function build(state: EditorState): Value {
     const first = alone ? number + 1 : number
     // Held to the lines there are: a snippet asking for a billion of them, or
     // for so many that the count reads as infinite, is asking the editor to
-    // rebuild its decorations until the tab gives up.
+    // trigger repeated decoration rebuilds.
     const last = Math.min(first + count(match[2]) - 1, doc.lines)
     const covered = []
     for (let target = first; target <= last; target++) {
@@ -350,9 +346,9 @@ function build(state: EditorState): Value {
   for (let number = 1; number <= doc.lines; number++) {
     const kinds = marked.get(number)
     const { from } = doc.line(number)
-    // A line carrying a mark of its own keeps it: the mark is the louder claim.
+    // Preserve an explicit line mark when focus also applies.
     // A tag is prose about the code rather than code that fell out of focus,
-    // and the export draws it undimmed whatever the snippet focuses.
+    // and exports always render it at full opacity.
     if (focused && !kinds?.size && !tagged.has(number)) {
       ranges.push(line('blur').range(from))
     }
@@ -370,7 +366,7 @@ function build(state: EditorState): Value {
 }
 
 /**
- * The ranges the notations on a line stop occupying. A line holding nothing else
+ * The source ranges occupied by a line's notations. A notation-only line
  * takes a line break with it, so it closes up rather than staying blank.
  */
 function conceal(
@@ -382,10 +378,8 @@ function conceal(
   },
 ) {
   const { alone, line, written } = options
-  // Emptied and closed by a rule of its own rather than replaced across a line
-  // break: the break before it belongs to the line above, which is left with no
-  // row of its own when it holds nothing, and the break after belongs to the
-  // line this marks, which loses its mark along with it.
+  // Hide the row contents without replacing adjacent line breaks, which belong
+  // to the surrounding source lines.
   if (alone) return [Decoration.replace({}).range(line.from, line.to)]
   // The gap each comment sat behind goes too, so the code does not end in one.
   return written.map((match) => {
@@ -405,7 +399,7 @@ function count(written: string | undefined): number {
   return Number.isSafeInteger(asked) && asked > 0 ? asked : 1
 }
 
-/** A row holding a notation and nothing else, which is not part of the code. */
+/** A notation-only row that is excluded from rendered code. */
 const gone = Decoration.line({ class: 'cm-gone' })
 
 const lines = new Map<string, Decoration>()

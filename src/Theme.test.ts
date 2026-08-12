@@ -135,7 +135,7 @@ describe('derive', () => {
 
   test('keeps achromatic themes neutral instead of emitting NaN hues', async () => {
     // Not a theme the picker offers, which a palette is derived from all the
-    // same: what is drawn is whatever shiki resolved.
+    // same because rendering uses the colors resolved by Shiki.
     const rendered = await frame.render({ code: 'a', lang: 'ts', theme: 'min-light' })
     const result = Theme.derive(rendered.theme)
     expect(result.backdrop.from).not.toContain('NaN')

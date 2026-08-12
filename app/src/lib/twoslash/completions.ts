@@ -4,11 +4,9 @@ import type ts from 'typescript'
 import type { Completion, Lang } from './protocol.js'
 
 /**
- * Where the language service stops offering things reachable from the caret.
- * Below this are the priorities specific to a position: locally declared,
+ * Sort-text threshold for position-specific completions. Lower priorities include locally declared,
  * otherwise in scope, optional members, members from a spread, and suggested
- * class members. From here up are globals, keywords, and auto-imports, which
- * on an empty line is some nine hundred names nobody is reaching for.
+ * class members. Higher priorities contain globals, keywords, and auto-imports.
  */
 const global = '15'
 
@@ -23,14 +21,12 @@ const global = '15'
 export function create(options: create.Options): create.ReturnType {
   const { compiler, files } = options
   // `allowJs`, because a document can be JavaScript: without it a `.js` root
-  // file is not part of the program at all and the service knows nothing
-  // about it.
+  // file is excluded from the program.
   const compilerOptions = { ...options.compilerOptions, allowJs: true }
-  // Built on the first request rather than at load: a session that never asks
-  // for a completion never pays for the program.
+  // Build lazily to avoid creating a program when completion is unused.
   let environment: ReturnType<typeof createVirtualTypeScriptEnvironment> | undefined
   // The root file the current program was built around. A document's language
-  // can change under it, and a program only knows the roots it was given.
+  // can change, and the program retains its original roots.
   let root: string | undefined
 
   return {

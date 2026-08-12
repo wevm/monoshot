@@ -14,7 +14,7 @@ export const Route = createRootRoute({
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'monoshot' },
-      { name: 'description', content: 'Beautiful code images with type-aware annotations.' },
+      { name: 'description', content: 'Render code images with type-aware annotations.' },
     ],
     scripts: [{ children: schemeScript }],
     links: [
@@ -29,7 +29,7 @@ export const Route = createRootRoute({
 })
 
 function Layout() {
-  // Every route reads the stored scheme, not just the one that can change it.
+  // Apply the stored color scheme to every route.
   useEffect(() => Scheme.hydrate(), [])
   return (
     <Tooltip.Provider>

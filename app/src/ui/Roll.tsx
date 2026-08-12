@@ -22,7 +22,7 @@ export function Roll(props: Roll.Props) {
   // Every change gets a fresh key, so a value returning while its predecessor
   // is still leaving enters as a new glyph from below instead of reversing the
   // one in flight. Digits keep their character as the key: an unchanged digit
-  // has nothing to animate.
+  // does not require a transition.
   const [seen, setSeen] = useState({ count: 0, value })
   if (seen.value !== value) setSeen({ count: seen.count + 1, value })
   return (

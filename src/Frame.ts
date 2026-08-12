@@ -42,8 +42,8 @@ export function create<const themes extends Themes = []>(
 ): create.ReturnType<themes> {
   const { engine, langs = [], themes = [] } = options
 
-  // Holds a TypeScript compiler and the lib files it reads, so both are paid
-  // for once per renderer, and only when a render actually asks for types.
+  // Retains one TypeScript compiler and its library files per renderer. They
+  // load only when a render requires type information.
   let resolver: Promise<Cdn.create.ReturnType> | undefined
 
   /**
@@ -71,7 +71,7 @@ export function create<const themes extends Themes = []>(
 
   /**
    * Imported here rather than at the top of the module: the compiler is
-   * megabytes, `Frame` is what a browser reaches for to highlight, and a
+   * megabytes, `Frame` loads highlighting resources in a browser, and a
    * static import would put one in every bundle that holds the other.
    *
    * The `core` entrypoint rather than the package root, which imports
@@ -83,18 +83,16 @@ export function create<const themes extends Themes = []>(
   ): Promise<ShikiTransformer> {
     const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
     return createTransformerFactory(
-      // The factory asks for a mutable node list. Nothing reads one that way,
-      // and a caller holding a resolved run should not copy it to hand it over.
+      // The factory requires a mutable node list, although this path never
+      // mutates it. Avoid copying resolved data solely to satisfy that type.
       twoslasher as Parameters<typeof createTransformerFactory>[0],
       rendererRich({ errorRendering: 'line', queryRendering: 'line' }),
     )({
-      // The default is `ts` and `tsx` alone, which silently draws nothing for
-      // a JavaScript document the language service resolves types for just as
-      // well. Both the ids and the aliases: the filter matches the name it was
-      // called with, and callers spell it either way.
+      // Include JavaScript and TypeScript IDs and aliases. The default omits
+      // JavaScript, even though the language service resolves its types.
       langs: ['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'],
-      // A snippet in an editor is half-typed most of the time, and code that
-      // does not compile still has types worth drawing.
+      // Editor input is frequently incomplete, but available type information
+      // remains useful when compilation fails.
       throws: false,
     })
   }
@@ -105,16 +103,15 @@ export function create<const themes extends Themes = []>(
 
   async function resolve(parameters: load.Options<themes>): Promise<Highlighter> {
     const { lang, theme } = parameters
-    // A rejected promise must not be cached, or one transient failure would
-    // poison every later render on this renderer.
+    // Remove rejected promises from the cache so a transient failure does not
+    // affect subsequent renders.
     highlighter ??= start().catch((cause: unknown) => {
       highlighter = undefined
       throw cause
     })
     const instance = await highlighter
     await Promise.all([
-      // Loaded already, or composed rather than bundled, or one shiki has:
-      // whatever is none of those is what the load rejects on.
+      // Load themes that are neither already loaded nor composed locally.
       instance.getLoadedThemes().includes(theme)
         ? undefined
         : instance.loadTheme(
@@ -161,8 +158,8 @@ export function create<const themes extends Themes = []>(
       resolve({ lang, theme }),
       twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash, code),
     ])
-    // The renderer draws the type it resolved as TypeScript, whatever the
-    // document is written in, and asks the highlighter for that grammar.
+    // Twoslash formats resolved annotations as TypeScript, independent of the
+    // source language, so annotated output requires that grammar.
     if (annotations) {
       const popup = lang === 'jsx' || lang === 'tsx' ? 'tsx' : 'ts'
       if (!instance.getLoadedLanguages().includes(popup)) await instance.loadLanguage(popup)
@@ -217,8 +214,8 @@ export function create<const themes extends Themes = []>(
   return {
     async dispose() {
       const instance = await highlighter?.catch(() => undefined)
-      // The compiler and its virtual file system go with it: a renderer kept
-      // after disposal rebuilds both on the next render that wants them.
+      // Disposal releases the compiler and virtual file system. A later typed
+      // render recreates both resources.
       resolver = undefined
       highlighter = undefined
       instance?.dispose()
@@ -390,9 +387,8 @@ export declare namespace render {
 
   type ReturnType = {
     /**
-     * Styles the markup needs, which draw the query blocks, the rows a mark or
-     * a tag reads as, and keep the hover popovers out of flow. Absent only
-     * where the snippet carries nothing of the kind and no run was asked for.
+     * Styles for query blocks, marked rows, tags, and hover popovers. Absent
+     * when the render contains none of those elements.
      */
     css?: string | undefined
     /** Highlighted markup: a `pre.shiki` whose lines carry `data-line`. */
@@ -403,9 +399,8 @@ export declare namespace render {
 }
 
 /**
- * Shiki's own readers for the marks a snippet carries. Always on: a notation
- * costs nothing to look for, and a snippet that has none renders as it would
- * have anyway.
+ * Shiki transformers for notation markers embedded in source code. They remain
+ * enabled because unmarked snippets render unchanged.
  */
 const notations = [
   transformerNotationDiff(),

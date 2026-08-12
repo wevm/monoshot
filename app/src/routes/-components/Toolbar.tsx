@@ -38,8 +38,7 @@ const styles = stylex.create({
   // The color row is a fixed set of chips, so it sizes to them and centers on
   // the bar. Matching the bar would stretch or squeeze it every time the theme
   // name changes length.
-  // A width of its own rather than the bar's: the bar is as wide as the name of
-  // whatever is selected, and the grid would reflow every time that changed.
+  // Use a fixed panel width so selection-label changes do not reflow the grid.
   panelThemes: { width: 520 },
   panelFit: {
     insetInline: 'auto auto',
@@ -92,8 +91,7 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   itemOpen: { backgroundColor: color.chromeHover },
-  // Still readable, since what it says about the snippet is the point of it
-  // being here at all.
+  // Keep the value legible while indicating that the control is unavailable.
   itemDisabled: {
     backgroundColor: 'transparent',
     cursor: 'default',
@@ -126,11 +124,8 @@ const styles = stylex.create({
   // Started where the row below it starts: the rows take different insets, and a
   // label set to one of them hangs off the other.
   rowTitle: (inset: number) => ({ color: color.onChromeSecondary, paddingInline: inset }),
-  // A selected swatch's ring is drawn outside it and a hovered one grows past
-  // its box, both of which a scrolling row counts as somewhere to scroll to:
-  // the padding is the room they take instead. Enough for a swatch that is both
-  // at once, which grows the ring's 3px and the 2px beyond it by the hover's
-  // own scale.
+  // Reserve scroll padding for the selection ring and hover scaling outside a
+  // swatch's layout box.
   colorRow: {
     alignItems: 'center',
     display: 'flex',
@@ -139,8 +134,7 @@ const styles = stylex.create({
     overflowY: 'hidden',
     padding: 10,
   },
-  // Every picture takes an equal share, so the set spans the width the colors
-  // below it ask for. Narrow enough and they scroll, as the colors do.
+  // Distribute picture swatches evenly and allow horizontal scrolling on narrow viewports.
   pictureRow: {
     display: 'flex',
     gap: 5,
@@ -182,8 +176,7 @@ const styles = stylex.create({
     position: 'absolute',
   },
   swatchColor: (value: string) => ({ backgroundColor: value }),
-  // Landscape, since what it stands for is a picture rather than a color: a
-  // square crop of one says too little about it to pick by.
+  // Use landscape previews to show more identifying image content.
   swatchPicture: (source: string) => ({
     backgroundImage: `url("${source}")`,
     backgroundPosition: 'center',
@@ -195,7 +188,7 @@ const styles = stylex.create({
     minWidth: 28,
     width: 'auto',
   }),
-  // Stands for the theme's own gradient rather than a flat color.
+  // Preview the theme's gradient instead of a flat color.
   swatchDefault: { backgroundImage: 'linear-gradient(140deg, #6f5233, #2a1c0f)' },
   // The transparency checker, drawn rather than imported.
   swatchNone: {
@@ -225,8 +218,7 @@ const styles = stylex.create({
   list: {
     display: 'flex',
     flexDirection: 'column',
-    // A row of its own, so one reads as a thing to press rather than a band of
-    // a longer surface.
+    // Separate options visually so each reads as an individual control.
     gap: 2,
     maxHeight: 260,
     overflowY: 'auto',
@@ -678,7 +670,7 @@ export declare namespace Toolbar {
   type Props = State & {
     /** Receives only the settings that changed. */
     onChange: (next: Partial<State>) => void
-    /** The language actually in use, which under `auto` is the detected one. */
+    /** Resolved language; under `auto`, this is the detected language. */
     resolved: BundledLanguage
   }
 
@@ -738,7 +730,7 @@ function backgroundLabel(background: string) {
   return Wallpapers.at(background)?.name ?? background.toUpperCase()
 }
 
-/** Settles quickly without overshooting into wobble. */
+/** Spring transition with limited overshoot. */
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
 
 // The bar moving between two known widths is not a gesture with momentum, so
@@ -758,7 +750,7 @@ function bezier(value: string): [number, number, number, number] {
   return value.slice('cubic-bezier('.length, -1).split(',').map(Number) as never
 }
 
-/** Keeps the last value so a change knows which way to roll. */
+/** Retains the previous value to determine transition direction. */
 function usePrevious<value>(value: value): value {
   const previous = useRef(value)
   useEffect(() => {

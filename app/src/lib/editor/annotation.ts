@@ -6,22 +6,21 @@ export type Annotation = readonly (readonly Token[])[]
 
 /** The pin control a surface carries, when it offers one. */
 export type Action = {
-  /** The glyph it is drawn as. The pin, for whatever pins or unpins. */
+  /** Optional action glyph. Defaults to the pin icon. */
   icon?: string | undefined
   /** Accessible name, which also says which way the toggle goes. */
   label: string
   select: () => void
 }
 
-/** Lucide's x, for whatever a surface offers to be rid of. */
+/** Lucide `x` path used for dismiss actions. */
 export const cross = 'M18 6 6 18M6 6l12 12'
 
-/** Lucide's rotate-ccw, for whatever a surface offers to have back. */
+/** Lucide `rotate-ccw` path used for restore actions. */
 export const back = 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5'
 
 /**
- * Lucide's pin, at the size the annotation type is set in. Shared, so whatever
- * offers to unpin something offers the same glyph.
+ * Lucide `pin` path sized for annotation controls.
  */
 export const pin =
   'M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'
@@ -87,9 +86,8 @@ function control(action: Action): HTMLElement {
   button.className = 'twoslash-pin'
   button.type = 'button'
   button.ariaLabel = action.label
-  // The hint every other control in the app draws, asked for by hand: a button
-  // written rather than rendered has nothing for a trigger to wrap. On focus as
-  // well as on hover, since a pin is reached by keyboard as readily as by pointer.
+  // Use the imperative tooltip API because this button is created outside React.
+  // Support both pointer and keyboard focus.
   const named = () => Tooltip.point({ at: button, label: action.label })
   const done = () => Tooltip.point()
   button.addEventListener('pointerenter', named)
@@ -105,8 +103,7 @@ function control(action: Action): HTMLElement {
       return
     event.preventDefault()
     event.stopPropagation()
-    // Before it acts, since acting redraws the surface this sits on: a button
-    // taken off the page under the pointer never hears the pointer leave.
+    // Dismiss the tooltip before the action replaces this surface.
     Tooltip.point()
     action.select()
   })

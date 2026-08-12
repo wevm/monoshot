@@ -24,9 +24,8 @@ export const setTypes = StateEffect.define<Types>()
 
 /**
  * The types the language service last resolved. Held as editor state so the
- * marks, the hover, and the pinned blocks all read the same spans: anything
- * keeping its own copy would answer for the document the worker last saw
- * rather than the one on screen.
+ * marks, hover, and pinned blocks share the same spans. Separate copies could
+ * retain stale worker results.
  */
 export const types = StateField.define<Types>({
   create: () => [],
@@ -35,7 +34,7 @@ export const types = StateField.define<Types>({
     if (!transaction.docChanged) return value
     // Mapped rather than dropped: the spans belong to the document the language
     // service last saw, so they follow an edit until the next result lands. A
-    // span whose text an edit took away maps to nothing and goes with it.
+    // remove spans whose text was deleted by an edit.
     const mapped = []
     for (const span of value) {
       const from = transaction.changes.mapPos(span.from, 1)
@@ -47,9 +46,8 @@ export const types = StateField.define<Types>({
 })
 
 /**
- * Whether a known type overlaps the range, rather than sitting beside it. What
- * the hover answers for: a complaint touching an identifier's last character is
- * about whatever follows it.
+ * Whether a resolved type overlaps a range. Adjacent diagnostics do not count
+ * because diagnostic end offsets are exclusive.
  */
 export function over(state: EditorState, range: { from: number; to: number }): boolean {
   return state.field(types).some((span) => span.from < range.to && range.from < span.to)

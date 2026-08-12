@@ -81,7 +81,7 @@ describe('at', () => {
     expect(at(editor(), 8)?.from).toMatchInlineSnapshot(`6`)
   })
 
-  test('finds nothing between spans', () => {
+  test('returns no type between spans', () => {
     expect(at(editor(), 15)).toMatchInlineSnapshot(`undefined`)
   })
 

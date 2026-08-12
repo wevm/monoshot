@@ -13,7 +13,7 @@ export const ignore = 'data-ignore-in-export'
  */
 const side = 16_384
 
-/** Total pixels a canvas can hold. Mobile Safari gives up far sooner. */
+/** Maximum canvas pixel count. Mobile Safari has a substantially lower limit. */
 const area = () => (matchMedia('(pointer: coarse)').matches ? 33_000_000 : 130_000_000)
 
 /**
@@ -40,11 +40,11 @@ export function fit(size: { height: number; width: number }, options: capture.Op
  */
 export async function capture(node: Element, options: capture.Options): Promise<Blob> {
   const { scale, type } = options
-  // Typed as a blob, but snapdom hands back whatever `canvas.toBlob` gives it,
+  // Snapdom forwards the nullable result from `canvas.toBlob` despite its type,
   // and a canvas past the browser's limit gives it a null.
   const blob: Blob | null = await snapdom.toBlob(node, {
     // Transparent rather than white, so a frame exported without a backdrop
-    // composites onto whatever it is pasted into.
+    // composites onto the destination surface.
     backgroundColor: 'transparent',
     // Pinned, or snapdom would multiply by the display's own ratio and a 4x
     // export would come out 8x on a retina screen and 4x everywhere else.
@@ -57,7 +57,7 @@ export async function capture(node: Element, options: capture.Options): Promise<
     type,
   })
   // Rasterization fails without throwing, which would otherwise save as a
-  // blank file. Encoded size says nothing here: flat artwork compresses to a
+  // blank file. Encoded size cannot detect this because flat artwork compresses to a
   // few hundred bytes and is perfectly valid.
   if (!blob) throw new Error('The image came back empty.')
   return blob
@@ -66,8 +66,7 @@ export async function capture(node: Element, options: capture.Options): Promise<
 export declare namespace capture {
   /**
    * What an export was asked for: how big, and in which format. Shared with
-   * {@link fit}, which answers the same request at a scale the browser can
-   * actually rasterize.
+   * {@link fit}, which returns a scale within browser rasterization limits.
    */
   type Options = {
     /** Multiplier on the node's own size. */

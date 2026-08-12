@@ -56,7 +56,7 @@ describe('readable', () => {
     expect(Codec.readable(Codec.serialize(state))).toBe(true)
   })
 
-  test('says nothing was shared for a fragment it cannot unpack', () => {
+  test('reports that unreadable fragments contain no shared state', () => {
     expect(Codec.readable('')).toBe(false)
     expect(Codec.readable('#')).toBe(false)
     expect(Codec.readable('#garbage')).toBe(false)
@@ -149,7 +149,7 @@ describe('deserialize', () => {
   })
 
   test('refuses an overlong fragment before decompressing it', () => {
-    // Varied enough not to compress away, so the fragment itself is the thing
+    // Use varied input that does not compress enough to avoid the fragment
     // over the limit rather than what it decodes to.
     const noise = Array.from({ length: 30_000 }, (_, index) => index.toString(36)).join(' ')
     const overlong = lzString.compressToEncodedURIComponent(JSON.stringify({ c: noise }))

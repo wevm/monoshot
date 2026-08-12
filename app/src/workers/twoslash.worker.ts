@@ -26,7 +26,7 @@ const twoslash = createTwoslashFromCDN({
   fsMap: files,
   // This copy only decides which lib files are fetched, and defaults to ES5
   // when it has no target. `lib` has to be spelled out so the set fetched is
-  // the set the compiler then asks for: a mismatch leaves it with no `Promise`
+  // the set the compiler then requires: a mismatch leaves it with no `Promise`
   // at all, and every type behind an `await` collapses to `any`.
   compilerOptions,
   storage,
@@ -34,7 +34,7 @@ const twoslash = createTwoslashFromCDN({
     // The tags the frame draws, which stay ordinary comments unless the
     // compiler is told to read them.
     customTags: [...Twoslash.tags],
-    // And this copy is what the snippet is actually compiled with.
+    // This copy configures compilation of the snippet itself.
     compilerOptions,
     // Half-typed code is the normal case in an editor, and twoslash otherwise
     // insists every compiler error be declared in the source.
@@ -49,17 +49,16 @@ const twoslash = createTwoslashFromCDN({
  */
 let pending: Resolve | undefined
 let running = false
-/** The newest document asked about, so a late upgrade knows it is stale. */
+/** Version of the latest document request, used to discard stale upgrades. */
 let version = 0
-/** The newest caret asked about, so a completion held up by a cold start does. */
+/** Identifier of the latest completion request, used to discard stale results. */
 let asked = 0
 
 const completions = Completions.create({ compiler: ts, compilerOptions, files })
 
 self.addEventListener('message', (event: MessageEvent<Request>) => {
-  // Completions answer on their own rather than through the queue: a caret is
-  // waiting on them, and a document resolve ahead of them takes long enough to
-  // make the answer useless by the time it arrives.
+  // Process completions outside the document queue to avoid blocking interactive
+  // responses behind document resolution.
   if (event.data.kind === 'complete') {
     void complete(event.data)
     return
@@ -73,7 +72,7 @@ async function complete(request: Complete) {
   try {
     asked = request.id
     // The service reads the compiler's own lib files out of the shared file
-    // system, so it cannot answer before they are in it.
+    // system, so completion must wait until they are available.
     await twoslash.init()
     // Typing through a cold start queues one of these per keystroke, and the
     // editor abandoned every document but the last long before the lib files
@@ -93,8 +92,7 @@ async function complete(request: Complete) {
       kind: 'complete',
     })
   } catch {
-    // A caret with nothing to offer shows no menu, which is what an editor
-    // does anyway when a position has no completions.
+    // Return an empty result when completion resolution fails.
     reply({ completions: [], id: request.id, kind: 'complete' })
   }
 }
@@ -127,24 +125,23 @@ async function resolve(request: Resolve) {
 }
 
 /**
- * Fetches the types for a document's imports, then answers again with them.
+ * Fetches declarations for document imports, then returns an upgraded result.
  *
  * Still a second stage rather than a precondition: even one request per
- * package is slower than drawing the document, so the first answer never waits
- * on it. Deliberately not awaited by the queue, which stays free to answer the
+ * package is slower than drawing the document, so the first result does not wait
+ * for it. The queue does not await this operation and remains available for the
  * next keystroke while this runs.
  */
 async function upgrade(request: Resolve, first: Response) {
   try {
     await Twoslash.acquire({ code: request.code, compiler: ts, files, load })
     // The program the completion service holds read the file system before
-    // these packages were in it, so it would keep answering without them.
+    // these packages were available, so invalidate the cached program.
     completions.forget()
-    // A newer document is already being answered, and brings its own upgrade.
+    // A newer document has its own upgrade request.
     if (request.version !== version) return
     const upgraded = annotate(request)
-    // A document that imports nothing acquires nothing, so this answer repeats
-    // the one already sent. Sending it again would repaint every keystroke.
+    // Skip duplicate results when type acquisition did not change the output.
     if (JSON.stringify(upgraded) === JSON.stringify(first)) return
     reply(upgraded)
   } catch (cause) {
@@ -172,9 +169,8 @@ function annotate(request: Resolve): Response {
 }
 
 /**
- * One package's declarations, through this app's own route: the registry
- * answers no cross-origin request, and the route reads a whole tarball where a
- * CDN would serve `shiki` as 442 of them.
+ * Loads one package's declarations through the app route.
+ * The route avoids registry CORS restrictions and consolidates tarball requests.
  */
 async function load(name: string) {
   try {
@@ -182,8 +178,7 @@ async function load(name: string) {
     if (!response.ok) return undefined
     return (await response.json()) as { files: Record<string, string>; name: string }
   } catch {
-    // An import that resolves to nothing leaves its types as `any`, which is
-    // what the editor already shows before any of this runs.
+    // Preserve the initial `any` result when declaration loading fails.
     return undefined
   }
 }

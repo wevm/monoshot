@@ -18,8 +18,8 @@ export const setTokens = StateEffect.define<readonly (readonly Token[])[]>()
 
 /**
  * Colors the document from shiki tokens. Tokenizing is asynchronous, so between
- * an edit and the tokens that answer it the existing colors are mapped through
- * the change: text keeps its highlighting instead of flashing plain.
+ * an edit and its replacement tokens, existing colors map through the change
+ * to prevent an unstyled frame.
  */
 export const highlight = StateField.define<DecorationSet>({
   create: () => Decoration.none,

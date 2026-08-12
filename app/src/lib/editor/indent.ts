@@ -9,25 +9,21 @@ const unit = '  '
  * Indentation for an editor with no grammar.
  *
  * The code is colored from shiki tokens rather than parsed, so there is no
- * syntax tree to ask where a line belongs. This reads the shape instead: carry
- * the previous line's indentation, one level deeper after a line that opens a
- * block and one shallower on a line that closes one. That is what a plain
- * editor does, and it holds for every language the picker offers rather than
- * the few a parser would cover.
+ * syntax tree for indentation. This implementation preserves the previous line's
+ * indentation, adds one level after an opener, and removes one after a closer.
  *
  * It only ever adds a level. Leaving one is the editor's own outdent, since
- * nothing here knows where a Python block ends.
+ * this heuristic cannot determine where indentation-delimited blocks end.
  */
 export const indent: Extension = [
   indentUnit.of(unit),
   // A closer typed onto a line of its own is the one case the service cannot
-  // reach on its own: nothing dispatches an indent for ordinary input, so the
-  // delimiter would sit at whatever depth the line already had.
+  // handle automatically because ordinary input does not trigger reindentation.
   EditorView.inputHandler.of((view, from, to, text) => {
     if (!/^[)\]}]$/.test(text)) return false
     const line = view.state.doc.lineAt(from)
     // Only when it opens the line. Mid-line the caret is inside an expression,
-    // where the indentation is already whatever the author chose.
+    // where existing indentation should remain unchanged.
     if (line.text.slice(0, from - line.from).trim() !== '') return false
     view.dispatch({
       changes: { from, insert: text, to },
@@ -41,9 +37,8 @@ export const indent: Extension = [
     return true
   }),
   indentService.of((context, pos) => {
-    // The context's own `lineAt`, never the document's: pressing Enter asks
-    // for this before the break exists, and only the context knows where it
-    // is about to fall. Biased backwards, so it is the line being left.
+    // Use the context's `lineAt` because Enter requests indentation before the
+    // break exists. Bias backward to read the preceding line.
     const start = context.lineAt(pos, -1)
     // An empty line lying exactly on the caret is how a break on both sides
     // of it shows up, which is Enter pressed between a pair. The closer is
@@ -52,12 +47,10 @@ export const indent: Extension = [
     const between = start.from === pos && start.text === ''
 
     // Only what lies before this position, never the whole line: reindenting
-    // one asks from its start, where the line's own text is still ahead and
-    // says nothing about the depth it belongs at.
+    // a line requests indentation from its start, before its text is included.
     let text = start.text.slice(0, Math.max(0, pos - start.from))
     let from = start.from
-    // A blank run says nothing about depth either, so walk back to a line that
-    // does.
+    // Walk backward across blank lines to find indentation context.
     while (text.trim() === '' && from > 0) {
       const previous = context.lineAt(from - 1, -1)
       text = previous.text

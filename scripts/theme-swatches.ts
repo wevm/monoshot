@@ -66,10 +66,8 @@ console.log(`Wrote ${Object.keys(swatches).length} swatches to ${path.relative('
 /**
  * The colors a theme is known by: what it paints the most of a snippet in.
  *
- * Weighed by how far each rule reaches and nothing else. Weighing by how vivid
- * a color is finds the accent a theme decorates with, which is a different
- * question: a theme whose code is mostly off-white is known by that off-white,
- * not by the pink it uses twice.
+ * Weights colors by rule coverage rather than chroma. This represents the
+ * predominant code color instead of the strongest accent.
  */
 function strongest(theme: ThemeRegistration): string[] {
   // The same field under two names; a theme carrying both would otherwise have

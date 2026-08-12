@@ -12,8 +12,7 @@ import { tags } from './Tags.js'
  * carries once rather than importing for a few constants.
  */
 export const compilerOptions = {
-  // Without it a JavaScript document resolves types but is never checked, so
-  // the editor marks nothing in half the languages it highlights.
+  // Enable diagnostics for JavaScript documents as well as type resolution.
   checkJs: true,
   // Spelled out because this same set decides which lib files are fetched, and
   // defaults to ES5 without a target. A mismatch leaves the compiler with no
@@ -33,10 +32,8 @@ export const compilerOptions = {
 /**
  * Creates a twoslasher that reads every type it needs over the network.
  *
- * The compiler's own lib files and each imported package arrive from the
- * registry rather than from the machine running this, so a snippet resolves to
- * the same types on a laptop, in CI, and in a Worker, whatever any of them
- * happens to have installed.
+ * Loads compiler libraries and imported packages from the registry for
+ * consistent resolution across local, CI, and Worker environments.
  *
  * Two stages, because they are cached differently: lib files are the same for
  * every snippet and are fetched once per process, while packages depend on
@@ -93,7 +90,7 @@ export function create(): create.ReturnType {
 export declare namespace create {
   type ReturnType = {
     /**
-     * Fetches the types a document needs, then answers with a twoslasher that
+     * Fetches required declarations, then returns a Twoslash instance that
      * reads them. Call it for each document, before compiling it.
      */
     prepare: (code: string) => Promise<Twoslasher>
@@ -129,11 +126,8 @@ async function read(name: string) {
     const result = await Registry.types({ name, version: 'latest' })
     return { files: result.files, name: result.name }
   } catch (cause) {
-    // A package with nothing to read leaves its imports as `any`, which is what
-    // a snippet naming one that does not exist should draw. A registry that
-    // failed to answer is not that: drawing over the types it would have
-    // returned bakes wrong annotations into an image nobody can tell apart
-    // from a right one.
+    // Missing declaration packages resolve as `any`. Registry failures remain
+    // errors because treating them as absent would produce incorrect annotations.
     if (cause instanceof Registry.RegistryError && cause.absent) return undefined
     throw cause
   }

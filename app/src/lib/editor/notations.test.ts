@@ -43,7 +43,7 @@ describe('notations', () => {
     `)
   })
 
-  test('reaches as far down as the notation asks', () => {
+  test('applies a notation across its requested line count', () => {
     expect(marked('// [!code hl:2]\nconst a = 1\nconst b = 2\nconst c = 3\n'))
       .toMatchInlineSnapshot(`
         {
@@ -135,7 +135,7 @@ describe('notations', () => {
     expect(marked('// [!code nonsense]\nconst a = 1\n')).toMatchInlineSnapshot(`{}`)
   })
 
-  test('drops a line holding nothing but a notation', () => {
+  test('removes a notation-only line', () => {
     const state = EditorState.create({
       doc: '// [!code hl]\nconst a = 1\nconst b = 2 // [!code ++]\n',
       extensions: [notations],

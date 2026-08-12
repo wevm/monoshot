@@ -32,7 +32,7 @@ async function file(name: string, contents = code) {
   return target
 }
 
-/** The settings a link carries, whatever the link is pointed at. */
+/** Returns settings encoded in a link for any destination. */
 function settings(url: string) {
   return Codec.deserialize(new URL(url).hash.slice(1))
 }
@@ -191,7 +191,7 @@ describe('create', () => {
       expect((output as { code: string }).code).toMatchInlineSnapshot(`"snippet_too_large"`)
     })
 
-    test('reads an extension whatever its case', async () => {
+    test('reads file extensions case-insensitively', async () => {
       const source = await file('demo.PY', 'greeting = "hello"\n')
       const { output } = await run(['share', source])
       expect(settings((output as { url: string }).url).lang).toMatchInlineSnapshot(`"python"`)

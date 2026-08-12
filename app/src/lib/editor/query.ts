@@ -29,7 +29,7 @@ const field = StateField.define<Value>({
 })
 
 /**
- * Replaces a `^?` comment line with the type it asks about. The line is not
+ * Replaces a `^?` comment line with its resolved type. The line is not
  * code, so it is replaced rather than decorated, and the block sits in flow so
  * an export carries it the same way the editor shows it.
  */
@@ -49,7 +49,7 @@ function build(state: EditorState): Value {
     const text = doc.line(line)
     const column = Identifier.caretColumn(text.text)
     if (column === undefined) continue
-    // A caret pointing at nothing stays the comment it is, rather than
+    // Preserve a caret comment when no identifier exists at its target.
     // collapsing into an empty box.
     // The caret addresses the line above, which is where the type belongs.
     const above = line > 1 ? doc.line(line - 1) : undefined

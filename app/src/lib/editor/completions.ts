@@ -12,7 +12,7 @@ import type { Completion } from '#/lib/twoslash/protocol.js'
  * last one resolved: a keystroke arrives before the document it produced has
  * been resolved, and completing against the previous text offers stale names.
  */
-export function completions(ask: completions.Ask): Extension {
+export function completions(complete: completions.Complete): Extension {
   return autocompletion({
     override: [
       async (context: CompletionContext): Promise<CompletionResult | null> => {
@@ -23,7 +23,7 @@ export function completions(ask: completions.Ask): Extension {
         // list belongs, so it opens the menu the same as typing a letter does.
         const member = context.matchBefore(/\.$/)
         if (!context.explicit && !member && (!word || word.from === word.to)) return null
-        const found = await ask(context.state.doc.toString(), context.pos)
+        const found = await complete(context.state.doc.toString(), context.pos)
         if (!found.length) return null
         return {
           from: word?.from ?? context.pos,
@@ -53,8 +53,8 @@ export function completions(ask: completions.Ask): Extension {
 }
 
 export declare namespace completions {
-  /** Asks what could go at an offset in a document. */
-  type Ask = (code: string, position: number) => Promise<readonly Completion[]>
+  /** Returns completion entries at a document offset. */
+  type Complete = (code: string, position: number) => Promise<readonly Completion[]>
 }
 
 /**

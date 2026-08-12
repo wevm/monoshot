@@ -242,7 +242,7 @@ describe('render with notations', () => {
       theme: 'vitesse-dark',
     })
     await frame.dispose()
-    // Nothing resolved the run, so the tag is the snippet's own mark: without
+    // Without a resolved run, the tag remains the snippet's own mark. Without
     // it the row stays an ordinary comment and the editor disagrees.
     expect(result.html).toContain('twoslash-tag-warn-line">careful<')
     expect(result.html).not.toContain('@warn:')
@@ -262,8 +262,7 @@ describe('render with notations', () => {
   test('draws a tag beside a run that never looked for one', async () => {
     const frame = Frame.create()
     const code = '// @warn: careful\nconst a = 1\n'
-    // A run resolved elsewhere carries whatever its resolver was told to look
-    // for, and a plain twoslasher was told nothing about tags.
+    // A run resolved externally contains only tags configured in that resolver.
     const result = await frame.render({
       code,
       lang: 'ts',
@@ -338,7 +337,7 @@ describe('render with notations', () => {
 describe('render with twoslash', () => {
   const query = 'const greeting = "hello"\n//    ^?\n'
 
-  test('draws the type a query asks for, in place of the query line', async () => {
+  test('renders a queried type in place of its query line', async () => {
     const frame = Frame.create()
     const result = await frame.render({
       code: query,
@@ -362,7 +361,7 @@ describe('render with twoslash', () => {
   })
 
   test('numbers the lines that survive, so a folded query leaves no gap', async () => {
-    // The query line becomes a block and the compiler's complaint becomes a
+    // The query line becomes a block and the compiler diagnostic becomes a
     // line of its own, and neither is a line of code.
     const frame = Frame.create()
     const code =
@@ -440,9 +439,8 @@ describe('render with twoslash', () => {
   })
 
   test('annotates every dialect the language service reads', async () => {
-    // The transformer draws nothing outside its own language list, which it
-    // matches against the name it was called with, and the popup it draws is
-    // highlighted with a grammar of its own.
+    // The transformer matches its configured language list against the requested
+    // language. Popup content uses a separate grammar.
     const drawn: Record<string, boolean> = {}
     for (const lang of ['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'] as const) {
       const frame = Frame.create()
@@ -511,8 +509,7 @@ describe('render with twoslash', () => {
   })
 
   test('resolves a package this install does not have', async () => {
-    // `viem` is nothing this package depends on, so anything resolved for it
-    // came over the network rather than off the machine running the test.
+    // `viem` is not a dependency, so its declarations must come from the registry.
     const frame = Frame.create()
     const result = await frame.render({
       code: "import { formatEther } from 'viem'\nconst wei = formatEther(1n)\n//    ^?\n",

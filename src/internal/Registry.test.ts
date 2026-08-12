@@ -1,7 +1,7 @@
 import * as Registry from './Registry.js'
 
 /**
- * Builds a tar archive in memory. Real npm tarballs are the thing under test
+ * Builds a tar archive in memory. The tests exercise real npm tarball structure
  * everywhere else; this covers the header shapes they only sometimes use.
  */
 function tar(entries: readonly { body?: string; flag?: string; name: string; prefix?: string }[]) {
@@ -33,7 +33,7 @@ function tar(entries: readonly { body?: string; flag?: string; name: string; pre
 }
 
 describe('extract', () => {
-  test('keeps declarations and the manifest, and nothing else', () => {
+  test('keeps only declarations and the manifest', () => {
     const archive = tar([
       { body: '{"name":"x"}', name: 'package/package.json' },
       { body: 'declare const a: 1', name: 'package/index.d.ts' },
@@ -94,7 +94,7 @@ describe('extract', () => {
 
 describe('types', () => {
   test('marks a package that is not on npm as absent', async () => {
-    // Nothing is published under it, and a name this shape cannot be taken.
+    // Use an unpublished package name with a valid registry shape.
     const cause = await Registry.types({
       name: '@monoshot/not-a-package-000',
       version: 'latest',

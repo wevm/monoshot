@@ -4,7 +4,7 @@ import { Api, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
 // Registered rather than left to the default: the bundler drops the locale
-// zod reaches for otherwise, and every rejection reads `Invalid input`.
+// Preserve field-specific errors instead of Zod's generic `Invalid input` message.
 z.config(z.locales.en())
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
@@ -23,8 +23,8 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     const { name, version } = parse(spec)
     if (!name) return c.json({ error: 'Name a package to read types for.' }, 400)
 
-    // `package@version` never changes, so a hit needs no revalidation. Only an
-    // exact version earns that: a tag points somewhere new on every release.
+    // Exact package versions are immutable and need no revalidation. Tags may
+    // resolve to a different version after a release.
     const exact = version !== 'latest'
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
@@ -40,8 +40,8 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
       }
     })()
     if (result instanceof Error) {
-      // Only a package with nothing to read is missing. A registry that failed
-      // to answer is this route's own upstream failing.
+      // Return 404 only for missing declarations. Registry failures are
+      // upstream service errors.
       const absent = result instanceof Twoslash.Registry.RegistryError && result.absent
       return c.json({ error: result.message }, absent ? 404 : 502)
     }
@@ -67,8 +67,8 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 export default app
 
 /**
- * Splits `shiki@4.4.2` into its parts, leaving a scope's own `@` alone.
- * A spec with no version asks for whatever is current.
+ * Splits `shiki@4.4.2` into package and version components while preserving
+ * scoped package prefixes. Missing versions default to `latest`.
  */
 function parse(spec: string) {
   const at = spec.lastIndexOf('@')

@@ -85,8 +85,7 @@ export const color = stylex.defineVars({
   // Floating tools over the artwork read as their own dark surface in both
   // schemes, the way Apple's markup bar does, so they never invert with the app.
   chrome: '#1c1c1e',
-  // Holds a swatch off whatever picture is behind it, which has no scheme of
-  // its own: the same in both, and a token so the policy stays in one place.
+  // Keep swatches visible against images with either color scheme.
   onArtwork: 'light-dark(#ffffff, #ffffff)',
   chromeTranslucent: '#1c1c1e99',
   onChrome: '#f5f5f7',
@@ -117,8 +116,7 @@ export const shadow = stylex.defineVars({
   borderInset: 'inset 0 0 0 1px light-dark(#00000014, #ffffff1a)',
   small: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 2px 2px light-dark(#0000000a, #00000029)',
   menu: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000038), 0 4px 8px -4px light-dark(#00000008, #0000001c), 0 16px 24px -12px light-dark(#0000000a, #0000001c)',
-  // Chrome floating over the artwork: a hairline to draw its own edge against
-  // whatever it happens to sit on, then three layers of depth (contact, mid,
+  // Floating chrome uses a hairline edge plus three shadow depths (contact, mid,
   // ambient). No scheme swap, since the surface sits on the image rather than
   // on the app background.
   floating:

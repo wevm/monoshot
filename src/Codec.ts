@@ -22,7 +22,7 @@ export const schema = z.object({
       z.string().regex(/^wallpaper:[a-z0-9-]+$/),
     ])
     .catch('default'),
-  /** The snippet itself, which is empty when the window holds nothing. */
+  /** Source code displayed in the window. Defaults to an empty string. */
   code: z.string().catch(''),
   /** A shiki language id, or `auto` to read it from the code. */
   lang: z.string().catch('auto'),
@@ -85,12 +85,9 @@ export declare namespace serialize {
 }
 
 /**
- * How much untrusted text is worth expanding. lz-string offers no bounded
- * decompression, so `fragment` is what caps the expansion: measured against
- * this version, a fragment that long reaches about 50 MB at worst, which
- * decodes in well under a second and is then refused. Honest content packs far
- * tighter, around 33,000 characters of source into that fragment, and never
- * approaches `decoded`.
+ * Limits for expanding untrusted fragments. Because lz-string has no bounded
+ * decompression, the fragment limit constrains worst-case memory use before the
+ * decoded-size limit applies.
  */
 const limit = { decoded: 512_000, fragment: 20_000 } as const
 
@@ -113,8 +110,8 @@ export function deserialize(hash: string): State {
 }
 
 /**
- * Whether a fragment carries state at all, so a caller with defaults of its own
- * can tell a link it could not read from a visit with no link.
+ * Returns whether a fragment contains readable state. This distinguishes an
+ * invalid fragment from an absent fragment.
  *
  * @example
  * ```ts twoslash
@@ -128,14 +125,14 @@ export function readable(hash: string): boolean {
   return read(hash) !== undefined
 }
 
-/** The fields a fragment packs, under the names {@link schema} knows. */
+/** Expands packed keys into the field names defined by {@link schema}. */
 function fields(packed: Record<string, unknown>): Record<string, unknown> {
   const state: Record<string, unknown> = {}
   for (const [field, key] of Object.entries(keys)) state[field] = packed[key]
   return state
 }
 
-/** What a fragment unpacks to, or nothing when it unpacks to no object. */
+/** Unpacks a fragment into an object, or returns `undefined` when invalid. */
 function read(hash: string): Record<string, unknown> | undefined {
   return (() => {
     try {

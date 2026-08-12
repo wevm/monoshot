@@ -1,8 +1,8 @@
 import * as Theme from '../Theme.js'
 
-/** A font to embed, so the document asks the network for nothing. */
+/** Font data embedded in the standalone document. */
 export type Font = {
-  /** The family name the stylesheet registers and the code font stack asks for. */
+  /** Family name registered by the stylesheet and used by the code font stack. */
   family: string
   /** A `data:` URL holding the font itself. Any other URL is rejected. */
   source: string
@@ -194,9 +194,8 @@ const shadow = {
  * static shapes: the hover popovers in the upstream stylesheet need a pointer,
  * and an image has none.
  *
- * Exported because annotated markup is unreadable without them, and a caller
- * holding `Frame.render` output rather than a whole document still has to put
- * them somewhere.
+ * Exported for consumers that embed annotated `Frame.render` output without a
+ * standalone document.
  */
 export function annotations(palette: Theme.derive.Result): string {
   const surface = `color-mix(in oklab, ${palette.window.foreground} 7%, ${palette.window.background})`
@@ -250,10 +249,8 @@ export function annotations(palette: Theme.derive.Result): string {
 }
 
 /**
- * The marks a snippet carries, drawn as rows reaching the window's edges with
- * a bar down the side they start on. Present only when something is marked:
- * the rules turn the code into rows, which a snippet with nothing to mark has
- * no reason to become.
+ * Styles source marks as full-width rows with an edge indicator. These rules
+ * are emitted only when the snippet contains marks.
  */
 export function marked(html: string): boolean {
   // Read off a class attribute rather than the whole document: a snippet is
@@ -263,10 +260,8 @@ export function marked(html: string): boolean {
 
 export function marks(palette: Theme.derive.Result) {
   /**
-   * A row: full width, past the inset the window holds its code at. A caller
-   * embedding the markup declares `--body-inset` to say what that inset is;
-   * without one the row reaches the code's own edges, and the code steps in far
-   * enough for a diff marker to sit beside it rather than on it.
+   * Marked rows extend across the window. Embedded markup can define
+   * `--body-inset`; otherwise the code reserves space for diff indicators.
    *
    * A pixel past it, since the window clips on a rounded rect: an edge landing
    * exactly on that clip is antialiased into it, leaving the window showing
@@ -290,10 +285,8 @@ export function marks(palette: Theme.derive.Result) {
   return `.shiki {
   --mark-gutter: 0px;
 }
-/* Room a diff marker needs when there is no inset to sit in: markup embedded
-   without a window holds its code at the code's own edge, and the marker would
-   otherwise land on the first token. Asked for by a diff and nothing else, so a
-   snippet only highlighting a line still sits where an unmarked one does. */
+/* Reserve indicator space for embedded diff markup without a window inset.
+   Highlight-only markup retains the normal code position. */
 .shiki.has-diff {
   --mark-gutter: max(0px, 15px - var(--body-inset, 0px));
 }
@@ -306,8 +299,7 @@ export function marks(palette: Theme.derive.Result) {
   grid-template-columns: minmax(0, 1fr);
 }
 .shiki .line {
-  /* A row holding nothing is still a line of the snippet: as a grid item an
-     empty one would take no height, and the blank lines would close up. */
+  /* Preserve blank-line height when code lines become grid items. */
   min-height: var(--code-line-height, 1lh);
   /* What a diff marker sits in, so it lands in the window's own inset. */
   position: relative;
@@ -320,8 +312,7 @@ ${row}
 .shiki .line.highlighted {
 ${mark(palette.window.foreground, 8)}
 }
-/* Focus says which lines matter, so the rest recede rather than being marked.
-   A line carrying a mark of its own keeps it: the mark is the louder claim. */
+/* Dim unfocused lines while preserving explicit highlights and diff marks. */
 .shiki.has-focused .line:not(.focused):not(.highlighted):not(.diff) {
   opacity: 0.4;
 }
@@ -350,21 +341,17 @@ ${mark(Theme.marks.remove)}
   color: ${prose(Theme.marks.remove)};
   content: '-';
 }
-/* The token a complaint is about, marked where it sits rather than only named
-   in the row below: what is wrong is a place in the code first. */
+/* Mark the source range associated with a compiler diagnostic. */
 .twoslash-error {
   text-decoration: underline wavy ${Theme.marks.remove};
   text-decoration-skip-ink: none;
   text-underline-offset: 3px;
 }
-/* A tag is prose the snippet carries, so it reads in the hue it was tagged
-   with rather than in the code's own colors. A complaint the compiler made is
-   the same kind of row, so it reads the same way. */
+/* Render annotation tags and compiler diagnostics as semantic prose rows. */
 .twoslash-error-line,
 .twoslash-tag-line {
   align-items: center;
-  /* Set off from the line above, which it is a note on rather than the next
-     thing to read. */
+  /* Separate annotation prose from the source line it describes. */
   margin-top: 6px;
   display: flex;
   font-size: var(--code-annotation-size);
@@ -373,8 +360,7 @@ ${mark(Theme.marks.remove)}
   min-height: var(--code-line-height);
 }
 .twoslash-tag-icon {
-  /* The tag reads as prose in its own hue, which says what it is without a
-     glyph repeating it. */
+  /* Color identifies the annotation type, so an additional glyph is redundant. */
   display: none;
 }
 .twoslash-tag-log-line {
@@ -417,8 +403,7 @@ function fontFaces(fonts: readonly Font[]) {
 }
 
 /**
- * Embedded families lead, so the document asks for the face it carries rather
- * than whatever monospace the host happens to have.
+ * Lists embedded font families before the host monospace fallback.
  */
 function fontStack(fonts: readonly Font[]) {
   const families = [...new Set([...fonts.map((font) => font.family), 'Geist Mono Variable'])]

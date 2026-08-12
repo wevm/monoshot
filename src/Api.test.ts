@@ -25,7 +25,7 @@ describe('create', () => {
     expect(status).toBe(200)
     expect(body).toContain('<!doctype html>')
     expect(body).toContain('class="canvas"')
-    // Nothing to fetch and nothing to run: it is what a browser screenshots.
+    // The standalone document requires no scripts or external requests.
     expect(body).not.toContain('<script')
   })
 
@@ -51,7 +51,7 @@ describe('create', () => {
     `)
   })
 
-  test('refuses a field it does not know, rather than dropping it', async () => {
+  test('rejects unknown fields instead of dropping them', async () => {
     // A misspelled option would otherwise render at the default and report
     // success, which reads as the request having been understood.
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts', lineNumber: true })
@@ -97,7 +97,7 @@ describe('create', () => {
     expect(status).toBe(200)
   })
 
-  test('answers a frame it cannot draw apart from a request it cannot read', async () => {
+  test('distinguishes rendering failures from invalid requests', async () => {
     // A language nobody bundles is the caller's mistake, and reads as one.
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'klingon' })
     expect(status).toBe(400)
@@ -121,14 +121,14 @@ describe('create', () => {
     `)
   })
 
-  test('describes what every route answers, including its rejections', async () => {
+  test('describes success and error responses for every route', async () => {
     const response = await Api.route.request('/openapi.json')
     const spec = (await response.json()) as {
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>
     }
-    const answers = (path: string, method: string) =>
+    const responses = (path: string, method: string) =>
       Object.keys(spec.paths[path]?.[method]?.responses ?? {})
-    expect({ document: answers('/document', 'post'), themes: answers('/themes', 'get') })
+    expect({ document: responses('/document', 'post'), themes: responses('/themes', 'get') })
       .toMatchInlineSnapshot(`
         {
           "document": [
@@ -145,7 +145,7 @@ describe('create', () => {
   })
 
   describe('image', () => {
-    test('answers plainly when the deployment has no browser', async () => {
+    test('returns a clear error when browser rendering is unavailable', async () => {
       // Every other route works without one, so this is the deployment's
       // state rather than the request's mistake.
       const response = await Api.route.request('/image', {
@@ -161,7 +161,7 @@ describe('create', () => {
       `)
     })
 
-    test('reads a request before it reaches for a browser', async () => {
+    test('validates a request before invoking browser rendering', async () => {
       // A request it cannot read is answered whether or not one is configured.
       const response = await Api.route.request('/image', {
         body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts', scale: 99 }),
@@ -257,7 +257,7 @@ describe('create', () => {
   })
 
   test('refuses JSON that is not an object', async () => {
-    // Valid JSON the schema cannot read: it must answer, not throw.
+    // Return a response for schema-invalid JSON instead of throwing.
     for (const body of ['1', '[]', '"text"']) expect((await post(body)).status).toBe(400)
   })
 })

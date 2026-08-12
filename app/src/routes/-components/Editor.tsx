@@ -52,12 +52,11 @@ export function Editor(props: Editor.Props) {
   // Held in a ref so changing the handler never rebuilds the editor.
   const onChange = useRef(onCodeChange)
   onChange.current = onCodeChange
-  const ask = useRef(onComplete)
-  ask.current = onComplete
+  const complete = useRef(onComplete)
+  complete.current = onComplete
   const ignored = useRef(onIgnore)
   ignored.current = onIgnore
-  // Held here as well as reported: what is reported has to be filtered again
-  // once a complaint is waved off, and that is an effect rather than an edit.
+  // Ignoring a diagnostic changes editor state without changing the document.
   const [overlooking, setOverlooking] = useState<readonly number[]>(none)
   const palettes = useRef(new Compartment()).current
   const rails = useRef(new Compartment()).current
@@ -85,38 +84,36 @@ export function Editor(props: Editor.Props) {
           // takes both, which the plain delete binding would not.
           keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.lineWrapping,
-          // What is copied is the snippet, not the marks on it: a paste
-          // elsewhere wants the code the frame draws.
+          // Copy the rendered source without notation directives.
           EditorView.clipboardOutputFilter.of((text) => bare(text)),
           // Without a name the code surface reads as an unlabelled edit field.
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           notations,
           pins,
-          // The complaints are pushed in rather than found here, so there is no
-          // source to run. Only the configuration is wanted, which drops the
-          // complaints the hover draws itself: the built-in tooltip waits 300ms
-          // and would repeat them the moment the pointer lands. One about a
-          // token holding no type keeps it, since the hover has nothing to
-          // hang it on and the squiggle would otherwise say nothing.
+          // Diagnostics are supplied externally, so only linter configuration is needed.
+          // Suppress built-in tooltips when the custom hover can present the diagnostic.
           linter(null, {
             tooltipFilter: (found, state) =>
-              found.filter((complaint) => !Types.over(state, complaint)),
+              found.filter((diagnostic) => !Types.over(state, diagnostic)),
           }),
           rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries,
           hover,
-          completions((document, position) => ask.current(document, position)),
+          completions((document, position) => complete.current(document, position)),
           palettes.of(theme(palette)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange.current(update.state.doc.toString())
-            const waved = overlooked(update.state)
+            const ignoredOffsets = overlooked(update.state)
             const before = overlooked(update.startState)
-            // By what they are rather than by which array they are: mapping
-            // them through an edit makes a new one saying the same thing.
-            if (waved.length === before.length && waved.every((at, i) => at === before[i])) return
-            setOverlooking(waved)
-            ignored.current(waved)
+            // Compare offsets because mapping through an edit creates a new array.
+            if (
+              ignoredOffsets.length === before.length &&
+              ignoredOffsets.every((at, i) => at === before[i])
+            )
+              return
+            setOverlooking(ignoredOffsets)
+            ignored.current(ignoredOffsets)
           }),
         ],
       }),
@@ -180,9 +177,9 @@ export declare namespace Editor {
     language: string
     /** Receives every edit. */
     onCodeChange: (code: string) => void
-    /** Receives the offsets whose complaint is no longer reported. */
+    /** Receives the offsets of ignored diagnostics. */
     onIgnore: (offsets: readonly number[]) => void
-    /** Asked what could go at the caret, whenever the menu wants entries. */
+    /** Requests completion entries at the caret. */
     onComplete: (code: string, position: number) => Promise<readonly Completion[]>
     /** Colors the editor to match the frame it sits in. */
     palette: Theme.derive.Result

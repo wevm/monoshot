@@ -23,9 +23,8 @@ import type { Completion, Lang, Request, Response, Run } from './protocol.js'
 /**
  * Talks to the twoslash worker.
  *
- * The worker carries the TypeScript compiler, so it is spawned on the first
- * document rather than at load, and a caller that never edits TypeScript never
- * pays for it.
+ * The worker contains the TypeScript compiler and starts on the first document,
+ * avoiding compiler startup for sessions that do not use TypeScript.
  */
 export function create(options: create.Options): create.ReturnType {
   const { onError, onResult } = options
@@ -34,8 +33,7 @@ export function create(options: create.Options): create.ReturnType {
   let asked = 0
   /** Completion requests still waiting on the worker, by request id. */
   const waiting = new Map<number, (completions: readonly Completion[]) => void>()
-  // The document the accepted reply will be about: a reply only passes the
-  // version check when nothing has been asked since.
+  // The document associated with the latest accepted response.
   let latest = ''
   let dialect: Lang = 'ts'
 
@@ -47,8 +45,7 @@ export function create(options: create.Options): create.ReturnType {
     },
     complete(code, lang, position) {
       const instance = start()
-      // With no worker there is nothing to offer, and a menu that never opens
-      // is the same as one with no entries in it.
+      // Return an empty result when the worker cannot start.
       if (!instance) return Promise.resolve([])
       const id = (asked += 1)
       instance.postMessage({ code, id, kind: 'complete', lang, position } satisfies Request)
@@ -67,7 +64,7 @@ export function create(options: create.Options): create.ReturnType {
     },
   }
 
-  /** Answers every completion still waiting, so none is left pending. */
+  /** Resolves every pending completion request with an empty result. */
   function settle() {
     for (const resolve of waiting.values()) resolve([])
     waiting.clear()
@@ -78,7 +75,7 @@ export function create(options: create.Options): create.ReturnType {
       return (worker ??= spawn())
     } catch (cause) {
       // A document policy can forbid workers outright, and the constructor
-      // throws before any listener of ours exists to hear it. `worker` stays
+      // throws before an error listener is installed. `worker` stays
       // unset, so a later edit tries again.
       onError?.(cause instanceof Error ? cause.message : String(cause))
       return undefined
@@ -99,7 +96,7 @@ export function create(options: create.Options): create.ReturnType {
         return
       }
       // A reply for a document that has already been edited past is dropped:
-      // resolving is slow enough that answers can arrive out of order.
+      // resolution latency allows responses to arrive out of order.
       if (event.data.version !== version) return
       if ('error' in event.data) onError?.(event.data.error)
       else
@@ -121,9 +118,7 @@ export function create(options: create.Options): create.ReturnType {
         worker = undefined
         instance.terminate()
       }
-      // Nothing is coming for what was already asked. A completion left
-      // pending would keep its menu open on a promise that never settles, and
-      // the hover stays suppressed for as long as one is in flight.
+      // Resolve pending completions because this worker cannot respond.
       settle()
       onError?.(event.message || 'The type resolver could not start.')
     })
@@ -147,14 +142,12 @@ export declare namespace create {
     /** Stops the worker and releases the compiler it holds. */
     dispose: () => void
     /**
-     * Drops whatever is still in flight. The answer to a document that has
-     * since been edited is about that older document, so it is no more current
-     * than no answer at all.
+     * Invalidates in-flight resolution results after the document changes.
      */
     invalidate: () => void
-    /** Asks what could go at a document offset. Resolves empty when nothing can. */
+    /** Returns completion entries at a document offset, or an empty array. */
     complete: (code: string, lang: Lang, position: number) => Promise<readonly Completion[]>
-    /** Asks for a document's types, superseding any request still in flight. */
+    /** Resolves document types and supersedes any in-flight request. */
     resolve: (code: string, lang: Lang) => void
   }
 }

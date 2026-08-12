@@ -67,7 +67,7 @@ export type Response =
   | {
       /** What the language service offers at the requested position. */
       completions: readonly Completion[]
-      /** The `id` of the request this answers. */
+      /** Identifier of the corresponding request. */
       id: number
       /** Names this message among the replies the worker sends. */
       kind: 'complete'
@@ -77,7 +77,7 @@ export type Response =
       error: string
       /** Names this message among the replies the worker sends. */
       kind: 'resolve'
-      /** The `version` of the request this answers. */
+      /** Version of the corresponding request. */
       version: number
     }
   | {
@@ -88,17 +88,16 @@ export type Response =
       /**
        * The run those types were read from, which the frame draws directly.
        * Sent alongside rather than derived here: reading a run needs
-       * `monoshot`, which carries the compiler into whatever imports
+       * `monoshot`, which adds the compiler to every importing bundle;
        * it, and the worker is the one place that already has one.
        */
       types: Run
-      /** The `version` of the request this answers. */
+      /** Version of the corresponding request. */
       version: number
     }
 
 /**
- * The run with the complaints at these offsets left out, so an exported frame
- * draws what the editor shows rather than every objection the compiler had.
+ * Returns a run without diagnostics ignored in the editor.
  *
  * The offsets are into the document; the run's own are into the code twoslash
  * returned, which is the document minus what it took out.
@@ -114,8 +113,8 @@ export function without(run: Run, ignored: readonly number[]): Run {
     nodes: run.nodes.filter(
       (node) =>
         node.type !== 'error' ||
-        // The end is where the complaint stops rather than its last character,
-        // so a mark sitting there belongs to whatever comes next. One reported
+        // The diagnostic end is exclusive, so an ignored offset at that boundary
+        // belongs to the following span. A zero-length diagnostic
         // between two characters still holds the position it points at.
         !marks.some(
           (at) => at >= node.start && at < Math.max(node.start + node.length, node.start + 1),

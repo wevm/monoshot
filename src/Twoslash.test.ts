@@ -11,7 +11,7 @@ const count: number = greeting.length
 const twoslash = Twoslash.create()
 
 describe('create', () => {
-  test('resolves the types a snippet asks for', async () => {
+  test('resolves types requested by a snippet', async () => {
     const result = await twoslash.run(source)
     expect(result.queries.map((query) => ({ name: query.name, text: query.text })))
       .toMatchInlineSnapshot(`
@@ -41,7 +41,7 @@ describe('create', () => {
     `)
   })
 
-  test('knows types nothing asked about, which is what a hover needs', async () => {
+  test('resolves hover types without explicit queries', async () => {
     const result = await twoslash.run(source)
     const found = result.hovers.find((hover) => hover.name === 'length')
     expect({ name: found?.name, text: found?.text }).toMatchInlineSnapshot(`
@@ -141,7 +141,7 @@ describe('annotate', () => {
     `)
   })
 
-  test('leaves offsets alone when nothing was cut', async () => {
+  test('preserves offsets when no source was removed', async () => {
     expect(Twoslash.annotate({ ...input, meta: { removals: [] } })).toMatchInlineSnapshot(`
       {
         "diagnostics": [],
@@ -171,7 +171,7 @@ describe('annotate', () => {
     `)
   })
 
-  test('skips the node kinds it has nothing to say about', async () => {
+  test('skips node kinds without annotation output', async () => {
     const nodes = [
       { length: 1, start: 1, type: 'completion' },
       { length: 1, start: 2, text: 'a note', type: 'highlight' },
@@ -221,7 +221,7 @@ describe('annotate', () => {
       // So is the code, and an absent one is left absent rather than made up.
       { length: 1, start: 1, text: 'Unnumbered.', type: 'error' },
     ]
-    // In source order, whatever order the compiler reported them in.
+    // Preserve source order independently of compiler report order.
     expect(Twoslash.annotate({ ...input, nodes }).diagnostics).toMatchInlineSnapshot(`
       [
         {

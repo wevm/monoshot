@@ -13,9 +13,8 @@ import * as Raster from './internal/Raster.js'
  * Provide a Chrome or Chromium executable through `executable` or
  * `PUPPETEER_EXECUTABLE_PATH`. `puppeteer-core` does not download a browser.
  *
- * Pass `fonts` to every render that must match across machines. Without them
- * the code falls back to whatever monospace the host has, which changes glyph
- * metrics, wrapping, and the image's size.
+ * Pass `fonts` to every render that must match across machines. Otherwise, the
+ * host's monospace font can change glyph metrics, wrapping, and image size.
  *
  * @example
  * ```ts twoslash
@@ -146,10 +145,8 @@ async function capture(
   const { html, scale } = options
   const page = await browser.newPage()
   try {
-    // The document carries everything it needs, so nothing here should run or
-    // arrive: a script could rewrite the frame and a request could fail late,
-    // and either would change the image. Enforced rather than assumed, because
-    // the caller supplies the options the document is built from.
+    // Disable scripts and external requests to keep rendering deterministic for
+    // caller-provided frame content.
     await page.setJavaScriptEnabled(false)
     await page.setRequestInterception(true)
     page.on('request', (request) => {

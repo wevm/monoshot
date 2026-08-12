@@ -23,7 +23,7 @@ describe('unchecked', () => {
     `)
   })
 
-  test('leaves a snippet marking nothing exactly as it was', () => {
+  test('preserves a snippet whose notation marks no lines', () => {
     const code = 'const a = 1\n'
     expect(unchecked(code)).toBe(code)
   })
@@ -45,7 +45,7 @@ test('counts only as far as there are lines to count', () => {
 })
 
 describe('cut', () => {
-  test('takes the ranges out, whatever order they arrive in', () => {
+  test('removes ranges independently of input order', () => {
     expect(
       cut('0123456789', [
         [6, 8],

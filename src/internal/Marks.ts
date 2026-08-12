@@ -18,15 +18,13 @@ export function unchecked(code: string): string {
   for (const [index, line] of lines.entries()) {
     const match = removal.exec(line)
     if (!match) continue
-    // A notation alone on a line addresses what follows it; one trailing code
-    // addresses the line it sits on. Every notation off the line, not just this
-    // one: a line carrying two of them still holds no code.
+    // A standalone notation applies to following lines; a trailing notation
+    // applies to its own line. Remove every notation from a notation-only line.
     const alone = line.replace(notation, '').trim() === ''
     const first = alone ? index + 1 : index
     if (alone) blanked.add(index)
-    // Held to the lines there are: a snippet asking for a billion of them, or
-    // for so many that the count reads as infinite, is asking this to run
-    // until the tab gives up.
+    // Clamp the requested range to existing lines to prevent unbounded work
+    // from excessively large notation counts.
     for (let target = first; target < Math.min(first + count(match[1]), lines.length); target++)
       blanked.add(target)
   }

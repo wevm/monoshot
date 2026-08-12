@@ -34,8 +34,8 @@ const palettes = fs
   .map((file) => {
     const id = file.replace(/\.webp$/, '')
     const pixels = read(path.join(directory, file))
-    // A picture that comes as a pair says which of the two it is; one that
-    // stands alone is read for how dark it is.
+    // Paired filenames specify their scheme. Infer the scheme from luminance
+    // for standalone images.
     const paired = id.endsWith('-light') ? 'light' : id.endsWith('-dark') ? 'dark' : undefined
     return {
       colors: strongest(pixels),
@@ -113,8 +113,8 @@ function strongest(pixels: Uint8Array): string[] {
       mode: 'rgb',
       r: (pixels[at] as number) / 255,
     })
-    // A grey pixel carries no hue to weigh, and enough of them would otherwise
-    // drag every arc toward whatever little tint they hold.
+    // Exclude achromatic pixels because their unstable hue would distort the
+    // weighted hue groups.
     if (color.c <= 0.02 || !Number.isFinite(color.h)) continue
     const hue = color.h ?? 0
     const arc = Math.floor(hue / 20)

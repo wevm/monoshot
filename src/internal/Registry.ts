@@ -160,9 +160,8 @@ function text(decoder: TextDecoder, bytes: Uint8Array) {
 export class RegistryError extends Error {
   override name = 'Registry.RegistryError'
   /**
-   * Whether the package has nothing to read, as opposed to the registry having
-   * failed to say. A caller can leave the first as `any` and must not do the
-   * same with the second, which would draw an image over types that exist.
+   * Whether the package has no declarations. Registry failures remain distinct
+   * because callers may treat only absent declarations as `any`.
    */
   absent: boolean
 
@@ -174,7 +173,7 @@ export class RegistryError extends Error {
 
 export declare namespace RegistryError {
   type Options = {
-    /** Marks a package that does not exist, or ships nothing to read. */
+    /** Whether the package is missing or contains no declarations. */
     absent?: boolean | undefined
   }
 }

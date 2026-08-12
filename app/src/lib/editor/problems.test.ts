@@ -40,7 +40,7 @@ describe('problems', () => {
     `)
   })
 
-  test('keeps a complaint that lands past the last character', () => {
+  test('retains a diagnostic positioned after the final character', () => {
     // An unfinished snippet reports at the very end, where there is no
     // character left to mark, so it takes the one before it.
     expect(ranges(doc, [{ from: doc.length, to: doc.length }])).toMatchInlineSnapshot(`
@@ -78,7 +78,7 @@ describe('problems', () => {
     `)
   })
 
-  test('marks nothing in an empty document, which has nowhere to draw', () => {
+  test('creates no marks for an empty document', () => {
     expect(ranges('', [{ from: 0, to: 0 }])).toMatchInlineSnapshot(`[]`)
   })
 
@@ -101,7 +101,7 @@ describe('problems', () => {
 })
 
 describe('objection', () => {
-  /** A state carrying the marks the editor would draw for these complaints. */
+  /** Creates editor state with marks for the specified diagnostics. */
   function marked(text: string, diagnostics: readonly Partial<Twoslash.Diagnostic>[]) {
     const start = EditorState.create({ doc: text })
     return start.update(
@@ -118,29 +118,29 @@ describe('objection', () => {
     ).state
   }
 
-  test('finds the complaint a span sits under', () => {
-    // `a`, which the complaint covers exactly.
+  test('finds the diagnostic covering a span', () => {
+    // The diagnostic covers `a` exactly.
     expect(objection(marked(doc, [{ from: 6, to: 7 }]), { from: 6, to: 7 })?.message).toBe(
       'message',
     )
   })
 
-  test('finds a complaint covering part of a span', () => {
+  test('finds a diagnostic covering part of a span', () => {
     expect(objection(marked(doc, [{ from: 4, to: 7 }]), { from: 6, to: 11 })?.message).toBe(
       'message',
     )
   })
 
-  test('leaves a span the complaint only reaches', () => {
-    // The complaint ends where the span starts, so it sits beside it.
+  test('excludes a diagnostic adjacent to a span', () => {
+    // The diagnostic ends where the span starts, so the ranges do not overlap.
     expect(objection(marked(doc, [{ from: 0, to: 6 }]), { from: 6, to: 7 })).toBeUndefined()
   })
 
-  test('leaves a span nothing was reported against', () => {
+  test('excludes spans without diagnostics', () => {
     expect(objection(marked(doc, [{ from: 0, to: 5 }]), { from: 6, to: 7 })).toBeUndefined()
   })
 
-  test('leaves every span when the compiler reported nothing', () => {
+  test('excludes every span when the compiler reports no diagnostics', () => {
     expect(objection(marked(doc, []), { from: 6, to: 7 })).toBeUndefined()
   })
 })

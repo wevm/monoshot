@@ -23,7 +23,7 @@ describe('fit', () => {
     )
   })
 
-  test('leaves a scale alone when there is nothing to measure', () => {
+  test('preserves scale when dimensions are unavailable', () => {
     expect(fit({ height: 0, width: 0 }, { scale: 4, type: 'png' })).toMatchInlineSnapshot(`4`)
   })
 

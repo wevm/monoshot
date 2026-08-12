@@ -21,7 +21,7 @@ export function at(doc: Text, pos: number): Identifier | undefined {
 
 /**
  * The identifier covering a column of a line, as offsets within it. Takes the
- * line as text so a caller holding markup rather than a document can ask too.
+ * line as text so callers without a CodeMirror document can use it.
  */
 export function atColumn(text: string, column: number): Identifier | undefined {
   for (const found of all(text)) {
@@ -50,7 +50,7 @@ export function queried(doc: Text, line: number, column: number): Identifier | u
   return at(doc, above.from + Math.min(column, above.length))
 }
 
-/** The column a `^?` line's caret addresses, or nothing if it is not one. */
+/** Returns the target column of a `^?` line, or `undefined`. */
 export function caretColumn(text: string): number | undefined {
   const match = /^(\s*\/\/\s*)\^\?\s*$/.exec(text)
   return match ? (match[1]?.length ?? 0) : undefined

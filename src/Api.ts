@@ -22,8 +22,7 @@ namespace schema {
     meta: z.object({ removals: z.array(z.tuple([z.number(), z.number()])).max(limit.nodes) }),
     nodes: z
       .array(
-        // Loose, because a run carries more than is read here, and the text is
-        // the part that is drawn and so the part worth bounding.
+        // Accept additional Twoslash fields but limit rendered text.
         z.looseObject({
           length: z.number(),
           start: z.number(),
@@ -101,10 +100,10 @@ namespace schema {
     type: z.enum(['dark', 'light']).optional(),
   })
 
-  /** What every route answers with when it cannot accept a request. */
+  /** Error response returned when a route rejects a request. */
   export const failure = z.object({ error: z.string() })
 
-  /** What `/themes` answers with. */
+  /** Response returned by `/themes`. */
   export const themes = z.array(
     z.object({
       displayName: z.string(),
@@ -139,9 +138,8 @@ export function create(options: create.Options = {}) {
    * afterwards differs.
    */
   async function frame_document(request: schema.Document): Promise<Response | string> {
-    // Read back through the codec, which holds what every field falls back to:
-    // a request, a link, and the editor then draw the same frame from a field
-    // nobody set.
+    // Apply codec defaults so requests, links, and the editor render omitted
+    // fields consistently.
     const state = Codec.schema.parse(request)
     if (!(state.lang in bundledLanguages))
       return Response.json({ error: `lang: \`${state.lang}\` is not bundled.` }, { status: 400 })
@@ -178,8 +176,7 @@ export function create(options: create.Options = {}) {
       async (c) => {
         const drawn = await frame_document(c.req.valid('json'))
         if (drawn instanceof Response) return drawn
-        // No cache header: a shared cache keys on the URL, which says nothing
-        // about the body each of these renders from.
+        // Do not cache by URL because the response depends on the request body.
         return c.body(drawn, 200, { 'content-type': 'text/html; charset=utf-8' })
       },
     )
@@ -237,8 +234,8 @@ export function create(options: create.Options = {}) {
       },
     )
 
-  // Read when asked rather than when built, so every route is registered, and
-  // against the request, which carries whatever prefix this was mounted under.
+  // Build the schema on request after all routes are registered, using the
+  // mounted path prefix from the current request.
   return app.get('/openapi.json', (c) =>
     c.json(OpenApi.describe(app, c.req.path.replace(/\/openapi\.json$/, ''))),
   )
@@ -250,7 +247,7 @@ export declare namespace create {
      * The browser to screenshot in, read off each request. A binding reaches a
      * Worker through its environment rather than its module scope, so this
      * takes a reader rather than the binding itself. Without one, `/image`
-     * answers `503`: nothing else needs a browser.
+     * returns `503`. Other routes do not require a browser.
      */
     browser?: ((context: { env: unknown }) => Browser.Endpoint | undefined) | undefined
     /**
@@ -262,11 +259,11 @@ export declare namespace create {
 }
 
 /**
- * Screenshotting in a browser Cloudflare runs, rather than one on this
- * machine. Reached through a binding, so nothing here starts a process.
+ * Captures screenshots through Cloudflare Browser Rendering. The binding
+ * provides an existing browser without starting a local process.
  */
 namespace Browser {
-  /** A Browser Rendering binding, which is anything that answers a fetch. */
+  /** Browser Rendering binding that implements `fetch`. */
   export type Endpoint = { fetch: typeof fetch }
 
   /**
@@ -328,10 +325,10 @@ namespace Browser {
 
 /**
  * The description a route carries, and the reading of it. A route states what
- * it accepts and answers once, in the middleware that enforces it.
+ * it accepts and returns one response through the enforcing middleware.
  */
 namespace OpenApi {
-  /** What a route says about itself, carried on the middleware guarding it. */
+  /** OpenAPI metadata attached to route validation middleware. */
   export type Described = {
     description: string
     responses: Record<number, { description: string; media?: string; schema?: z.ZodType }>
@@ -376,7 +373,7 @@ namespace OpenApi {
 
   /**
    * The routes as OpenAPI, built from the middleware guarding each one. Paths
-   * carry the prefix they answer on, so a document read from a mounted app
+   * include the prefix where they are served, so a document read from a mounted app
    * names the URLs a caller can reach.
    */
   export function describe(app: Hono, prefix = ''): Record<string, unknown> {
@@ -399,7 +396,7 @@ namespace OpenApi {
             ]),
           ),
           // Every validated route can turn a request away, so every one of
-          // them answers this.
+          // subsequent middleware returns this response.
           400: content({ description: 'The request was not understood.', schema: schema_failure }),
         },
         summary: described.summary,

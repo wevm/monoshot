@@ -1,7 +1,7 @@
 import { without } from './protocol.js'
 import type { Run } from './protocol.js'
 
-/** A run twoslash cut a `^?` line out of, carrying one complaint per line. */
+/** Twoslash run with one removed `^?` line and one diagnostic per source line. */
 const run: Run = {
   code: 'const a = 1\nconst b = 2\n',
   // The document had a six-character line between them that twoslash removed.
@@ -14,7 +14,7 @@ const run: Run = {
 }
 
 describe('without', () => {
-  test('leaves out the complaint at an offset, counting the cut before it', () => {
+  test('removes a diagnostic after mapping preceding source cuts', () => {
     // Offset 24 in the document is 18 in the code twoslash returned.
     expect(without(run, [24]).nodes.map((node) => [node.type, node.start])).toMatchInlineSnapshot(`
       [
@@ -30,7 +30,7 @@ describe('without', () => {
     `)
   })
 
-  test('leaves a complaint before any cut where it is', () => {
+  test('preserves a diagnostic before any source cut', () => {
     expect(without(run, [6]).nodes.map((node) => [node.type, node.start])).toMatchInlineSnapshot(`
       [
         [
@@ -45,7 +45,7 @@ describe('without', () => {
     `)
   })
 
-  test('returns the run it was given when nothing was waved off', () => {
+  test('returns the original run when no diagnostics are ignored', () => {
     expect(without(run, [])).toBe(run)
   })
 })

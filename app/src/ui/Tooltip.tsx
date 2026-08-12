@@ -8,15 +8,11 @@ import { text } from '#/theme/text.js'
 import { Roll } from './Roll.js'
 import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
-/**
- * The one tooltip every hint is drawn in, so moving from one control to the next
- * carries the words across rather than blinking a new pill out and back.
- */
+/** Shared tooltip handle that reuses one popup across controls. */
 const shared = Base.createHandle<string>()
 
 const styles = stylex.create({
-  // Over whatever it is about, including the surfaces that float: a hint about a
-  // control inside a popover is drawn on top of the popover.
+  // Keep tooltips above floating surfaces such as popovers.
   positioner: { zIndex: 20 },
   popup: {
     backgroundColor: color.background,
@@ -31,24 +27,13 @@ const styles = stylex.create({
   },
 })
 
-/**
- * How the pill moves from the control it was over to the one it is over now.
- *
- * Its transform, which is where Base UI puts the pill, and inline because the
- * library writes `transition: none` there for the frame it mounts, which only a
- * style of its own outranks.
- */
+/** Transition between tooltip anchors, applied inline to override Base UI. */
 const travel = `transform ${motion.fast} ${motion.inOut}`
 
-/**
- * The hint rolling to what it says next.
- *
- * Without give: a hint is read rather than played with, and a name that settles
- * by rocking into place is a name that cannot be read until it stops.
- */
+/** Non-bouncing transition for tooltip label changes. */
 const rolling = { bounce: 0, duration: 0.22, type: 'spring' } as const
 
-/** A hint pointed at a control the app draws rather than renders. */
+/** A tooltip target created through an imperative DOM API. */
 type Aim = { at: Element; label: string }
 
 let aim: Aim | undefined
@@ -73,12 +58,7 @@ function aimAt(at: Aim | undefined) {
   for (const watcher of watching) watcher()
 }
 
-/**
- * Takes the hint away shortly, unless something asks for it first.
- *
- * Once, rather than each time the pointer moves: a pointer travelling would
- * otherwise keep putting the moment off and the hint would ride along forever.
- */
+/** Schedules dismissal unless another control cancels it. */
 function hideSoon() {
   if (hiding !== undefined) return
   hiding = setTimeout(() => {
@@ -87,63 +67,35 @@ function hideSoon() {
   }, linger)
 }
 
-/** Calls that off, for a control asking about itself. */
+/** Cancels a scheduled dismissal. */
 function keep() {
   clearTimeout(hiding)
   hiding = undefined
 }
 
-/** Takes the hint away now, and forgets what it was about. */
+/** Closes the tooltip and clears its pending target. */
 function dismiss() {
   keep()
   pending = undefined
   aimAt(undefined)
 }
 
-/**
- * How long it holds on after being taken back.
- *
- * A pointer leaving one control for the next is off both for a moment, and a
- * hint that went in that moment would blink out and straight back in.
- */
+/** Delay that preserves a tooltip while the pointer crosses between controls. */
 const linger = 100
 
-/**
- * How long a control is under the pointer before its hint answers.
- *
- * Long enough that crossing a control is not asking about it, short enough that
- * stopping on one does not feel like waiting.
- */
+/** Initial pointer dwell before a tooltip opens. */
 const hover = 100
 
-/**
- * How long a control the pointer was dragging stands still before it counts as
- * having stopped.
- *
- * Longer than the wait for a control that never moved: a pointer sweeping gently
- * leaves gaps of its own between moves, and answering in one of those is
- * answering mid-sweep.
- */
+/** Dwell required after a dragged control stops moving. */
 const settled = 300
 
-/**
- * Watches the pointer, so a hint answers what it came to rest on rather than
- * everything it passed on the way.
- *
- * The marks sit beside the code and the strip follows the pointer down it, so a
- * pointer on its way somewhere sweeps control after control.
- */
+/** Tracks pointer motion and suppresses tooltips while controls move. */
 function pace() {
   const moved = () => {
     resting = false
     clearTimeout(settling)
-    // Out of the way while the pointer drags a control along: the strip follows
-    // the pointer down the code, so sweeping it keeps one control underneath the
-    // whole way and the hint rides along.
-    //
-    // Read off the control rather than off the pointer, since the pointer moves
-    // in both cases: one going from one control to the next leaves them where
-    // they are, and the hint travels between them instead.
+    // Compare target positions to distinguish a moving control from pointer
+    // movement between stationary controls.
     if (aim) {
       const top = aim.at.getBoundingClientRect().top
       if (stood !== undefined && Math.abs(top - stood) > 0.5) {
@@ -166,11 +118,8 @@ function pace() {
 }
 
 /**
- * Hover and focus tooltip around a single focusable child. Reaches the one
- * {@link Tooltip.Surface} the app mounts, so every hint is the same pill.
- *
- * Base UI does not expose the popup text to assistive technology, so the child
- * still needs its own accessible name; treat the tooltip as a sighted-user hint.
+ * Adds a hover and focus tooltip to one focusable child.
+ * Base UI does not expose popup text to assistive technology, so the child still requires an accessible name.
  */
 export function Tooltip(props: Tooltip.Props) {
   const { children, label } = props
@@ -178,16 +127,10 @@ export function Tooltip(props: Tooltip.Props) {
 }
 
 export namespace Tooltip {
-  /**
-   * The pill, mounted once for the whole app inside a {@link Tooltip.Provider}.
-   *
-   * Two of them: one for the controls the app renders, and one for the controls
-   * it builds itself, which have no element for a trigger to wrap.
-   */
+  /** Mounts shared tooltip surfaces for React triggers and imperative DOM targets. */
   export function Surface() {
     return (
-      // Mounted outside the trees that set this, being the app's own rather than
-      // any page's: without it the words roll for a reader who asked for stillness.
+      // Honor the user's reduced-motion preference outside route-level providers.
       <MotionConfig reducedMotion="user">
         <Wrapped />
         <Aimed />
@@ -195,21 +138,12 @@ export namespace Tooltip {
     )
   }
 
-  /**
-   * Shares one delay across the tooltips inside. A row of swatches reads as one
-   * row: once a hint has been waited for, the ones beside it answer at once.
-   */
+  /** Shares the opening delay so adjacent triggers open immediately after the first. */
   export function Provider(props: { children: ReactNode }) {
     return <Base.Provider delay={hover}>{props.children}</Base.Provider>
   }
 
-  /**
-   * Points the hint at a control the app built itself, and at the words for it.
-   * Called with nothing, the hint goes.
-   *
-   * For DOM the app writes rather than renders, which cannot carry a trigger:
-   * the marks beside the code, and the pin on a type.
-   */
+  /** Targets the imperative tooltip, or schedules dismissal when `at` is undefined. */
   export function point(at?: Aim | undefined) {
     keep()
     pending = at
@@ -217,10 +151,8 @@ export namespace Tooltip {
       hideSoon()
       return
     }
-    // Once the pointer has stopped, since on its way it is passing this control
-    // rather than asking about it. A hint already up answers at once: the wait
-    // is for the first question, and the ones after it are the same question
-    // moving along a row.
+    // Require an initial dwell, then update an open tooltip immediately for
+    // adjacent controls.
     if (resting || aim) aimAt(at)
   }
 
@@ -233,12 +165,12 @@ export namespace Tooltip {
   }
 }
 
-/** The hint for whatever a {@link Tooltip} wraps. */
+/** Renders the tooltip for a {@link Tooltip} trigger. */
 function Wrapped() {
   return <Base.Root handle={shared}>{({ payload }) => <Pill label={payload ?? ''} />}</Base.Root>
 }
 
-/** The hint for whatever {@link Tooltip.point} was last pointed at. */
+/** Renders the tooltip for the latest {@link Tooltip.point} target. */
 function Aimed() {
   useEffect(pace, [])
   const aimed = useSyncExternalStore(
@@ -246,14 +178,11 @@ function Aimed() {
     () => aim,
     () => undefined,
   )
-  // Held while it goes: a pill with nothing to be anchored to is placed at the
-  // page's own corner, which is where it would be drawn as it left.
+  // Retain the last target while the closing transition completes.
   const last = useRef<Aim | undefined>(undefined)
   if (aimed) last.current = aimed
   const shown = aimed ?? last.current
-  // Where the control is rather than the control itself, so the last place it
-  // stood outlives it: the marks beside the code are taken out from under the
-  // pointer, and a control off the page measures at the page's corner.
+  // Preserve the last measured position when an imperative control is removed.
   const anchor = useMemo(() => {
     const at = shown?.at
     if (!at) return undefined
@@ -263,8 +192,7 @@ function Aimed() {
   return (
     <Base.Root
       open={aimed !== undefined}
-      // Escape is Base UI's to answer, and it answers by asking for this: without
-      // it the hint stays until a pointer happens to take it away.
+      // Synchronize dismissals initiated by Base UI, including Escape.
       onOpenChange={(open) => {
         if (!open) dismiss()
       }}
@@ -275,13 +203,8 @@ function Aimed() {
 }
 
 /**
- * What a hint is drawn as, wherever it was asked for.
- *
- * Nothing animates where it is. Base UI holds a pill at the page's corner until
- * it has worked out where to put it, and that lands whenever it lands: a pill
- * that moves under its own steam sets off from the corner often enough to be the
- * thing you notice about it. It appears where it belongs, and its words are what
- * move.
+ * Renders tooltip content and transitions between established anchor positions.
+ * Initial placement does not animate because Base UI first positions the popup at the viewport origin.
  */
 function Pill(props: {
   anchor?: Element | { getBoundingClientRect: () => DOMRect } | undefined
@@ -289,21 +212,15 @@ function Pill(props: {
 }) {
   const { anchor, label } = props
   const still = useReducedMotion()
-  // Held as state rather than a ref, so this runs when the pill is put on the
-  // page: it is mounted by the library a commit or two after being asked for.
+  // State triggers placement tracking when Base UI mounts the popup.
   const [standing, setStanding] = useState<HTMLElement | null>(null)
   const [placed, setPlaced] = useState(false)
   useEffect(() => {
     const node = standing
     if (!node) return
-    // A pill being placed has no transform to move from, so moving it means
-    // moving it out of the corner the page begins at. Once it stands somewhere,
-    // every placement after that is a move between two controls. Told to move
-    // after it has been placed rather than before, so the placement itself is
-    // not something to animate.
+    // Enable position transitions only after Base UI completes initial placement.
     const settle = () => {
-      // Base UI holds an unplaced pill at nothing until it knows where to put
-      // it, whichever properties it ends up placing it with.
+      // Base UI keeps the popup transparent until placement completes.
       if (node.style.opacity === '0') return
       watcher.disconnect()
       setPlaced(true)

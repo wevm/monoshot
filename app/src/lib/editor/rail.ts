@@ -31,8 +31,7 @@ const order = ['focus', 'highlight', 'add', 'remove'] as const
 const unmarkable = 'Marks are unavailable for this row'
 
 /**
- * How far the controls stand off the window's edge: past the grip that resizes
- * it, which reaches 8px into the margin and is the more important thing to hit.
+ * Distance between controls and the window edge, beyond the resize grip's hit area.
  */
 const gap = 10
 
@@ -43,9 +42,7 @@ const margin = 2
 const reach = StateEffect.define<string | undefined>()
 
 /**
- * Which row the controls stand beside. The row itself is left alone: it says
- * nothing about the code, and a wash under the pointer is not what the artwork
- * is for.
+ * Row associated with the visible controls. Hovering a row does not alter the artwork.
  */
 const reached = StateField.define<string | undefined>({
   create: () => undefined,
@@ -68,7 +65,7 @@ const reached = StateField.define<string | undefined>({
  * than by typing the comment. The control for a mark the line already carries
  * turns it back off, which is how a hidden notation is taken away.
  *
- * The controls stand outside the window, which clips whatever is drawn in it, so
+ * The controls stand outside the window, which clips its contents, so
  * they are built into a host the artwork provides. Running down the strips runs
  * down the lines with them.
  */
@@ -99,7 +96,7 @@ type Painting = {
 
 /** What a row on screen offers: marks for a line of code, or one way out. */
 type Row = {
-  /** Where a kept complaint was taken from, on a row that draws one. */
+  /** Source offset of the pinned diagnostic rendered on this row. */
   at?: number | undefined
   carried?: readonly Notations.Kind[] | undefined
   height: number
@@ -135,8 +132,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   /** Whether this has been replaced, which a measure already asked for outlives. */
   let gone = false
 
-  // The host is this plugin's alone, so whatever is in it belongs to a
-  // predecessor: reconfiguring the editor leaves one behind.
+  // Remove content left by a previous plugin instance after reconfiguration.
   container.replaceChildren()
   strip.className = 'rail'
   strip.style.setProperty('--rail-gap', `${gap}px`)
@@ -197,16 +193,15 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   /** The row at a height down the host, which is what the covers stand for. */
   function rowAt(at: number) {
     let found: string | undefined
-    // The last of them, as the covers are stacked: a complaint drawn under a
-    // line sits inside that line's own block.
+    // Use the last matching row because covers are stacked. A diagnostic below
+    // a line remains inside that line's block.
     for (const [key, row] of rows) if (at >= row.top && at <= row.top + row.height) found = key
     return found
   }
 
   /**
-   * Which row the pointer is over, read by what it is over rather than by
-   * position: a complaint draws between two lines, and a position would name
-   * one of them.
+   * Identifies a row from the pointer target. Coordinates are ambiguous when a
+   * diagnostic renders between two source lines.
    */
   function track(event: MouseEvent) {
     // Back beside a row: over the code the strip belongs to the line it acts on
@@ -238,7 +233,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   function carry(event: MouseEvent) {
     if (!painting) return
     // Let go outside the window, the release never reached the page: the first
-    // move back in with nothing held is where the press ended.
+    // move back without the primary button indicates that the press ended.
     if (!(event.buttons & 1)) return drop()
     const height = event.clientY - view.documentTop
     const block = view.lineBlockAtHeight(Math.min(Math.max(height, 0), view.contentHeight - 1))
@@ -250,7 +245,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     view.dispatch({ effects: reach.of(key) })
   }
 
-  /** The line a complaint drawn under it belongs to. */
+  /** Returns the source line for a rendered diagnostic. */
   function lineOf(objection: Element) {
     return view.state.doc.lineAt(view.posAtDOM(objection)).number
   }
@@ -274,10 +269,8 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
             const line = view.state.doc.lineAt(position)
             const block = view.lineBlockAt(line.from)
             position = line.to + 1
-            // A row closed up because it holds a notation and nothing else is
-            // not on screen to be reached for. Asked of the notations rather
-            // than of the height: a measure taken while the editor is settling
-            // reads every row as nothing, and would cover none of them.
+            // Exclude notation-only rows by state because transient layout
+            // measurements can report zero height while the editor settles.
             if (closed.has(line.number)) continue
             rows.push({
               carried: Notations.at(view.state, line.number).map((notation) => notation.kind),
@@ -291,8 +284,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
             })
           }
         }
-        // Read off the rows themselves: a complaint is drawn between two lines,
-        // which the geometry of either one does not describe.
+        // Measure diagnostics directly because source-line geometry excludes them.
         for (const drawn of view.dom.querySelectorAll('.cm-objection')) {
           const line = lineOf(drawn)
           const at = keptUnder(view.state, line)
@@ -317,8 +309,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
         }
       },
       write: (measured) => {
-        // A measure asked for before this was replaced still runs, and what it
-        // would build is something nothing owns.
+        // Ignore measurements requested by a replaced plugin instance.
         if (gone) return
         const stale = new Set(reaches.keys())
         rows.clear()
@@ -341,7 +332,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
           const controls = hung.get(surface) ?? hang(surface)
           if (!controls) continue
           // Held by its right edge: what it is beside is what it acts on, and its
-          // own width is whatever the surface offered.
+          // width is determined by the annotation surface.
           controls.style.setProperty(
             '--rail-right',
             `${Math.round(measured.width - left + margin)}px`,
@@ -366,8 +357,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     if (!row) {
       delete strip.dataset['shown']
       showing = undefined
-      // The controls go without the pointer leaving them, so nothing else says
-      // the hint about one is no longer about anything.
+      // Dismiss the tooltip when controls are removed without a pointer-leave event.
       Tooltip.point()
       return
     }
@@ -430,10 +420,9 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
         ? []
         : [
             control({
-              // Set, since the complaint being on screen is what this row is.
+              // Mark active because the diagnostic is pinned.
               active: true,
-              // The glyph that pinned it, in the hue the complaint carries: the
-              // one thing this offers is to take it back.
+              // Use the diagnostic color for the unpin action.
               color: Theme.marks.remove,
               icon: Annotation.pin,
               label: 'Unpin this message',
@@ -469,7 +458,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   function control(options: {
     active?: boolean | undefined
     color?: string | undefined
-    /** Set when the row offers nothing this control can do to it. */
+    /** Whether this action is unavailable for the row. */
     disabled?: boolean | undefined
     /** What a press by pointer does, when it does more than a press by key. */
     hold?: (() => void) | undefined
@@ -487,10 +476,8 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     button.disabled = options.disabled === true
     button.type = 'button'
     button.setAttribute('aria-label', options.label)
-    // The hint every other control in the app draws, asked for by hand: a button
-    // written rather than rendered has nothing for a trigger to wrap. A disabled
-    // one hears no pointer, so what it would have said stays on the attribute
-    // the browser draws itself.
+    // Use an imperative tooltip for DOM created outside React. Disabled controls
+    // retain a native title because they do not receive pointer events.
     if (button.disabled) button.title = options.label
     else {
       const named = () => Tooltip.point({ at: button, label: options.label })
@@ -502,7 +489,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     }
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
     // Ahead of the click: the editor would otherwise take focus and drop the
-    // caret on whatever the control sits over.
+    // caret on the underlying editor position.
     button.addEventListener('mousedown', (event) => {
       // A right or middle press opens a menu or pastes; a modified one is the
       // platform's. Only a plain left press writes to the snippet.

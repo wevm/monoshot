@@ -15,7 +15,7 @@ const options = {
 } as const
 
 describe('build', () => {
-  test('carries the frame, the code, and nothing that needs the network', async () => {
+  test('contains the frame and code without external resources', async () => {
     const document = await frame.toDocument(options)
     expect({
       // A headless browser gets one document and must not reach for anything
@@ -90,7 +90,7 @@ describe('build', () => {
     expect(document.includes('<div class="title-bar">')).toMatchInlineSnapshot(`false`)
   })
 
-  test('paints the backdrop the background asks for', async () => {
+  test('renders the configured backdrop', async () => {
     const shown = async (background: string) => {
       const document = await frame.toDocument({ ...options, background })
       return /\.canvas \{\n  background: ([^;]+);/.exec(document)?.[1]
@@ -123,7 +123,7 @@ describe('build', () => {
     `)
   })
 
-  test('asks for the families it embedded, not just the default', async () => {
+  test('declares every embedded font family', async () => {
     const stack = async (fonts?: readonly { family: string; source: string }[]) => {
       const document = await frame.toDocument({ ...options, ...(fonts ? { fonts } : {}) })
       return /--code-font-family: ([^;]+);/.exec(document)?.[1]
