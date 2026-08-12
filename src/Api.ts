@@ -208,7 +208,7 @@ export function create(options: create.Options = {}) {
           try {
             return await Browser.screenshot(browser, {
               html: drawn,
-              scale: request.scale ?? 2,
+              scale: request.scale ?? 3,
             })
           } catch (cause) {
             return cause instanceof Error ? cause : new Error(String(cause))

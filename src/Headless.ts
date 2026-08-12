@@ -63,7 +63,7 @@ export function create(options: create.Options = {}): create.ReturnType {
       if (owned) await frame.dispose()
     },
     async render(parameters) {
-      const { scale = 2, ...rest } = parameters
+      const { scale = 3, ...rest } = parameters
       const html = await frame.toDocument({ ...defaults, ...rest })
       // Read once: the browser can drop out of the cache while this waits.
       const pending = (browser ??= start())
@@ -137,7 +137,7 @@ const defaults = {
   padding: 64,
   radius: 12,
   title: '',
-  titleBar: true,
+  titleBar: false,
   width: 640,
 } as const satisfies render.Defaults
 
@@ -181,7 +181,7 @@ async function capture(
 /** What a render needs, less the browser it runs in. */
 type Options_render = Omit<Frame.toDocument.Options, keyof render.Defaults> &
   Partial<render.Defaults> & {
-    /** Multiplier on the frame's own size. Defaults to 2. */
+    /** Multiplier on the frame's own size. Defaults to 3. */
     scale?: number | undefined
   }
 
