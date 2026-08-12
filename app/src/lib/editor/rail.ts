@@ -493,10 +493,12 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // the browser draws itself.
     if (button.disabled) button.title = options.label
     else {
-      button.addEventListener('pointerenter', () =>
-        Tooltip.point({ at: button, label: options.label }),
-      )
-      button.addEventListener('pointerleave', () => Tooltip.point())
+      const named = () => Tooltip.point({ at: button, label: options.label })
+      const done = () => Tooltip.point()
+      button.addEventListener('pointerenter', named)
+      button.addEventListener('focus', named)
+      button.addEventListener('pointerleave', done)
+      button.addEventListener('blur', done)
     }
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
     // Ahead of the click: the editor would otherwise take focus and drop the

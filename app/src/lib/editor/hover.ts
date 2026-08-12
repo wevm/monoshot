@@ -3,6 +3,7 @@ import { completionStatus } from '@codemirror/autocomplete'
 import { Decoration, EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import type { Rect } from '@codemirror/view'
 
+import { Tooltip } from '#/ui/Tooltip.js'
 import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
 import { keep, kept, keptUnder, objection, overlook, overlookedAt } from './problems.js'
@@ -160,6 +161,9 @@ export const hover: Extension = [
               if (next === shape) return
               shape = next
               surface = draw(update.state)
+              // The controls on the old surface go with it, and a button taken
+              // off the page under the pointer never hears the pointer leave.
+              Tooltip.point()
               root.replaceChildren(surface)
               point()
             },

@@ -1,6 +1,6 @@
 import { Tooltip as Base } from '@base-ui/react/tooltip'
 import * as stylex from '@stylexjs/stylex'
-import { useReducedMotion } from 'motion/react'
+import { MotionConfig, useReducedMotion } from 'motion/react'
 import type { ReactElement, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
@@ -93,6 +93,13 @@ function keep() {
   hiding = undefined
 }
 
+/** Takes the hint away now, and forgets what it was about. */
+function dismiss() {
+  keep()
+  pending = undefined
+  aimAt(undefined)
+}
+
 /**
  * How long it holds on after being taken back.
  *
@@ -179,10 +186,12 @@ export namespace Tooltip {
    */
   export function Surface() {
     return (
-      <>
+      // Mounted outside the trees that set this, being the app's own rather than
+      // any page's: without it the words roll for a reader who asked for stillness.
+      <MotionConfig reducedMotion="user">
         <Wrapped />
         <Aimed />
-      </>
+      </MotionConfig>
     )
   }
 
@@ -252,7 +261,14 @@ function Aimed() {
     return { getBoundingClientRect: () => (at.isConnected ? at.getBoundingClientRect() : stood) }
   }, [shown])
   return (
-    <Base.Root open={aimed !== undefined}>
+    <Base.Root
+      open={aimed !== undefined}
+      // Escape is Base UI's to answer, and it answers by asking for this: without
+      // it the hint stays until a pointer happens to take it away.
+      onOpenChange={(open) => {
+        if (!open) dismiss()
+      }}
+    >
       <Pill anchor={anchor} label={shown?.label ?? ''} />
     </Base.Root>
   )

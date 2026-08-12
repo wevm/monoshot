@@ -316,7 +316,8 @@ export function Frame(props: Frame.Props) {
             axis="y"
             edge="start"
             factor={-1}
-            label="Padding"
+            hint="Padding"
+            label="Padding, top edge"
             onDragging={setDragging}
             max={paddingMax}
             min={0}
@@ -328,7 +329,8 @@ export function Frame(props: Frame.Props) {
             axis="y"
             edge="end"
             factor={1}
-            label="Padding"
+            hint="Padding"
+            label="Padding, bottom edge"
             onDragging={setDragging}
             max={paddingMax}
             min={0}
@@ -344,7 +346,8 @@ export function Frame(props: Frame.Props) {
             axis="x"
             edge="start"
             factor={-2}
-            label="Width"
+            hint="Width"
+            label="Frame width, left edge"
             onDragging={setDragging}
             max={widthMax}
             min={widthMin}
@@ -356,7 +359,8 @@ export function Frame(props: Frame.Props) {
             axis="x"
             edge="end"
             factor={2}
-            label="Width"
+            hint="Width"
+            label="Frame width, right edge"
             onDragging={setDragging}
             max={widthMax}
             min={widthMin}
@@ -370,7 +374,8 @@ export function Frame(props: Frame.Props) {
             axis="xy"
             edge="end"
             factor={-2}
-            label="Radius"
+            hint="Radius"
+            label="Corner radius"
             max={24}
             min={0}
             onChange={onRadiusChange}
@@ -386,7 +391,7 @@ export function Frame(props: Frame.Props) {
 
 /** One draggable edge, setting a value from pointer travel along one axis. */
 function Handle(props: Handle.Props) {
-  const { axis, edge, factor, label, max, min, onChange, onDragging, step, value } = props
+  const { axis, edge, factor, hint, label, max, min, onChange, onDragging, step, value } = props
 
   const clamp = (next: number) => Math.round(Math.min(max, Math.max(min, next)))
   // The corner grip travels on the diagonal, so it averages both axes.
@@ -441,7 +446,7 @@ function Handle(props: Handle.Props) {
   }
 
   return (
-    <Tooltip label={label}>
+    <Tooltip label={hint ?? label}>
       <button
         aria-label={label}
         aria-valuemax={max}
@@ -477,7 +482,10 @@ declare namespace Handle {
     edge: 'start' | 'end'
     /** Value change per pixel of pointer travel, signed by which edge moves. */
     factor: number
+    /** Accessible name, which says which edge of what this one moves. */
     label: string
+    /** What the tooltip says, when the name is longer than a hint wants. */
+    hint?: string | undefined
     max: number
     min: number
     onChange: (value: number) => void
