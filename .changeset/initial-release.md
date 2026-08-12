@@ -1,0 +1,5 @@
+---
+'monoshot': patch
+---
+
+Initial release.
