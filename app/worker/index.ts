@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
+import { detect } from '../src/lib/detect.js'
 import * as Links from './links.js'
 
 // Registered rather than left to the default: the bundler drops the locale
@@ -23,17 +24,35 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .post('/share', async (c) => {
     if (!c.env.LINKS)
       return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
+    // Refused before it is read: a body past the cap is one this would reject
+    // anyway, and parsing it first is what an unauthenticated caller would use
+    // to spend the isolate's memory.
+    const declared = Number(c.req.header('content-length') ?? 0)
+    if (declared > Links.limits.size * 2)
+      return c.json({ error: 'That snippet is too large to share.' }, 413)
+    // Nothing here asks who is calling, and every call writes a key kept for
+    // ninety days and draws an image on request. Held per address, high enough
+    // that nobody sharing snippets meets it.
+    const caller = c.req.header('cf-connecting-ip') ?? 'anonymous'
+    if (!(await c.env.SHARE_RATE.limit({ key: caller })).success)
+      return c.json({ error: 'Too many links from here. Try again shortly.' }, 429)
     const body = await c.req.json<{ state?: unknown }>().catch(() => ({ state: undefined }))
     const state = typeof body.state === 'string' ? body.state : ''
+    if (state.length > Links.limits.size)
+      return c.json({ error: 'That snippet is too large to share.' }, 413)
     // Read back before it is kept: a fragment the decoder rejects opens an
     // empty editor, and a link to nothing is worth refusing at the source.
     if (!state || !Codec.readable(state))
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
-    if (state.length > Links.limits.size)
-      return c.json({ error: 'That snippet is too large to share.' }, 413)
 
     const id = Links.id()
-    await c.env.LINKS.put(id, state, { expirationTtl: Links.limits.ttl })
+    // Written back out rather than kept as it arrived. The decoder stops at
+    // the end of what it can read and ignores whatever follows, so a valid
+    // fragment can carry a payload through `readable`; re-encoding leaves only
+    // the state itself.
+    await c.env.LINKS.put(id, Codec.serialize(Codec.deserialize(state)), {
+      expirationTtl: Links.limits.ttl,
+    })
     return c.json({ id, url: `${new URL(c.req.url).origin}/s/${id}` }, 201)
   })
   // A whole package's declarations in one response. The editor resolves types
@@ -104,9 +123,17 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
       '/image',
       {
         body: JSON.stringify({
-          background: settings.background,
-          code: settings.code,
-          lang: settings.lang,
+          // A wallpaper is an asset the app serves and the renderer has no
+          // reach to, so a card drawn for one takes the theme's own backdrop.
+          background: settings.background.startsWith('wallpaper:')
+            ? 'default'
+            : settings.background,
+          // Bounded rather than whole: the frame is as tall as the snippet is
+          // long, and a card is cropped to a shape a hundred lines cannot fit.
+          code: Links.excerpt(settings.code),
+          // `auto` is the editor asking to be told, which it answers in the
+          // browser. The renderer takes a language shiki bundles or nothing.
+          lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
           // The card's shape rather than the editor's: a preview is cropped to
           // 1.91:1, and a frame as tall as the editor draws loses its middle.
           padding: 88,
@@ -143,7 +170,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     const settings = Codec.deserialize(state)
     return c.html(
       Links.page({
-        description: `A ${settings.lang} snippet, rendered by monoshot.`,
+        description: `A ${settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang} snippet, rendered by monoshot.`,
         id,
         origin: new URL(c.req.url).origin,
         state,

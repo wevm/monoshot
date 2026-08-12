@@ -631,13 +631,19 @@ function Page() {
     // that previews itself has to be one a server can read. A deployment
     // without the store, or a request that fails, still copies a link.
     const text = Links.shorten(state).catch(() => long.toString())
-    // Handed over as a promise: Safari only honors a clipboard write that
-    // starts in the gesture that asked for it, and the short link is a round
-    // trip away.
-    void navigator.clipboard
-      .write([new ClipboardItem({ 'text/plain': text.then((value) => new Blob([value])) })])
-      .catch(async () => navigator.clipboard.writeText(await text))
-      .catch(() => setNotice('The link could not be copied.'))
+    // Handed over as a promise where that is available: Safari only honors a
+    // clipboard write that starts in the gesture that asked for it, and the
+    // short link is a round trip away. A browser without `ClipboardItem`
+    // throws on the constructor rather than rejecting, so the shape is checked
+    // rather than caught.
+    const rich =
+      typeof ClipboardItem === 'function' && typeof navigator.clipboard.write === 'function'
+    const written = rich
+      ? navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': text.then((value) => new Blob([value])) }),
+        ])
+      : text.then((value) => navigator.clipboard.writeText(value))
+    void written.catch(() => setNotice('The link could not be copied.'))
   }
 
   const [measure, rect] = useEdges()

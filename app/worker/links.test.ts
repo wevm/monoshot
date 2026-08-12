@@ -3,8 +3,8 @@ import * as Links from './links.js'
 describe('id', () => {
   test('is short, and drawn from an alphabet a link can carry', () => {
     const ids = Array.from({ length: 200 }, () => Links.id())
-    // No `l` and no `0` or `1`, which are the characters a reader mistypes.
-    expect(ids.every((value) => /^[a-km-z2-9]{10}$/.test(value))).toBe(true)
+    // No `l`, and none of `0`, `1`, `9`: the characters a reader mistypes.
+    expect(ids.every((value) => /^[a-km-z2-8]{12}$/.test(value))).toBe(true)
     // Two of the same in two hundred would mean the source is not random.
     expect(new Set(ids).size).toBe(ids.length)
   })

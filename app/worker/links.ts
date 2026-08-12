@@ -1,22 +1,36 @@
 /**
  * What a shared link may carry, and how long it is kept.
  *
- * The cap is the codec's own fragment limit: a state larger than that is one
- * the reader could not have opened anyway. Ninety days because a link pasted
- * into a chat is read within days, and a store that never expires only grows.
+ * The size cap is the codec's own fragment limit: a state larger than that is
+ * one the reader could not have opened anyway. Ninety days because a link
+ * pasted into a chat is read within days, and a store that never expires only
+ * grows. Twelve lines is what a card shows before it crops.
  */
-export const limits = { size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+export const limits = { lines: 12, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /**
  * A short, unguessable name for a snippet.
  *
- * Ten characters of a URL-safe alphabet, which is 59 bits: enough that a link
- * is not found by trying, and short enough to paste.
+ * Twelve characters of a 32-symbol alphabet, which is exactly 60 bits: a link
+ * is not found by trying, and two are not drawn alike before the store is
+ * larger than this will ever hold. Nothing checks for a name already taken,
+ * so the space is what keeps one share from landing on another.
+ *
+ * A byte is taken only when it lands in a whole number of alphabet lengths, so
+ * every symbol is as likely as the rest; `%` alone would favour the first few.
  */
 export function id(): string {
-  const alphabet = 'abcdefghijkmnopqrstuvwxyz23456789'
-  const bytes = crypto.getRandomValues(new Uint8Array(10))
-  return [...bytes].map((byte) => alphabet[byte % alphabet.length]).join('')
+  const alphabet = 'abcdefghijkmnopqrstuvwxyz2345678'
+  const limit = 256 - (256 % alphabet.length)
+  let name = ''
+  while (name.length < 12) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(12))) {
+      if (byte >= limit) continue
+      name += alphabet[byte % alphabet.length]
+      if (name.length === 12) break
+    }
+  }
+  return name
 }
 
 /**
@@ -53,7 +67,7 @@ export function page(options: page.Options): string {
 </head>
 <body>
 <p>Opening <a href="${escape(target)}">this snippet</a>.</p>
-<script>location.replace(${JSON.stringify(target)})</script>
+<script>location.replace(${script(target)})</script>
 </body>
 </html>
 `
@@ -75,6 +89,19 @@ export declare namespace page {
 }
 
 /**
+ * As much of a snippet as a card can hold.
+ *
+ * A frame is as tall as its code is long, and a preview is cropped to roughly
+ * 1.91:1, so a hundred lines arrive as an unreadable sliver of their own
+ * middle. Cut at a line rather than scaled down, which leaves what is shown
+ * legible.
+ */
+export function excerpt(code: string): string {
+  const lines = code.split('\n')
+  return lines.length <= limits.lines ? code : `${lines.slice(0, limits.lines).join('\n')}\n`
+}
+
+/**
  * A line of the snippet worth showing as the preview's title, which is the
  * first that carries anything. Trimmed to what a card shows before it cuts.
  */
@@ -83,6 +110,15 @@ export function summarize(code: string, fallback: string): string {
   if (!line) return fallback
   const trimmed = line.trim()
   return trimmed.length > 72 ? `${trimmed.slice(0, 71)}…` : trimmed
+}
+
+/**
+ * A string for an inline script, with the one sequence that would end the
+ * element early written as an escape. `JSON.stringify` leaves `</script>`
+ * alone, and a state carrying one would otherwise run as markup.
+ */
+function script(value: string) {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
 }
 
 /** Escapes a value for an attribute or a text node. */
