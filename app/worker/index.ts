@@ -1,7 +1,6 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono } from 'hono'
-import { Api } from 'monoshot'
-import * as Twoslash from 'monoshot/twoslash'
+import { Api, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
 // Registered rather than left to the default: the bundler drops the locale

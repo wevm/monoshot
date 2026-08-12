@@ -5,9 +5,13 @@ const dir = import.meta.dirname
 
 export default defineConfig({
   test: {
-    alias: {
-      monoshot: path.resolve(dir, 'src'),
-    },
+    // Anchored, because a bare prefix rewrites every subpath with it:
+    // `monoshot/headless` became `src/headless`, which only a case-insensitive
+    // file system finds, so it resolved on macOS and not on Linux.
+    alias: [
+      { find: /^monoshot$/, replacement: path.resolve(dir, 'src/index.ts') },
+      { find: /^monoshot\/headless$/, replacement: path.resolve(dir, 'src/Headless.ts') },
+    ],
     coverage: {
       exclude: ['coverage/**', 'dist/**', '**/*.test.ts', '**/*.test-d.ts'],
       provider: 'v8',

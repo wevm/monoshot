@@ -11,8 +11,8 @@ const count: number = greeting.length
 const twoslash = Twoslash.create()
 
 describe('create', () => {
-  test('resolves the types a snippet asks for', () => {
-    const result = twoslash.run(source)
+  test('resolves the types a snippet asks for', async () => {
+    const result = await twoslash.run(source)
     expect(result.queries.map((query) => ({ name: query.name, text: query.text })))
       .toMatchInlineSnapshot(`
       [
@@ -28,10 +28,10 @@ describe('create', () => {
     `)
   })
 
-  test('points a query at the identifier in the source as written', () => {
+  test('points a query at the identifier in the source as written', async () => {
     // The positions are useless unless they index the text the caller holds,
     // which still has its notation lines in it.
-    const result = twoslash.run(source)
+    const result = await twoslash.run(source)
     expect(result.queries.map((query) => source.slice(query.from, query.to)))
       .toMatchInlineSnapshot(`
       [
@@ -41,8 +41,8 @@ describe('create', () => {
     `)
   })
 
-  test('knows types nothing asked about, which is what a hover needs', () => {
-    const result = twoslash.run(source)
+  test('knows types nothing asked about, which is what a hover needs', async () => {
+    const result = await twoslash.run(source)
     const found = result.hovers.find((hover) => hover.name === 'length')
     expect({ name: found?.name, text: found?.text }).toMatchInlineSnapshot(`
       {
@@ -52,8 +52,8 @@ describe('create', () => {
     `)
   })
 
-  test('resolves a snippet carrying no notations at all', () => {
-    const result = twoslash.run('const a = 1')
+  test('resolves a snippet carrying no notations at all', async () => {
+    const result = await twoslash.run('const a = 1')
     expect({ hovers: result.hovers.length, queries: result.queries.length }).toMatchInlineSnapshot(`
       {
         "hovers": 1,
@@ -62,8 +62,8 @@ describe('create', () => {
     `)
   })
 
-  test('reports what it can for code that does not compile', () => {
-    const result = twoslash.run("const a: number = 'x'\nconst b = a\n//        ^?")
+  test('reports what it can for code that does not compile', async () => {
+    const result = await twoslash.run("const a: number = 'x'\nconst b = a\n//        ^?")
     expect(result.queries.map((query) => query.text)).toMatchInlineSnapshot(`
       [
         "const a: number",
@@ -71,8 +71,8 @@ describe('create', () => {
     `)
   })
 
-  test('reads a snippet in the language it was asked for', () => {
-    const result = twoslash.run('const a = 1\n//    ^?', { lang: 'js' })
+  test('reads a snippet in the language it was asked for', async () => {
+    const result = await twoslash.run('const a = 1\n//    ^?', { lang: 'js' })
     expect(result.queries.map((query) => query.text)).toMatchInlineSnapshot(`
       [
         "const a: 1",
@@ -82,8 +82,8 @@ describe('create', () => {
 })
 
 describe('run', () => {
-  test('resolves a snippet without a resolver to hold on to', () => {
-    const result = Twoslash.run("const a = 'x'\n//    ^?")
+  test('resolves a snippet without a resolver to hold on to', async () => {
+    const result = await Twoslash.run("const a = 'x'\n//    ^?")
     expect(result.queries.map((query) => query.text)).toMatchInlineSnapshot(`
       [
         "const a: "x"",
@@ -111,7 +111,7 @@ describe('annotate', () => {
     ],
   }
 
-  test('shifts every offset past the notation cuts before it', () => {
+  test('shifts every offset past the notation cuts before it', async () => {
     expect(Twoslash.annotate(input)).toMatchInlineSnapshot(`
       {
         "diagnostics": [],
@@ -141,7 +141,7 @@ describe('annotate', () => {
     `)
   })
 
-  test('leaves offsets alone when nothing was cut', () => {
+  test('leaves offsets alone when nothing was cut', async () => {
     expect(Twoslash.annotate({ ...input, meta: { removals: [] } })).toMatchInlineSnapshot(`
       {
         "diagnostics": [],
@@ -171,7 +171,7 @@ describe('annotate', () => {
     `)
   })
 
-  test('skips the node kinds it has nothing to say about', () => {
+  test('skips the node kinds it has nothing to say about', async () => {
     const nodes = [
       { length: 1, start: 1, type: 'completion' },
       { length: 1, start: 2, text: 'a note', type: 'highlight' },
@@ -187,7 +187,7 @@ describe('annotate', () => {
     `)
   })
 
-  test('leaves an endpoint before a cut that begins where it ends', () => {
+  test('leaves an endpoint before a cut that begins where it ends', async () => {
     // Compiled span [3, 5) against a cut at [5, 10): the message stops where
     // the notation starts, so it must not be stretched over it.
     const nodes = [{ code: 2322, length: 2, start: 3, text: 'Not assignable.', type: 'error' }]
@@ -205,7 +205,7 @@ describe('annotate', () => {
     `)
   })
 
-  test('reads an error onto the source as written', () => {
+  test('reads an error onto the source as written', async () => {
     const nodes = [
       // Spans one of the cuts, so its end shifts further than its start.
       {

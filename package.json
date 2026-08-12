@@ -57,11 +57,6 @@
       "src": "./src/Headless.ts",
       "types": "./dist/Headless.d.ts",
       "default": "./dist/Headless.js"
-    },
-    "./twoslash": {
-      "src": "./src/Twoslash.ts",
-      "types": "./dist/Twoslash.d.ts",
-      "default": "./dist/Twoslash.js"
     }
   },
   "sideEffects": false,

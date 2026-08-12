@@ -1,4 +1,4 @@
-import * as Twoslash from 'monoshot/twoslash'
+import { Twoslash } from 'monoshot'
 import ts from 'typescript'
 import { createTwoslashFromCDN } from 'twoslash-cdn'
 import { createStorage } from 'unstorage'

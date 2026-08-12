@@ -1,4 +1,4 @@
-import type * as Twoslash from 'monoshot/twoslash'
+import type { Twoslash } from 'monoshot'
 
 /** What the worker resolves for a document. */
 export type Result = Twoslash.Result

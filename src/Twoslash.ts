@@ -1,6 +1,4 @@
-import { createTwoslasher } from 'twoslash'
-
-import { tags } from './internal/Tags.js'
+import * as Cdn from './internal/Cdn.js'
 
 export { acquire } from './internal/Acquire.js'
 export { compilerOptions } from './internal/Cdn.js'
@@ -48,48 +46,44 @@ export type Result = {
 /**
  * Creates a resolver that owns a TypeScript compiler for its lifetime.
  *
- * Needs `typescript` in the consuming install. It is an optional peer because
- * only this entrypoint reaches the compiler; the root entrypoint never does.
+ * Needs `typescript` in the consuming install. The compiler and the types it
+ * reads are loaded on the first snippet, so importing this costs neither.
  *
  * Construct one per lifecycle that should share the compiler: an editor
- * session, a CLI run, a worker. The first snippet builds the compiler and
- * every later one reuses it, which is what makes resolving on each keystroke
- * affordable.
+ * session, a CLI run, a worker. The first snippet pays for the compiler and
+ * the lib files, and every later one reuses them.
  *
  * @example
  * ```ts twoslash
- * import * as Twoslash from 'monoshot/twoslash'
+ * import { Twoslash } from 'monoshot'
  *
  * const twoslash = Twoslash.create()
- * const result = twoslash.run("const a = 'x'\n//    ^?")
+ * const result = await twoslash.run("const a = 'x'\n//    ^?")
  * result.queries[0]?.text
  * // ^?
  * ```
  */
 export function create(): create.ReturnType {
-  const twoslasher = createTwoslasher({ customTags: [...tags] })
+  const resolver = Cdn.create()
   return {
-    run(code, options = {}) {
-      return annotate(
-        // Blanked as the frame blanks it: a line the snippet marks as removed is
-        // not code it is claiming, and compiling it reports the conflict between
-        // a declaration and its replacement rather than a mistake in either.
-        twoslasher(unchecked(code), options.lang ?? 'ts', {
-          // Half-typed code is the normal case in an editor, and twoslash
-          // otherwise insists every compiler error be declared in the source
-          // with an `@errors` tag, throwing when it is not. A snippet that
-          // does not compile still has types worth showing.
-          handbookOptions: { noErrorValidation: true },
-        }),
-      )
+    async run(code, options = {}) {
+      const twoslasher = await resolver.prepare(code)
+      // Blanked as the frame blanks it: a line the snippet marks as removed is
+      // not code it is claiming, and compiling it reports the conflict between
+      // a declaration and its replacement rather than a mistake in either.
+      return annotate(twoslasher(unchecked(code), options.lang ?? 'ts'))
     },
   }
 }
 
 export declare namespace create {
   type ReturnType = {
-    /** Resolves a snippet's types against the compiler this resolver holds. */
-    run: (code: string, options?: run.Options) => Result
+    /**
+     * Resolves a snippet's types, fetching whatever it imports first. Async
+     * for that fetch: the types come from the registry rather than from the
+     * machine this runs on, so the same snippet resolves the same anywhere.
+     */
+    run: (code: string, options?: run.Options) => Promise<Result>
   }
 }
 
@@ -105,14 +99,14 @@ export declare namespace create {
  *
  * @example
  * ```ts twoslash
- * import * as Twoslash from 'monoshot/twoslash'
+ * import { Twoslash } from 'monoshot'
  *
- * const result = Twoslash.run("const a = 'x'\n//    ^?")
+ * const result = await Twoslash.run("const a = 'x'\n//    ^?")
  * result.queries[0]?.text
  * // ^?
  * ```
  */
-export function run(code: string, options: run.Options = {}): Result {
+export function run(code: string, options: run.Options = {}): Promise<Result> {
   return create().run(code, options)
 }
 
