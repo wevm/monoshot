@@ -43,13 +43,17 @@ namespace schema {
   export const document = z
     .object({
       background: z
-        .union([z.literal('default'), z.literal('none'), z.string().regex(/^#[0-9a-f]{6}$/i)])
+        .union([z.enum(['default', 'none']), z.string().regex(/^#[0-9a-f]{6}$/i)])
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
       padding: z.number().int().min(0).max(256).optional(),
       radius: z.number().int().min(0).max(24).optional(),
-      theme: z.string().optional(),
+      // Named rather than listed: the enum's own message spells out
+      // two dozen names, and `/themes` is where they are read from.
+      theme: z
+        .enum(Theme.names, { error: (issue) => `\`${String(issue.input)}\` is not offered.` })
+        .optional(),
       title: z.string().max(200).optional(),
       titleBar: z.boolean().optional(),
       twoslash: run.optional(),
@@ -94,7 +98,7 @@ namespace schema {
 
   /** Which themes to list. */
   export const filter = z.object({
-    type: z.union([z.literal('dark'), z.literal('light')]).optional(),
+    type: z.enum(['dark', 'light']).optional(),
   })
 
   /** What every route answers with when it cannot accept a request. */
@@ -142,9 +146,6 @@ export function create(options: create.Options = {}) {
     const state = Codec.schema.parse(request)
     if (!(state.lang in bundledLanguages))
       return Response.json({ error: `lang: \`${state.lang}\` is not bundled.` }, { status: 400 })
-    const theme = Theme.info(state.theme)
-    if (!theme)
-      return Response.json({ error: `theme: \`${state.theme}\` is not offered.` }, { status: 400 })
     try {
       return await frame.toDocument({
         ...state,
@@ -155,7 +156,6 @@ export function create(options: create.Options = {}) {
           ? { twoslash: request.twoslash as unknown as Frame.render.Types }
           : {}),
         lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
-        theme: theme.name,
       })
     } catch (cause) {
       // Not a rejection: the request was understood, and drawing it failed.

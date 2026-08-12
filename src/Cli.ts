@@ -218,6 +218,14 @@ function frame(
   options: z.output<typeof settings>,
 ): { state: Codec.State & { lang: BundledLanguage; theme: Frame.Name } } | Failure {
   const state = Codec.schema.parse({ ...options, code })
+  // Read from the flag rather than the state, which already fell back to a
+  // theme that exists: named before the generic complaint below, a theme has
+  // somewhere to look the accepted names up.
+  if (options.theme !== undefined && Theme.info(options.theme) === undefined)
+    return {
+      code: 'unknown_theme',
+      message: `\`${options.theme}\` is not offered. \`monoshot themes\` lists every name.`,
+    }
   // The codec falls back rather than failing, which a half-edited URL needs
   // and a command does not: a flag that was replaced was never understood.
   const replaced = ignored(options, state)
@@ -229,13 +237,7 @@ function frame(
   const lang = language(state.lang, file)
   if (lang === undefined)
     return { code: 'unknown_language', message: `\`${state.lang}\` is not a bundled language.` }
-  const theme = Theme.info(state.theme)
-  if (theme === undefined)
-    return {
-      code: 'unknown_theme',
-      message: `\`${state.theme}\` is not offered. \`monoshot themes\` lists every name.`,
-    }
-  return { state: { ...state, lang, theme: theme.name } }
+  return { state: { ...state, lang } }
 }
 
 /**

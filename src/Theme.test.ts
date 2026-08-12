@@ -58,6 +58,12 @@ describe('list', () => {
     expect(Theme.composed.map((theme) => theme.name)).toEqual(composed)
   })
 
+  test('names the same themes it offers, in the same order', () => {
+    // The schemas enumerate `names`, a picker walks `list()`. Drifting apart
+    // silently, a link could carry a theme no picker shows.
+    expect(Theme.names).toEqual(Theme.list().map((entry) => entry.name))
+  })
+
   test('groups into light and dark', () => {
     const types = new Set(Theme.list().map((entry) => entry.type))
     expect([...types].sort()).toMatchInlineSnapshot(`
