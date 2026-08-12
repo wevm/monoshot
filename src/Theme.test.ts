@@ -17,6 +17,7 @@ const composed = [
   'snow-leopard',
   'tahoe-dark',
   'tahoe-light',
+  'tempo',
 ]
 
 describe('list', () => {
@@ -49,6 +50,7 @@ describe('list', () => {
         "snow-leopard",
         "tahoe-dark",
         "tahoe-light",
+        "tempo",
       ]
     `)
     const bundled = Theme.list().filter((entry) => !composed.includes(entry.name))
@@ -158,7 +160,7 @@ describe('derive', () => {
         "type": "dark",
         "window": {
           "background": "#101010",
-          "border": "oklch(0.26580986589144595 0 0)",
+          "border": "oklch(0.28 0 0)",
           "foreground": "#ededed",
           "title": "oklch(0.5982269457479918 0 0)",
         },

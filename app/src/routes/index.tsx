@@ -269,6 +269,16 @@ function restore(hash: string) {
 }
 
 /**
+ * Settings after a change, with the frame a theme asks for applied when the
+ * theme is what changed. A reader's own frame is left alone otherwise.
+ */
+function merged(current: Settings, next: Partial<Settings>): Settings {
+  const settings = { ...current, ...next }
+  if (!next.theme || next.theme === current.theme) return settings
+  return { ...settings, ...Themes.reframe(current.theme, next.theme) }
+}
+
+/**
  * The picture the artwork stands on: the one chosen as a backdrop, or the one a
  * theme is made of. `default` is the theme's own backdrop, and a theme made
  * from a picture has that picture for one.
@@ -659,7 +669,7 @@ function Page() {
     setSettings((current) => {
       const index = themes.findIndex((entry) => entry.name === current.theme)
       const entry = themes[(index + direction + themes.length) % themes.length]
-      return entry ? { ...current, theme: entry.name } : current
+      return entry ? merged(current, { theme: entry.name }) : current
     })
   }
 
@@ -959,7 +969,7 @@ function Page() {
           <Toolbar
             resolved={language}
             {...settings}
-            onChange={(next) => setSettings((current) => ({ ...current, ...next }))}
+            onChange={(next) => setSettings((current) => merged(current, next))}
           />
         </div>
       </div>

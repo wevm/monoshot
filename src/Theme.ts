@@ -107,7 +107,9 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
     type,
     window: {
       background,
-      border: css({ c: bg.c * 0.5, h: bg.h, l: mix(fg.l, bg.l, 0.12) }),
+      // Floored, because the hairline is a proportion of the canvas it sits on
+      // and a canvas near black leaves it too dark to be an edge at all.
+      border: css({ c: bg.c * 0.5, h: bg.h, l: Math.max(mix(fg.l, bg.l, 0.12), 0.28) }),
       foreground,
       title: css({ c: bg.c * 0.5, h: bg.h, l: contrast(mix(fg.l, bg.l, 0.55), bg.l) }),
     },
@@ -189,11 +191,16 @@ export function compose<const name extends string>(
       weight: round === 0 ? 1 : round % 2 === 1 ? 0.92 : 1.07,
     }
   })
-  const background = hex({
-    c: hue === undefined ? 0 : 0.02,
-    h: hue,
-    l: type === 'dark' ? 0.17 : 0.97,
-  })
+  // Taken as given when a caller states one: a theme made from artwork the
+  // frame sits on wants the canvas the artwork already has, and a background
+  // derived from a hue is a shade off it.
+  const background =
+    options.background ??
+    hex({
+      c: hue === undefined ? 0 : 0.02,
+      h: hue,
+      l: type === 'dark' ? 0.17 : 0.97,
+    })
   const foreground = hex({
     c: hue === undefined ? 0 : 0.01,
     h: hue,
@@ -208,7 +215,17 @@ export function compose<const name extends string>(
         ? clamp(color.c * 1.4, type === 'dark' ? 0.06 : 0.05, type === 'dark' ? 0.17 : 0.15)
         : 0,
       h: color.h,
-      l: type === 'dark' ? clamp(0.78 * weight, 0.5, 0.92) : clamp(0.46 / weight, 0.24, 0.6),
+      // A hue is pulled to a lightness that reads against the background,
+      // because a color read off a picture was never chosen to be text. A
+      // neutral is not: black and white name the value they mean, and moving
+      // one turns a white the palette asked for into a grey.
+      l: Number.isFinite(color.h)
+        ? type === 'dark'
+          ? clamp(0.78 * weight, 0.5, 0.92)
+          : clamp(0.46 / weight, 0.24, 0.6)
+        : type === 'dark'
+          ? clamp(color.l * weight, 0.5, 1)
+          : clamp(color.l / weight, 0, 0.6),
     })
   type Role = { color: Oklch; weight: number }
   const [keyword, string, callable, constant, entity] = roles as [Role, Role, Role, Role, Role]
@@ -283,6 +300,11 @@ export function compose<const name extends string>(
 
 export declare namespace compose {
   type Options<name extends string = string> = {
+    /**
+     * The canvas behind the code. Derived from the colors when left out, which
+     * lands a shade off a backdrop that is a flat color of its own.
+     */
+    background?: string | undefined
     /** The colors the theme is made of, the most telling of them first. */
     colors: readonly string[]
     /** Human-readable name, for a picker. */
@@ -319,6 +341,7 @@ export type Composed = (typeof palettes)[number]['id']
  */
 export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) =>
   compose({
+    ...('background' in palette ? { background: palette.background } : {}),
     colors: palette.colors,
     displayName: palette.displayName,
     name: palette.id,

@@ -111,7 +111,15 @@ export const palettes = [
     id: 'tahoe-light',
     type: 'light',
   },
+  {
+    background: '#000000e6',
+    colors: ['oklch(64.94% 0.1982 251.813)', '#ffffff'],
+    displayName: 'Tempo',
+    id: 'tempo',
+    type: 'dark',
+  },
 ] as const satisfies readonly {
+  background?: string
   colors: readonly string[]
   displayName: string
   id: string

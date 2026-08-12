@@ -526,7 +526,7 @@ export function Toolbar(props: Toolbar.Props) {
                   <div>
                     <span {...stylex.props(styles.rowTitle(10), text.label12)}>Wallpapers</span>
                     <div {...stylex.props(styles.pictureRow)}>
-                      {Wallpapers.list.map((wallpaper) => {
+                      {Wallpapers.offered.map((wallpaper) => {
                         const value = Wallpapers.background(wallpaper.id)
                         return (
                           <Tooltip key={wallpaper.id} label={wallpaper.name}>
@@ -712,7 +712,7 @@ export const backgrounds = [
 
 /** Where a background sits in the color row, for measuring the ring's travel. */
 function backgroundIndex(background: string) {
-  const picture = Wallpapers.list.findIndex(
+  const picture = Wallpapers.offered.findIndex(
     (wallpaper) => Wallpapers.background(wallpaper.id) === background,
   )
   if (picture !== -1) return picture
