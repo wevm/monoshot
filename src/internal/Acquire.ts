@@ -29,7 +29,6 @@ export async function acquire(options: acquire.Options): Promise<void> {
       (value) => value !== undefined,
     )
     done += wanted.length
-    onProgress?.(done, done + queue.length - wanted.length)
 
     // Every package's own declarations can name further packages, so the next
     // round is whatever this one just pulled in.
@@ -41,6 +40,10 @@ export async function acquire(options: acquire.Options): Promise<void> {
       }
       return found
     })
+    // Counted after the next round is known, and over the names that will
+    // actually be fetched: a package named twice is one request, and a total
+    // counting it twice never arrives at itself.
+    onProgress?.(done, done + new Set(queue.filter((name) => !seen.has(name))).size)
   }
 
   async function read(name: string): Promise<acquire.Package | undefined> {
@@ -86,11 +89,16 @@ export declare namespace acquire {
  */
 function references(compiler: typeof ts, code: string) {
   const info = compiler.preProcessFile(code, true, true)
-  return info.importedFiles
+  const imported = info.importedFiles
     .concat(info.referencedFiles)
     .map((file) => file.fileName)
     .filter((name) => !name.startsWith('.') && !name.startsWith('/') && !name.startsWith('node:'))
     .map(bare)
+  // A `/// <reference types="node" />` names a DefinitelyTyped package, not an
+  // import: `node` is a package of its own on npm and not the one meant. The
+  // directive spells a scope out already, so `@types/` is all it needs.
+  const ambient = info.typeReferenceDirectives.map((file) => `@types/${file.fileName}`)
+  return [...imported, ...ambient]
 }
 
 /** `shiki/core` lives in the `shiki` package; a scope keeps two segments. */
