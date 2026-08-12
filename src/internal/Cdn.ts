@@ -128,9 +128,13 @@ async function read(name: string) {
   try {
     const result = await Registry.types({ name, version: 'latest' })
     return { files: result.files, name: result.name }
-  } catch {
-    // An import that resolves to nothing leaves its types as `any`, which is
-    // what a snippet naming a package that does not exist should draw.
-    return undefined
+  } catch (cause) {
+    // A package with nothing to read leaves its imports as `any`, which is what
+    // a snippet naming one that does not exist should draw. A registry that
+    // failed to answer is not that: drawing over the types it would have
+    // returned bakes wrong annotations into an image nobody can tell apart
+    // from a right one.
+    if (cause instanceof Registry.RegistryError && cause.absent) return undefined
+    throw cause
   }
 }

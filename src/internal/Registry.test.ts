@@ -91,3 +91,17 @@ describe('extract', () => {
     `)
   })
 })
+
+describe('types', () => {
+  test('marks a package that is not on npm as absent', async () => {
+    // Nothing is published under it, and a name this shape cannot be taken.
+    const cause = await Registry.types({
+      name: '@monoshot/not-a-package-000',
+      version: 'latest',
+    }).catch((error: unknown) => error)
+    expect(cause).toBeInstanceOf(Registry.RegistryError)
+    // The caller reads this to tell a package with no types from a registry
+    // that failed to say, and leaves only the first as `any`.
+    expect((cause as Registry.RegistryError).absent).toBe(true)
+  })
+})

@@ -35,13 +35,17 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
 
     const result = await (async () => {
       try {
-        return await Twoslash.types({ name, version })
+        return await Twoslash.Registry.types({ name, version })
       } catch (cause) {
         return cause instanceof Error ? cause : new Error(String(cause))
       }
     })()
-    if (result instanceof Error)
-      return c.json({ error: result.message }, result instanceof Twoslash.RegistryError ? 404 : 502)
+    if (result instanceof Error) {
+      // Only a package with nothing to read is missing. A registry that failed
+      // to answer is this route's own upstream failing.
+      const absent = result instanceof Twoslash.Registry.RegistryError && result.absent
+      return c.json({ error: result.message }, absent ? 404 : 502)
+    }
 
     const response = Response.json(result, {
       headers: {

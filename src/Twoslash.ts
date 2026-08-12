@@ -6,7 +6,7 @@ export { acquire } from './internal/Acquire.js'
 export { compilerOptions } from './internal/Cdn.js'
 export { cut, unchecked } from './internal/Marks.js'
 import { unchecked } from './internal/Marks.js'
-export { RegistryError, types } from './internal/Registry.js'
+export * as Registry from './internal/Registry.js'
 export { tags } from './internal/Tags.js'
 
 /** A type the language service resolved for a span of the source. */
