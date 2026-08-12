@@ -232,7 +232,7 @@ describe('create', () => {
     expect(status).toBe(400)
     expect(body).toMatchInlineSnapshot(`
       {
-        "error": "theme: \`nope\` is not offered.",
+        "error": "theme: unknown value \`nope\`.",
       }
     `)
   })

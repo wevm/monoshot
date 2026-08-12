@@ -224,7 +224,7 @@ function frame(
   if (options.theme !== undefined && Theme.info(options.theme) === undefined)
     return {
       code: 'unknown_theme',
-      message: `\`${options.theme}\` is not offered. \`monoshot themes\` lists every name.`,
+      message: `Unknown theme \`${options.theme}\`. Run \`monoshot themes\` to list the available themes.`,
     }
   // The codec falls back rather than failing, which a half-edited URL needs
   // and a command does not: a flag that was replaced was never understood.

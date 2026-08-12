@@ -52,7 +52,7 @@ namespace schema {
       // Named rather than listed: the enum's own message spells out
       // two dozen names, and `/themes` is where they are read from.
       theme: z
-        .enum(Theme.names, { error: (issue) => `\`${String(issue.input)}\` is not offered.` })
+        .enum(Theme.names, { error: (issue) => `unknown value \`${String(issue.input)}\`.` })
         .optional(),
       title: z.string().max(200).optional(),
       titleBar: z.boolean().optional(),
