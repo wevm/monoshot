@@ -23,7 +23,7 @@
   "[!start-pkg]": "",
   "name": "monoshot",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "MIT",
   "description": "Beautiful code images with type-aware twoslash annotations.",
   "repository": {
