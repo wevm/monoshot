@@ -237,7 +237,7 @@ const fallback: Settings = {
   padding: 64,
   radius: 12,
   theme: 'golden-gate-dark',
-  titleBar: true,
+  titleBar: false,
   types: true,
   width: 640,
 }

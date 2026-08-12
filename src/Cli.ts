@@ -116,7 +116,7 @@ export function create() {
           .positive()
           .finite()
           .optional()
-          .describe('Multiplier on the frame’s own size. Defaults to 2.'),
+          .describe('Multiplier on the frame’s own size. Defaults to 3.'),
         twoslash: z
           .boolean()
           .optional()

@@ -30,7 +30,7 @@ describe('serialize', () => {
         "radius": 12,
         "theme": "vitesse-dark",
         "title": "",
-        "titleBar": true,
+        "titleBar": false,
         "types": true,
         "width": 640,
       }
@@ -101,7 +101,7 @@ describe('deserialize', () => {
         "radius": 12,
         "theme": "vitesse-dark",
         "title": "",
-        "titleBar": true,
+        "titleBar": false,
         "types": true,
         "width": 640,
       }
