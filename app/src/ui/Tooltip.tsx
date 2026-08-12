@@ -38,7 +38,7 @@ const styles = stylex.create({
  * library writes `transition: none` there for the frame it mounts, which only a
  * style of its own outranks.
  */
-const travel = `transform ${motion.medium} ${motion.inOut}`
+const travel = `transform ${motion.fast} ${motion.inOut}`
 
 /**
  * The hint rolling to what it says next.
@@ -54,7 +54,7 @@ type Aim = { at: Element; label: string }
 let aim: Aim | undefined
 let pending: Aim | undefined
 let resting = true
-let waiting: ReturnType<typeof setTimeout> | undefined
+let hiding: ReturnType<typeof setTimeout> | undefined
 let settling: ReturnType<typeof setTimeout> | undefined
 const watching = new Set<() => void>()
 
@@ -68,6 +68,26 @@ function watch(watcher: () => void) {
 function aimAt(at: Aim | undefined) {
   aim = at
   for (const watcher of watching) watcher()
+}
+
+/**
+ * Takes the hint away shortly, unless something asks for it first.
+ *
+ * Once, rather than each time the pointer moves: a pointer travelling would
+ * otherwise keep putting the moment off and the hint would ride along forever.
+ */
+function hideSoon() {
+  if (hiding !== undefined) return
+  hiding = setTimeout(() => {
+    hiding = undefined
+    aimAt(undefined)
+  }, linger)
+}
+
+/** Calls that off, for a control asking about itself. */
+function keep() {
+  clearTimeout(hiding)
+  hiding = undefined
 }
 
 /**
@@ -97,10 +117,12 @@ function pace() {
   const moved = () => {
     resting = false
     clearTimeout(settling)
-    // Out of the way while the pointer is going somewhere. The strip travels
-    // with it, so sliding along the code keeps the same control under the
-    // pointer the whole way down: without this the hint rides along.
-    if (aim) aimAt(undefined)
+    // Out of the way while the pointer travels: the strip travels with it, so
+    // sliding along the code keeps the same control under the pointer the whole
+    // way down and the hint rides along. Shortly rather than at once, since a
+    // pointer on its way to the next control gets there first and calls it off,
+    // which is what lets the hint travel between two of them.
+    if (aim) hideSoon()
     settling = setTimeout(() => {
       resting = true
       if (pending) aimAt(pending)
@@ -154,10 +176,10 @@ export namespace Tooltip {
    * the marks beside the code, and the pin on a type.
    */
   export function point(at?: Aim | undefined) {
-    clearTimeout(waiting)
+    keep()
     pending = at
     if (!at) {
-      waiting = setTimeout(() => aimAt(undefined), linger)
+      hideSoon()
       return
     }
     // Once the pointer has stopped, since on its way it is passing this control
