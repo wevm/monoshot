@@ -179,12 +179,21 @@ importers:
       lz-string:
         specifier: 'catalog:'
         version: 1.5.0
+      puppeteer-core:
+        specifier: 'catalog:'
+        version: 25.5.0(yauzl@2.10.0)
       shiki:
         specifier: 'catalog:'
         version: 4.4.2
       twoslash:
         specifier: 'catalog:'
         version: 0.3.9(typescript@5.9.3)
+      twoslash-cdn:
+        specifier: 'catalog:'
+        version: 0.3.9(typescript@5.9.3)
+      unstorage:
+        specifier: 'catalog:'
+        version: 1.17.5(idb-keyval@6.3.0)
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -201,9 +210,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
-      puppeteer-core:
-        specifier: 'catalog:'
-        version: 25.5.0(yauzl@2.10.0)
       tsx:
         specifier: 'catalog:'
         version: 4.23.11

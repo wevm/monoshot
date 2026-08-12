@@ -509,6 +509,21 @@ describe('render with twoslash', () => {
     expect(result.html).toContain('twoslash-query-line')
     expect(result.html).toContain('twoslash-error-line')
   })
+
+  test('resolves a package this install does not have', async () => {
+    // `viem` is nothing this package depends on, so anything resolved for it
+    // came over the network rather than off the machine running the test.
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: "import { formatEther } from 'viem'\nconst wei = formatEther(1n)\n//    ^?\n",
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect(result.html).not.toContain('twoslash-error-line')
+    expect(text(result.html)).toContain('const wei: string')
+  }, 60_000)
 })
 
 /** A document's visible text, with the markup and entities taken back out. */

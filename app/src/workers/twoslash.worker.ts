@@ -1,10 +1,9 @@
-import * as Twoslash from 'monoshot/twoslash'
+import { Twoslash } from 'monoshot'
 import ts from 'typescript'
 import { createTwoslashFromCDN } from 'twoslash-cdn'
 import { createStorage } from 'unstorage'
 import indexedDb from 'unstorage/drivers/indexedb'
 
-import { acquire } from '#/lib/twoslash/acquire.js'
 import * as Completions from '#/lib/twoslash/completions.js'
 import { compilerOptions } from '#/lib/twoslash/options.js'
 import type { Complete, Request, Resolve, Response } from '#/lib/twoslash/protocol.js'
@@ -137,7 +136,7 @@ async function resolve(request: Resolve) {
  */
 async function upgrade(request: Resolve, first: Response) {
   try {
-    await acquire({ code: request.code, compiler: ts, files })
+    await Twoslash.acquire({ code: request.code, compiler: ts, files, load })
     // The program the completion service holds read the file system before
     // these packages were in it, so it would keep answering without them.
     completions.forget()
@@ -169,6 +168,23 @@ function annotate(request: Resolve): Response {
       nodes: run.nodes,
     },
     version: request.version,
+  }
+}
+
+/**
+ * One package's declarations, through this app's own route: the registry
+ * answers no cross-origin request, and the route reads a whole tarball where a
+ * CDN would serve `shiki` as 442 of them.
+ */
+async function load(name: string) {
+  try {
+    const response = await fetch(`/api/types/${name}`)
+    if (!response.ok) return undefined
+    return (await response.json()) as { files: Record<string, string>; name: string }
+  } catch {
+    // An import that resolves to nothing leaves its types as `any`, which is
+    // what the editor already shows before any of this runs.
+    return undefined
   }
 }
 

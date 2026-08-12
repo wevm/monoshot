@@ -5,7 +5,7 @@ import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
-import type * as Twoslash from 'monoshot/twoslash'
+import type { Twoslash } from 'monoshot'
 import { useContext, useEffect, useRef, useState } from 'react'
 
 import { completions } from '#/lib/editor/completions.js'

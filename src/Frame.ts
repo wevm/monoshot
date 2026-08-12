@@ -5,6 +5,7 @@ import {
 } from '@shikijs/transformers'
 import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
+import type * as Cdn from './internal/Cdn.js'
 import * as Document from './internal/Document.js'
 import * as Marks from './internal/Marks.js'
 import * as Tags from './internal/Tags.js'
@@ -41,23 +42,31 @@ export function create<const themes extends Themes = []>(
 ): create.ReturnType<themes> {
   const { engine, langs = [], themes = [] } = options
 
-  // Holds a TypeScript compiler, so it is built once for the renderer rather
-  // than per render, and only when a render actually asks for types.
-  let annotator: Promise<ShikiTransformer> | undefined
+  // Holds a TypeScript compiler and the lib files it reads, so both are paid
+  // for once per renderer, and only when a render actually asks for types.
+  let resolver: Promise<Cdn.create.ReturnType> | undefined
 
   /**
    * The renderer that draws the blocks, over types already resolved or over a
    * compiler asked to resolve them. A resolved run skips the compiler
    * entirely, which is the difference between loading megabytes and not.
    */
-  function annotate(types: render.Types | undefined): Promise<ShikiTransformer> {
+  async function annotate(
+    types: render.Types | undefined,
+    code: string,
+  ): Promise<ShikiTransformer> {
     if (types !== undefined) return build(() => types)
-    // A rejection must not be cached, or one failed chunk load would leave the
+    // A rejection must not be cached, or one failed fetch would leave the
     // renderer unable to annotate for the rest of its life.
-    return (annotator ??= build().catch((cause: unknown) => {
-      annotator = undefined
-      throw cause
-    }))
+    const instance = await (resolver ??= import('./internal/Cdn.js')
+      .then((module) => module.create())
+      .catch((cause: unknown) => {
+        resolver = undefined
+        throw cause
+      }))
+    // Awaited before the transformer is built, which compiles synchronously
+    // and so cannot fetch anything itself.
+    return build(checked(await instance.prepare(code)))
   }
 
   /**
@@ -69,9 +78,10 @@ export function create<const themes extends Themes = []>(
    * `twoslash` for the convenience wrapper it exports. Reaching for the root
    * would load the compiler even when a resolved run made it unnecessary.
    */
-  async function build(resolved?: () => render.Types): Promise<ShikiTransformer> {
+  async function build(
+    twoslasher: Cdn.create.Twoslasher | (() => render.Types),
+  ): Promise<ShikiTransformer> {
     const { createTransformerFactory, rendererRich } = await import('@shikijs/twoslash/core')
-    const twoslasher = resolved ?? checked(await compiler())
     return createTransformerFactory(
       // The factory asks for a mutable node list. Nothing reads one that way,
       // and a caller holding a resolved run should not copy it to hand it over.
@@ -86,23 +96,6 @@ export function create<const themes extends Themes = []>(
       // A snippet in an editor is half-typed most of the time, and code that
       // does not compile still has types worth drawing.
       throws: false,
-    })
-  }
-
-  /** The compiler, loaded only when nothing was resolved ahead of the render. */
-  async function compiler() {
-    const { createTwoslasher } = await import('twoslash')
-    return createTwoslasher({
-      customTags: [...Tags.tags],
-      compilerOptions: {
-        // Twoslash compiles strict, which marks every untyped parameter: a
-        // missing annotation rather than a mistake, in a snippet that left its
-        // context behind.
-        noImplicitAny: false,
-      },
-      // Twoslash otherwise insists every compiler error be declared in the
-      // source and gives up on the whole snippet when one is not.
-      handbookOptions: { noErrorValidation: true },
     })
   }
 
@@ -153,13 +146,9 @@ export function create<const themes extends Themes = []>(
    * Keeps the compiler off the lines a snippet marks as removed, and draws the
    * snippet as it was written rather than as the compiler saw it.
    */
-  function checked(twoslasher: Awaited<ReturnType<typeof compiler>>) {
-    return (
-      code: string,
-      lang?: Parameters<typeof twoslasher>[1],
-      options?: Parameters<typeof twoslasher>[2],
-    ) => {
-      const result = twoslasher(Marks.unchecked(code), lang, options)
+  function checked(twoslasher: Cdn.create.Twoslasher) {
+    return (code: string, lang?: string) => {
+      const result = twoslasher(Marks.unchecked(code), lang)
       return { ...result, code: Marks.cut(code, result.meta.removals) }
     }
   }
@@ -170,7 +159,7 @@ export function create<const themes extends Themes = []>(
     const { code, lang, theme, twoslash = false } = parameters
     const [instance, annotations] = await Promise.all([
       resolve({ lang, theme }),
-      twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash),
+      twoslash === false ? undefined : annotate(twoslash === true ? undefined : twoslash, code),
     ])
     // The renderer draws the type it resolved as TypeScript, whatever the
     // document is written in, and asks the highlighter for that grammar.
@@ -230,7 +219,7 @@ export function create<const themes extends Themes = []>(
       const instance = await highlighter?.catch(() => undefined)
       // The compiler and its virtual file system go with it: a renderer kept
       // after disposal rebuilds both on the next render that wants them.
-      annotator = undefined
+      resolver = undefined
       highlighter = undefined
       instance?.dispose()
     },

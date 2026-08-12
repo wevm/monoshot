@@ -10,9 +10,8 @@ import * as Raster from './internal/Raster.js'
  * producing more than one image should hold a renderer rather than call
  * {@link render}, which starts and stops a browser per call.
  *
- * `puppeteer-core` is an optional peer: a consumer that only builds documents
- * never installs a browser. Bring your own Chrome, either through `executable`
- * or `PUPPETEER_EXECUTABLE_PATH`.
+ * Bring your own Chrome, through `executable` or `PUPPETEER_EXECUTABLE_PATH`.
+ * `puppeteer-core` drives a browser already on the machine and downloads none.
  *
  * Pass `fonts` to every render that must match across machines. Without them
  * the code falls back to whatever monospace the host has, which changes glyph
@@ -201,12 +200,10 @@ async function launch(options: {
   executable: string | undefined
 }): Promise<Browser> {
   const { args, executable } = options
+  // Loaded here rather than at the top, so a runtime that bundles the document
+  // side of this package never pulls a browser driver in with it.
   const puppeteer = await import('puppeteer-core').catch(() => {
-    // Named with its install: an optional peer is not installed for the
-    // caller, and this is where its absence is first noticed.
-    throw new ChromeError(
-      'Rendering needs `puppeteer-core` alongside monoshot: `npm install puppeteer-core`.',
-    )
+    throw new ChromeError('Could not load `puppeteer-core`. Reinstall monoshot.')
   })
   const path = executable ?? process.env['PUPPETEER_EXECUTABLE_PATH']
   try {

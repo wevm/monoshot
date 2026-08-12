@@ -3,7 +3,7 @@ import { StateEffect, StateField } from '@codemirror/state'
 import type { EditorState, Extension, Range, TransactionSpec } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
-import type * as Twoslash from 'monoshot/twoslash'
+import type { Twoslash } from 'monoshot'
 
 /**
  * Whether the compiler objects to anything a span covers.

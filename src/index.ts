@@ -11,4 +11,10 @@ export * as Api from './Api.js'
 export * as Codec from './Codec.js'
 export * as Frame from './Frame.js'
 export * as Theme from './Theme.js'
+/**
+ * Resolves a snippet's types, and the pieces that fetch them. See
+ * {@link Twoslash.run} for a one-off and {@link Twoslash.create} to resolve
+ * more than one.
+ */
+export * as Twoslash from './Twoslash.js'
 export { version } from './version.js'

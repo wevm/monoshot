@@ -1,5 +1,5 @@
 import { EditorState } from '@codemirror/state'
-import type * as Twoslash from 'monoshot/twoslash'
+import type { Twoslash } from 'monoshot'
 
 import { objection, problems } from './problems.js'
 

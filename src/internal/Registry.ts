@@ -21,7 +21,10 @@ export async function types(options: types.Options): Promise<types.Result> {
     typeof dist === 'object' && dist !== null && 'tarball' in dist
       ? (dist as { tarball: unknown }).tarball
       : undefined
-  if (typeof tarball !== 'string') throw new RegistryError(`\`${name}\` has no tarball to read.`)
+  // Absent rather than failed: a version that ships no tarball ships none on
+  // every later attempt too.
+  if (typeof tarball !== 'string')
+    throw new RegistryError(`\`${name}\` has no tarball to read.`, { absent: true })
 
   const response = await fetch(tarball)
   if (!response.ok || !response.body)
@@ -84,7 +87,9 @@ async function json(options: { name: string; url: string; version: string }) {
   // The upstream URL stays out of the message: a caller gets its own request
   // back, not ours.
   if (response.status === 404)
-    throw new RegistryError(`\`${options.name}@${options.version}\` is not on npm.`)
+    throw new RegistryError(`\`${options.name}@${options.version}\` is not on npm.`, {
+      absent: true,
+    })
   if (!response.ok)
     throw new RegistryError(`The registry answered ${response.status} for \`${options.name}\`.`)
   return (await response.json()) as Record<string, unknown>
@@ -154,4 +159,22 @@ function text(decoder: TextDecoder, bytes: Uint8Array) {
 /** Thrown when a package cannot be read from the registry. */
 export class RegistryError extends Error {
   override name = 'Registry.RegistryError'
+  /**
+   * Whether the package has nothing to read, as opposed to the registry having
+   * failed to say. A caller can leave the first as `any` and must not do the
+   * same with the second, which would draw an image over types that exist.
+   */
+  absent: boolean
+
+  constructor(message: string, options: RegistryError.Options = {}) {
+    super(message)
+    this.absent = options.absent ?? false
+  }
+}
+
+export declare namespace RegistryError {
+  type Options = {
+    /** Marks a package that does not exist, or ships nothing to read. */
+    absent?: boolean | undefined
+  }
 }

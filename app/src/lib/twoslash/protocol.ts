@@ -1,5 +1,5 @@
 import type { Frame } from 'monoshot'
-import type * as Twoslash from 'monoshot/twoslash'
+import type { Twoslash } from 'monoshot'
 
 /**
  * A run, as the renderer needs it plus the cuts the editor maps through.
@@ -88,7 +88,7 @@ export type Response =
       /**
        * The run those types were read from, which the frame draws directly.
        * Sent alongside rather than derived here: reading a run needs
-       * `monoshot/twoslash`, which carries the compiler into whatever imports
+       * `monoshot`, which carries the compiler into whatever imports
        * it, and the worker is the one place that already has one.
        */
       types: Run
