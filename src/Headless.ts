@@ -1,4 +1,4 @@
-import type { Browser } from 'puppeteer-core'
+import type { Browser, Page } from 'puppeteer-core'
 
 import * as Frame from './Frame.js'
 import * as Raster from './internal/Raster.js'
@@ -61,11 +61,11 @@ export function create(options: create.Options = {}): create.ReturnType {
       if (owned) await frame.dispose()
     },
     async render(parameters) {
-      const { scale = 3, ...rest } = parameters
+      const { scale = 3, type = 'png', ...rest } = parameters
       const html = await frame.toDocument({ ...defaults, ...rest })
       // Read once: the browser can drop out of the cache while this waits.
       const pending = (browser ??= start())
-      return capture(await pending, { html, scale })
+      return capture(await pending, { html, scale, type })
     },
   }
 }
@@ -137,12 +137,12 @@ const defaults = {
   width: 640,
 } as const satisfies render.Defaults
 
-/** Captures the rendered frame from a standalone document. */
+/** Captures the rendered frame from a standalone document, as PNG or SVG. */
 async function capture(
   browser: Browser,
-  options: { html: string; scale: number },
+  options: { html: string; scale: number; type: 'png' | 'svg' },
 ): Promise<Uint8Array> {
-  const { html, scale } = options
+  const { html, scale, type } = options
   const page = await browser.newPage()
   try {
     // Disable scripts and external requests to keep rendering deterministic for
@@ -161,6 +161,7 @@ async function capture(
     const canvas = await page.$('.canvas')
     if (!canvas) throw new ChromeError('The document rendered no frame.')
     const box = await canvas.boundingBox()
+    if (type === 'svg') return new TextEncoder().encode(await vector(page, scale))
     await page.setViewport({
       deviceScaleFactor: Raster.fit(box, scale),
       height: Math.ceil(box?.height ?? 1),
@@ -172,11 +173,48 @@ async function capture(
   }
 }
 
+/**
+ * Serializes the rendered frame as SVG, wrapping its markup in a
+ * `foreignObject`.
+ *
+ * Serialized in the page rather than assembled from the document's HTML: an
+ * SVG file is parsed as XML, where Shiki's markup and a stray entity are both
+ * fatal, and `XMLSerializer` guarantees well-formed output. Runs through the
+ * debugger, so page scripts stay disabled.
+ */
+function vector(page: Page, scale: number): Promise<string> {
+  return page.evaluate((factor: number) => {
+    const canvas = document.querySelector('.canvas')
+    if (!canvas) throw new Error('The document rendered no frame.')
+    const { height, width } = canvas.getBoundingClientRect()
+    const styles = [...document.styleSheets]
+      .flatMap((sheet) => [...sheet.cssRules].map((rule) => rule.cssText))
+      .join('\n')
+    // Writes the XHTML namespace on its root, which tells a reader the markup
+    // inside a `foreignObject` is HTML rather than SVG.
+    const body = new XMLSerializer().serializeToString(canvas)
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width * factor}" height="${height * factor}" viewBox="0 0 ${width} ${height}">`,
+      // The document's rules travel with it. A `foreignObject` is styled by
+      // what the file carries, and this file links no stylesheet.
+      `<style>${styles}</style>`,
+      `<foreignObject x="0" y="0" width="${width}" height="${height}">${body}</foreignObject>`,
+      '</svg>',
+    ].join('')
+  }, scale)
+}
+
 /** Image render options excluding browser configuration. */
 type Options_render = Omit<Frame.toDocument.Options, keyof render.Defaults> &
   Partial<render.Defaults> & {
     /** Frame scale multiplier. Defaults to 3. */
     scale?: number | undefined
+    /**
+     * Image format. A PNG is rasterized and bound by what the browser can
+     * draw; an SVG carries the frame's markup and scales without loss.
+     * Defaults to `png`.
+     */
+    type?: 'png' | 'svg' | undefined
   }
 
 export declare namespace render {

@@ -89,16 +89,17 @@ export function create() {
       'Create code images with syntax highlighting, customizable themes, and type-aware annotations.',
     mcp: {
       instructions:
-        'Turn code into images or shareable links. Supports syntax highlighting, themes, and type annotations for JavaScript and TypeScript. Use `themes` to list available themes.',
+        'Turn code into PNG or SVG images, or shareable links. Supports syntax highlighting, themes, and type annotations for JavaScript and TypeScript. Use `themes` to list available themes.',
     },
     version,
   })
     .command('render', {
       alias: { code: 'c', out: 'o', scale: 's', theme: 't' },
       args: source,
-      description: 'Render a snippet to a PNG.',
+      description: 'Render a snippet to an image.',
       examples: [
         { args: { file: 'app.ts' }, options: { out: 'app.png' } },
+        { args: { file: 'app.ts' }, description: 'Render as SVG.', options: { type: 'svg' } },
         { description: 'Render inline source code.', options: { code: 'const a = 1' } },
         {
           args: { file: 'app.ts' },
@@ -113,10 +114,14 @@ export function create() {
           .optional()
           .describe('Extra flag for the browser, such as `--no-sandbox`. Repeatable.'),
         executable: z.string().optional().describe('Path to a Chrome or Chromium executable.'),
+        type: z
+          .enum(['png', 'svg'])
+          .optional()
+          .describe('Image format. Inferred from the `--out` extension, and `png` otherwise.'),
         out: z
           .string()
           .optional()
-          .describe('Image output path. Defaults to a PNG beside the source file.'),
+          .describe('Image output path. Defaults to a file beside the source.'),
         scale: z
           .number()
           .positive()
@@ -139,7 +144,16 @@ export function create() {
         if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
         const resolved = frame(args.file, code, options)
         if ('message' in resolved) return error(resolved)
-        const out = options.out ?? destination(args.file)
+        // An `--out` extension names a format too. Writing one format under
+        // the other's name produces a file nothing opens.
+        const named_out = named(options.out)
+        if (options.type && named_out && options.type !== named_out)
+          return error({
+            code: 'type_conflict',
+            message: `\`--type ${options.type}\` conflicts with an \`--out\` ending \`.${named_out}\`.`,
+          })
+        const type = options.type ?? named_out ?? 'png'
+        const out = options.out ?? destination(args.file, type)
         // Reading a file and then writing the image over it would leave the
         // caller with neither.
         if (args.file !== undefined && path.resolve(out) === path.resolve(args.file))
@@ -154,6 +168,7 @@ export function create() {
           try {
             return await Headless.render({
               ...resolved.state,
+              type,
               twoslash: options.twoslash ?? typed.has(resolved.state.lang),
               ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
               ...(options.executable === undefined ? {} : { executable: options.executable }),
@@ -317,9 +332,15 @@ function launch(url: string): void {
 }
 
 /** Resolves the default image output path. */
-function destination(file: string | undefined): string {
-  if (file === undefined || file === '-') return 'monoshot.png'
-  return `${file.slice(0, file.length - path.extname(file).length)}.png`
+function destination(file: string | undefined, type: 'png' | 'svg'): string {
+  if (file === undefined || file === '-') return `monoshot.${type}`
+  return `${file.slice(0, file.length - path.extname(file).length)}.${type}`
+}
+
+/** The image format a path names, when its extension names one. */
+function named(out: string | undefined): 'png' | 'svg' | undefined {
+  const extension = out === undefined ? '' : path.extname(out).slice(1).toLowerCase()
+  return extension === 'png' || extension === 'svg' ? extension : undefined
 }
 
 /**
