@@ -100,6 +100,41 @@ describe('render', () => {
     `)
   })
 
+  test.skipIf(!chrome)('writes an SVG a reader can parse', { timeout: 120_000 }, async () => {
+    const svg = new TextDecoder().decode(
+      await Headless.render({
+        code: 'const a: number = 1\n//    ^?\n',
+        type: 'svg',
+        lang: 'tsx',
+        theme: 'vitesse-dark',
+        twoslash: true,
+      }),
+    )
+    expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
+    // The frame's own markup rather than a raster of it, and the type the
+    // query asked for drawn into it.
+    expect(svg).toContain('<foreignObject')
+    // Read as text: the type is highlighted, so it arrives split across spans.
+    const text = svg.replace(/<[^>]+>/g, '').replace(/&#(\d+);/g, '')
+    expect(text).toContain('const a: number')
+
+    // An SVG file is read as XML, where the markup shiki writes and a stray
+    // entity are both fatal. Opened in a browser rather than checked by hand:
+    // the reader that has to accept this file is the one asked.
+    const puppeteer = await import('puppeteer-core')
+    const browser = await puppeteer.launch({ channel: 'chrome', headless: true })
+    try {
+      const page = await browser.newPage()
+      await page.goto(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
+      const failure = await page.evaluate(() =>
+        document.querySelector('parsererror')?.textContent?.trim(),
+      )
+      expect(failure).toBeUndefined()
+    } finally {
+      await browser.close()
+    }
+  })
+
   test('says what is missing when there is no browser to use', async () => {
     await expect(
       Headless.render({

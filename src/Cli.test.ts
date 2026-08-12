@@ -256,6 +256,20 @@ describe('create', () => {
       `)
     })
 
+    test('refuses a `--type` the `--out` contradicts', async () => {
+      // Writing one format under the other's name produces a file nothing
+      // opens.
+      const source = await file('demo.ts')
+      const { exit, output } = await run(['render', source, '--type', 'png', '--out', 'a.svg'])
+      expect(exit).toBe(1)
+      expect(output).toMatchInlineSnapshot(`
+        {
+          "code": "type_conflict",
+          "message": "\`--type png\` conflicts with an \`--out\` ending \`.svg\`.",
+        }
+      `)
+    })
+
     test('refuses a scale that cannot produce an image', async () => {
       // `scale` is not a codec setting, so the frame check never sees it, and
       // a nonpositive one reaches Chromium's device scale factor.
