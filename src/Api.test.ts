@@ -156,7 +156,7 @@ describe('create', () => {
       expect(response.status).toBe(503)
       expect(await response.json()).toMatchInlineSnapshot(`
         {
-          "error": "This deployment has no browser to draw in.",
+          "error": "Browser Rendering is not configured for this deployment.",
         }
       `)
     })

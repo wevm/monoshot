@@ -13,12 +13,12 @@ import * as Headless from './Headless.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
 
-/** Where a share link points when the caller names no other deployment. */
+/** Default deployment for generated share links. */
 const site = 'https://monoshot.broken-thunder-fb8b.workers.dev'
 
 /**
- * The language a snippet is tokenized as when nothing names or implies one.
- * Shiki's own id rather than the `ts` alias, so every resolved language is
+ * Default language when neither an option nor a file extension specifies one.
+ * Uses Shiki's canonical ID rather than the `ts` alias, so every language is
  * recorded under one name.
  */
 const fallback = 'typescript' satisfies BundledLanguage
@@ -28,7 +28,7 @@ const fallback = 'typescript' satisfies BundledLanguage
  * aliases such as `py`, which is also what a file extension looks like.
  *
  * `bundledLanguagesInfo` types `id` as a plain string; the membership test in
- * `Cli.test.ts` is what keeps this narrowing honest.
+ * `Cli.test.ts` verifies this narrowing.
  */
 const languages = new Map<string, BundledLanguage>(
   bundledLanguagesInfo.flatMap((info) =>
@@ -37,38 +37,40 @@ const languages = new Map<string, BundledLanguage>(
 )
 
 /**
- * The frame settings, named as the codec names them so a link and a render of
- * the same snippet are described the same way. Each one is optional here and
- * falls back in {@link Codec.schema}, which owns the defaults.
+ * Frame settings shared by image and link commands. Each setting is optional;
+ * {@link Codec.schema} defines the defaults.
  */
 const settings = z.object({
   background: z.string().optional().describe('`default`, `none`, or a `#rrggbb` color.'),
-  lang: z.string().optional().describe('Language to tokenize with. Read from the file otherwise.'),
+  lang: z
+    .string()
+    .optional()
+    .describe('Syntax language. Inferred from the file extension by default.'),
   padding: z.number().optional().describe('Space around the window, in pixels.'),
-  radius: z.number().optional().describe("The window's corner radius, in pixels."),
-  theme: z.string().optional().describe('A theme name, as `monoshot themes` lists them.'),
-  title: z.string().optional().describe("The window's title."),
-  titleBar: z.boolean().optional().describe('Draw the title bar.'),
+  radius: z.number().optional().describe('Window corner radius, in pixels.'),
+  theme: z.string().optional().describe('Theme name from `monoshot themes`.'),
+  title: z.string().optional().describe('Window title.'),
+  titleBar: z.boolean().optional().describe('Render the title bar.'),
   width: z.number().optional().describe('Width of the window, in pixels.'),
 })
 
-/** The languages twoslash resolves types for. Shiki's own ids, as resolved. */
+/** Canonical Shiki language IDs that support Twoslash type resolution. */
 const typed: ReadonlySet<string> = new Set(['javascript', 'jsx', 'tsx', 'typescript'])
 
-/** Where a snippet comes from, when it does not arrive as `--code`. */
+/** File-based snippet input. */
 const source = z.object({
   file: z.string().optional().describe('Path to a source file, or `-` to read standard input.'),
 })
 
-/** The snippet itself, for a caller holding the code rather than a path. */
+/** Inline snippet input. */
 const inline = z.object({
-  code: z.string().optional().describe('The snippet itself, in place of a file.'),
+  code: z.string().optional().describe('Inline source code instead of a file.'),
 })
 
-/** What both link commands take, which is the frame plus where it opens. */
+/** Options shared by commands that generate links. */
 const linked = settings.extend({
-  base: z.string().optional().describe(`Deployment the link points at. Defaults to ${site}.`),
-  code: z.string().optional().describe('The snippet itself, in place of a file.'),
+  base: z.string().optional().describe(`Base URL for the generated link. Defaults to ${site}.`),
+  code: z.string().optional().describe('Inline source code instead of a file.'),
 })
 
 /**
@@ -80,10 +82,10 @@ const linked = settings.extend({
  */
 export function create() {
   return Cli.create('monoshot', {
-    description: 'Render code to images, with the types a `^?` query asks for.',
+    description: 'Render code as images with resolved types for `^?` queries.',
     mcp: {
       instructions:
-        'Renders a source file or an inline snippet to a PNG, to a link, or straight into a browser. A `^?` query in TypeScript is drawn as the type it resolves to. `themes` lists the names `--theme` accepts.',
+        'Renders a source file or inline snippet as a PNG or share link, and can open the link in a browser. For JavaScript and TypeScript, `^?` queries render their resolved types. `themes` lists valid `--theme` values.',
     },
     version,
   })
@@ -93,7 +95,7 @@ export function create() {
       description: 'Render a snippet to a PNG.',
       examples: [
         { args: { file: 'app.ts' }, options: { out: 'app.png' } },
-        { description: 'From a snippet rather than a file.', options: { code: 'const a = 1' } },
+        { description: 'Render inline source code.', options: { code: 'const a = 1' } },
         {
           args: { file: 'app.ts' },
           description: 'A light theme at print size.',
@@ -106,21 +108,23 @@ export function create() {
           .array(z.string())
           .optional()
           .describe('Extra flag for the browser, such as `--no-sandbox`. Repeatable.'),
-        executable: z.string().optional().describe('Path to a Chrome to render in.'),
+        executable: z.string().optional().describe('Path to a Chrome or Chromium executable.'),
         out: z
           .string()
           .optional()
-          .describe('Where to write the image. Beside the source by default.'),
+          .describe('Image output path. Defaults to a PNG beside the source file.'),
         scale: z
           .number()
           .positive()
           .finite()
           .optional()
-          .describe('Multiplier on the frame’s own size. Defaults to 3.'),
+          .describe('Frame scale multiplier. Defaults to 3.'),
         twoslash: z
           .boolean()
           .optional()
-          .describe('Draw the types a `^?` query asks for. On for the TypeScript family.'),
+          .describe(
+            'Render resolved types for `^?` queries. Enabled by default for JavaScript and TypeScript.',
+          ),
       }),
       output: z.object({
         bytes: z.number().describe('Size of the image written.'),
@@ -137,7 +141,8 @@ export function create() {
         if (args.file !== undefined && path.resolve(out) === path.resolve(args.file))
           return error({
             code: 'output_collision',
-            message: 'The image would overwrite the snippet it was made from. Name an `--out`.',
+            message:
+              'The image output would overwrite the source file. Specify a different path with `--out`.',
           })
         // `error` returns its result rather than throwing, so a failed render
         // has to come back as a value the handler can return through.
@@ -163,7 +168,7 @@ export function create() {
       alias: { code: 'c', theme: 't' },
       args: source,
       description: 'Build a link that opens the snippet in a browser.',
-      // Reads a file and returns a string. An agent may reach for it freely.
+      // The command reads a file and returns a string without modifying state.
       mcp: { annotations: { readOnlyHint: true } },
       examples: [{ args: { file: 'app.ts' }, options: { theme: 'vitesse-light' } }],
       options: linked,
@@ -195,7 +200,7 @@ export function create() {
         z.object({
           displayName: z.string().describe('Human-readable name.'),
           name: z.string().describe('The name `--theme` accepts.'),
-          type: z.union([z.literal('light'), z.literal('dark')]).describe('Which scheme it suits.'),
+          type: z.union([z.literal('light'), z.literal('dark')]).describe('Theme color scheme.'),
         }),
       ),
       run() {
@@ -204,13 +209,12 @@ export function create() {
     })
 }
 
-/** What stopped a command, in the shape `error` takes. */
+/** Command failure returned through the CLI error handler. */
 type Failure = { code: string; message: string }
 
 /**
- * Frame settings for a snippet, or what stopped them from resolving. Every
- * command resolves here, so a link and an image made from the same file are
- * described the same way.
+ * Resolves frame settings for a snippet. Every command uses this function so
+ * links and images apply the same validation and defaults.
  */
 function frame(
   file: string | undefined,
@@ -219,8 +223,8 @@ function frame(
 ): { state: Codec.State & { lang: BundledLanguage; theme: Frame.Name } } | Failure {
   const state = Codec.schema.parse({ ...options, code })
   // Read from the flag rather than the state, which already fell back to a
-  // theme that exists: named before the generic complaint below, a theme has
-  // somewhere to look the accepted names up.
+  // valid theme. Report the specific theme error before generic validation so
+  // the message can direct the caller to the available names.
   if (options.theme !== undefined && Theme.info(options.theme) === undefined)
     return {
       code: 'unknown_theme',
@@ -255,9 +259,8 @@ function ignored(options: z.output<typeof settings>, state: Codec.State): readon
 }
 
 /**
- * The link for a snippet, or what stopped it from being built. Failures come
- * back as data rather than thrown, so each command reports them through its
- * own handler.
+ * Builds a snippet link or returns a validation failure. Failures are data so
+ * each command can report them through its own handler.
  */
 async function link(
   file: string | undefined,
@@ -265,14 +268,14 @@ async function link(
 ): Promise<{ url: string } | Failure> {
   const code = await read(file, options.code)
   if (code instanceof Error) return { code: 'no_snippet', message: code.message }
-  // A link carrying nothing opens the app's own sample, which is not what the
-  // caller asked to share.
+  // An empty fragment opens the application sample instead of the requested
+  // content, so empty snippets are rejected.
   if (code.trim() === '') return { code: 'empty_snippet', message: 'The snippet is empty.' }
   const resolved = frame(file, code, options)
   if ('message' in resolved) return resolved
   const fragment = Codec.serialize(resolved.state)
   // The decoder drops a fragment it considers oversized and restores defaults,
-  // so a link that does not survive a round trip is not worth handing over.
+  // so reject links that cannot preserve the source through a round trip.
   if (Codec.deserialize(fragment).code !== resolved.state.code)
     return {
       code: 'snippet_too_large',
@@ -294,9 +297,8 @@ async function link(
 }
 
 /**
- * Hands a link to whatever the platform opens links with. Detached and
- * unwatched: the command has the URL to report either way, and the browser
- * outlives the process that asked for it.
+ * Opens a link with the platform URL handler. The detached process may outlive
+ * the CLI process, and launch errors do not affect the returned URL.
  */
 function launch(url: string): void {
   const [command, args]: [string, readonly string[]] =
@@ -310,15 +312,15 @@ function launch(url: string): void {
   child.unref()
 }
 
-/** Where an image lands when the caller names no path. */
+/** Resolves the default image output path. */
 function destination(file: string | undefined): string {
   if (file === undefined || file === '-') return 'monoshot.png'
   return `${file.slice(0, file.length - path.extname(file).length)}.png`
 }
 
 /**
- * The language to tokenize with. `auto` reads the file extension, which is a
- * language name often enough to be worth trying before falling back.
+ * Resolves the syntax language. `auto` uses a recognized file extension or the
+ * default language.
  */
 function language(name: string, file: string | undefined): BundledLanguage | undefined {
   if (name !== 'auto') return languages.get(name)
@@ -327,21 +329,23 @@ function language(name: string, file: string | undefined): BundledLanguage | und
 }
 
 /**
- * The snippet, or why there is none to draw. Named sources are exclusive:
- * taking one over the other would quietly ignore what the caller passed.
+ * Reads source code from one input. File and inline inputs are mutually
+ * exclusive to prevent either value from being ignored.
  */
 async function read(file: string | undefined, code: string | undefined): Promise<string | Error> {
   if (code !== undefined && file !== undefined)
-    return new Error('Name a file or pass `--code`, not both.')
+    return new Error('Specify either a file or `--code`, but not both.')
   if (code !== undefined) return code
   if (file === undefined)
-    return new Error('Name a file, pass `--code`, or pass `-` to read standard input.')
+    return new Error('Specify a file, use `--code`, or pass `-` to read standard input.')
   try {
     if (file === '-') {
       // Serving MCP, standard input carries the protocol, and reading it here
       // would take bytes the transport is waiting for.
       if (process.argv.includes('--mcp'))
-        return new Error('Standard input is the MCP transport. Pass `--code` or name a file.')
+        return new Error(
+          'Standard input is reserved for the MCP transport. Use `--code` or specify a file.',
+        )
       return await text(process.stdin)
     }
     return await fs.readFile(file, 'utf8')

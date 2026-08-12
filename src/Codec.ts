@@ -34,7 +34,7 @@ export const schema = z.object({
   theme: z.enum(Theme.names).catch('vitesse-dark'),
   /** The window's title, which is empty when it has none. */
   title: z.string().catch(''),
-  /** Whether the window wears a title bar. Off, so the code is the subject. */
+  /** Whether the window includes a title bar. Defaults to `false`. */
   titleBar: z.boolean().catch(false),
   /** Whether the snippet is type checked, which only a TypeScript one can be. */
   types: z.boolean().catch(true),

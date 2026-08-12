@@ -117,9 +117,8 @@ namespace schema {
 /**
  * Creates the routes that render a frame over HTTP.
  *
- * Mount on any Hono app, or serve as a Worker's own handler. Holds a renderer
- * for its lifetime, so an isolate pays for the grammars it loads once, and
- * describes itself at `/openapi.json` from the middleware guarding each route.
+ * Mount the routes on a Hono app or use them as a Worker handler. The route
+ * instance reuses loaded grammars and serves its schema at `/openapi.json`.
  *
  * @example
  * ```ts twoslash
@@ -168,7 +167,8 @@ export function create(options: create.Options = {}) {
     .post(
       '/document',
       OpenApi.validate('json', schema.body, {
-        description: 'Renders a snippet to a standalone document, which runs and fetches nothing.',
+        description:
+          'Renders a snippet as a standalone document without scripts or external requests.',
         responses: {
           200: { description: 'The document.', media: 'text/html', schema: z.string() },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
@@ -187,12 +187,12 @@ export function create(options: create.Options = {}) {
       '/image',
       OpenApi.validate('json', schema.picture, {
         description:
-          'Renders a snippet to a PNG, by screenshotting the document in a browser. Needs a browser binding.',
+          'Renders a snippet as a PNG by capturing the document with a Browser Rendering binding.',
         responses: {
           200: { description: 'The image.', media: 'image/png', schema: z.string() },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
           503: {
-            description: 'This deployment has no browser to draw in.',
+            description: 'Browser Rendering is not configured for this deployment.',
             schema: schema.failure,
           },
         },
@@ -200,7 +200,8 @@ export function create(options: create.Options = {}) {
       }),
       async (c) => {
         const browser = options.browser?.(c)
-        if (!browser) return c.json({ error: 'This deployment has no browser to draw in.' }, 503)
+        if (!browser)
+          return c.json({ error: 'Browser Rendering is not configured for this deployment.' }, 503)
         const request = c.req.valid('json')
         const drawn = await frame_document(request)
         if (drawn instanceof Response) return drawn
@@ -226,7 +227,7 @@ export function create(options: create.Options = {}) {
     .get(
       '/themes',
       OpenApi.validate('query', schema.filter, {
-        description: 'Lists the themes `theme` accepts, and which scheme each one suits.',
+        description: 'Lists accepted `theme` values and the color scheme of each theme.',
         responses: { 200: { description: 'Every theme.', schema: schema.themes } },
         summary: 'List themes',
       }),
@@ -281,7 +282,7 @@ namespace Browser {
   ): Promise<Uint8Array> {
     const { html, scale } = options
     const puppeteer = await import('@cloudflare/puppeteer').catch(() => {
-      throw new Error('Rendering images needs `@cloudflare/puppeteer` installed.')
+      throw new Error('Image rendering requires `@cloudflare/puppeteer`.')
     })
     const browser = await open(puppeteer, endpoint)
     try {

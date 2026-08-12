@@ -28,7 +28,7 @@ const labels: Readonly<Record<Notations.Kind, string>> = {
 const order = ['focus', 'highlight', 'add', 'remove'] as const
 
 /** Why a row offers no marks, since its controls cannot say so themselves. */
-const unmarkable = 'This row takes no mark'
+const unmarkable = 'Marks are unavailable for this row'
 
 /**
  * How far the controls stand off the window's edge: past the grip that resizes

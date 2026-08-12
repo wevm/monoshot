@@ -155,12 +155,10 @@ export declare namespace derive {
 }
 
 /**
- * Builds a syntax theme from a handful of colors, most telling first.
+ * Builds a syntax theme from an ordered color palette.
  *
- * The colors say what the theme is made of; the roles they land in are this
- * function's to decide, so a set taken from anywhere reads as code rather than
- * as swatches. Every one is held to a lightness the background can carry, since
- * a color chosen for a picture owes nothing to the text it would become.
+ * Maps the supplied colors to syntax roles and adjusts their lightness for
+ * contrast against the generated background.
  *
  * @example
  * ```ts twoslash

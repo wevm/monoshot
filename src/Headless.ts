@@ -6,12 +6,12 @@ import * as Raster from './internal/Raster.js'
 /**
  * Creates a renderer that owns a browser for its lifetime.
  *
- * Launching Chrome costs seconds and rendering costs milliseconds, so anything
- * producing more than one image should hold a renderer rather than call
- * {@link render}, which starts and stops a browser per call.
+ * Chrome startup takes substantially longer than rendering. Applications that
+ * produce multiple images should reuse a renderer instead of calling
+ * {@link render}, which starts and stops a browser for every call.
  *
- * Bring your own Chrome, through `executable` or `PUPPETEER_EXECUTABLE_PATH`.
- * `puppeteer-core` drives a browser already on the machine and downloads none.
+ * Provide a Chrome or Chromium executable through `executable` or
+ * `PUPPETEER_EXECUTABLE_PATH`. `puppeteer-core` does not download a browser.
  *
  * Pass `fonts` to every render that must match across machines. Without them
  * the code falls back to whatever monospace the host has, which changes glyph
@@ -34,9 +34,8 @@ export function create(options: create.Options = {}): create.ReturnType {
   // racing to start a browser each.
   let browser: Promise<Browser> | undefined
 
-  // A browser this renderer can no longer use must not stay cached: a launch
-  // that failed would poison every later render, and a Chrome that has since
-  // exited would take every `newPage` down with it.
+  // Remove failed or disconnected browsers from the cache so later renders can
+  // launch a replacement.
   function start(): Promise<Browser> {
     const pending: Promise<Browser> = launch({ args, executable }).then(
       (instance) => {
@@ -86,17 +85,16 @@ export declare namespace create {
      */
     executable?: string | undefined
     /**
-     * Renderer to highlight with. Defaults to one this renderer makes and
-     * releases on `dispose`. Pass one to share loaded grammars and themes
-     * across renderers, and to keep its lifetime yours.
+     * Frame renderer used for highlighting. By default this renderer creates
+     * and releases one. Pass an existing renderer to share loaded resources.
      */
     frame?: Frame.create.ReturnType | undefined
   }
 
   type ReturnType = {
     /**
-     * Closes the browser, and the frame renderer if this one made it. Stays
-     * usable: the next render starts a fresh browser.
+     * Closes the browser and any frame renderer created by this instance. A
+     * subsequent render starts a new browser.
      */
     dispose: () => Promise<void>
     /** Renders a frame to a PNG. */
@@ -107,8 +105,7 @@ export declare namespace create {
 /**
  * Renders one frame to an image, in a browser started and stopped for it.
  *
- * Convenient for a single image; use {@link create} for more than one, which
- * pays for the browser and the highlighter once rather than per render.
+ * Use {@link create} for multiple images to reuse one browser and highlighter.
  *
  * @example
  * ```ts twoslash
@@ -131,7 +128,7 @@ export async function render(options: render.Options): Promise<Uint8Array> {
   }
 }
 
-/** What a caller can leave out of a render, and what it gets instead. */
+/** Default frame options for image rendering. */
 const defaults = {
   background: 'default',
   padding: 64,
@@ -141,7 +138,7 @@ const defaults = {
   width: 640,
 } as const satisfies render.Defaults
 
-/** Screenshots the frame a document draws. */
+/** Captures the rendered frame from a standalone document. */
 async function capture(
   browser: Browser,
   options: { html: string; scale: number },
@@ -178,17 +175,17 @@ async function capture(
   }
 }
 
-/** What a render needs, less the browser it runs in. */
+/** Image render options excluding browser configuration. */
 type Options_render = Omit<Frame.toDocument.Options, keyof render.Defaults> &
   Partial<render.Defaults> & {
-    /** Multiplier on the frame's own size. Defaults to 3. */
+    /** Frame scale multiplier. Defaults to 3. */
     scale?: number | undefined
   }
 
 export declare namespace render {
   type Options = Options_render & create.Options
 
-  /** What a caller can leave out, and what it gets instead. */
+  /** Default frame options applied by {@link render}. */
   type Defaults = Pick<
     Frame.toDocument.Options,
     'background' | 'padding' | 'radius' | 'title' | 'titleBar' | 'width'
@@ -209,8 +206,7 @@ async function launch(options: {
   try {
     return await puppeteer.launch({
       ...(args ? { args: [...args] } : {}),
-      // A path wins; otherwise puppeteer finds a Chrome already on the machine
-      // rather than downloading one.
+      // Prefer the explicit path; otherwise use an installed Chrome release.
       ...(path ? { executablePath: path } : { channel: 'chrome' }),
       headless: true,
     })
@@ -222,7 +218,7 @@ async function launch(options: {
   }
 }
 
-/** Thrown when the browser this needs is missing or will not start. */
+/** Indicates that Chrome is unavailable or failed to start. */
 export class ChromeError extends Error {
   override name = 'Headless.ChromeError'
 }

@@ -19,39 +19,39 @@ export type Annotation = {
   to: number
 }
 
-/** Something the compiler objected to, against the source as written. */
+/** Compiler diagnostic mapped to the original source. */
 export type Diagnostic = {
-  /** The TypeScript error number, such as 2322. Absent when the compiler gave none. */
+  /** TypeScript diagnostic code, such as 2322, when available. */
   code?: number | string | undefined
   /** Offset into the source as written, notations included. */
   from: number
-  /** How loudly the compiler complained. */
+  /** Diagnostic severity reported by the compiler. */
   level: 'error' | 'message' | 'suggestion' | 'warning'
-  /** The message, as the compiler phrased it. */
+  /** Diagnostic message reported by the compiler. */
   text: string
   /** Offset just past the span the message is about. */
   to: number
 }
 
-/** What a snippet's types look like once notations are out of the way. */
+/** Resolved types and diagnostics mapped to the original source. */
 export type Result = {
-  /** What the compiler objected to, in source order. */
+  /** Compiler diagnostics in source order. */
   diagnostics: readonly Diagnostic[]
-  /** Every identifier the language service knows a type for. */
+  /** Every identifier for which the language service resolved a type. */
   hovers: readonly Annotation[]
-  /** The types a snippet asked for with `^?`, in source order. */
+  /** Types requested by `^?` queries, in source order. */
   queries: readonly Annotation[]
 }
 
 /**
  * Creates a resolver that owns a TypeScript compiler for its lifetime.
  *
- * Needs `typescript` in the consuming install. The compiler and the types it
- * reads are loaded on the first snippet, so importing this costs neither.
+ * Requires `typescript` in the consuming installation. The compiler and type
+ * definitions load when the first snippet is resolved, not during import.
  *
  * Construct one per lifecycle that should share the compiler: an editor
- * session, a CLI run, a worker. The first snippet pays for the compiler and
- * the lib files, and every later one reuses them.
+ * session, CLI run, or worker. Subsequent snippets reuse the compiler and
+ * library files loaded by the first run.
  *
  * @example
  * ```ts twoslash
@@ -79,9 +79,8 @@ export function create(): create.ReturnType {
 export declare namespace create {
   type ReturnType = {
     /**
-     * Resolves a snippet's types, fetching whatever it imports first. Async
-     * for that fetch: the types come from the registry rather than from the
-     * machine this runs on, so the same snippet resolves the same anywhere.
+     * Resolves a snippet's types after fetching imported declarations. The
+     * declarations come from the registry for consistent results across hosts.
      */
     run: (code: string, options?: run.Options) => Promise<Result>
   }
@@ -90,12 +89,11 @@ export declare namespace create {
 /**
  * Resolves a snippet's types.
  *
- * Positions come back against the source as written rather than the source
- * twoslash compiled, so a caller holding the original text can use them
- * directly.
+ * Positions refer to the original source instead of Twoslash's transformed
+ * source.
  *
- * Builds a compiler for the call and keeps nothing afterwards. Reach for
- * {@link create} to resolve more than one snippet.
+ * Creates a compiler for one call and releases it afterwards. Use
+ * {@link create} to resolve multiple snippets with one compiler.
  *
  * @example
  * ```ts twoslash
@@ -120,8 +118,8 @@ export declare namespace run {
 /**
  * Reads a twoslash result into annotations against the original source.
  *
- * Separate from {@link run} because the browser runs twoslash in a worker with
- * its own type acquisition, and hands the result here.
+ * This function is separate from {@link run} so browser workers can perform
+ * type acquisition independently and pass the result for normalization.
  */
 export function annotate(result: annotate.Input): Result {
   // Ascending, because each removal shifts the ones after it. Twoslash reports

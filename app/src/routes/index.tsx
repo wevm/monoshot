@@ -1031,7 +1031,7 @@ function copying(event: KeyboardEvent) {
   return getSelection()?.isCollapsed === false
 }
 
-/** Whether the connection asks callers to go easy on data. */
+/** Whether the connection indicates reduced data usage. */
 function metered() {
   const { connection } = navigator as Navigator & {
     connection?: { effectiveType?: string; saveData?: boolean } | undefined

@@ -250,8 +250,8 @@ export function create<const themes extends Themes = []>(
 }
 
 /**
- * A theme to render with: one shiki bundles, one this package composes, or the
- * name of one handed to {@link create} as a theme of its own.
+ * A bundled theme, a theme composed by this package, or a custom theme passed
+ * to {@link create}.
  *
  * Named rather than a plain string, so a misspelled theme is a type error here
  * instead of a rejected load at runtime.
@@ -283,8 +283,8 @@ export declare namespace create {
     /** Languages to preload. Anything else loads on first use. */
     langs?: readonly BundledLanguage[] | undefined
     /**
-     * Themes to preload, and themes of the caller's own: a raw theme's `name`
-     * is accepted by this renderer's `render`, `load`, and `tokens`.
+     * Bundled or custom themes to preload. Custom theme names are accepted by
+     * this renderer's `render`, `load`, and `tokens` operations.
      */
     themes?: themes | undefined
   }
@@ -296,8 +296,8 @@ export declare namespace create {
      */
     dispose: () => Promise<void>
     /**
-     * Loads a theme and language ahead of time so the next `render` is
-     * immediate. The highlighter itself stays private to the instance.
+     * Loads a theme and language before the next `render`. The highlighter
+     * remains private to the instance.
      */
     load: (options: load.Options<themes>) => Promise<void>
     /**
@@ -368,7 +368,7 @@ export declare namespace render {
     /** Theme to color with. */
     theme: Name<themes>
     /**
-     * Draw the types a `^?` query asks for, in flow.
+     * Render resolved types for `^?` queries in document flow.
      *
      * `true` resolves them here, which needs `typescript` and applies to the
      * TypeScript family only. A {@link Types} resolved elsewhere is drawn as
@@ -378,8 +378,8 @@ export declare namespace render {
   }
 
   /**
-   * A twoslash run, as the renderer reads it. Plain data, so a build step, a
-   * worker, or a cache can resolve types once and hand them over later.
+   * Twoslash data consumed by the renderer. A build step, worker, or cache can
+   * resolve types once and pass this data to a later render.
    */
   type Types = {
     /** The source the run was resolved against. */

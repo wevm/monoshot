@@ -120,7 +120,7 @@ describe('create', () => {
       expect(output).toMatchInlineSnapshot(`
         {
           "code": "no_snippet",
-          "message": "Name a file or pass \`--code\`, not both.",
+          "message": "Specify either a file or \`--code\`, but not both.",
         }
       `)
     })
@@ -131,7 +131,7 @@ describe('create', () => {
       expect(output).toMatchInlineSnapshot(`
         {
           "code": "no_snippet",
-          "message": "Name a file, pass \`--code\`, or pass \`-\` to read standard input.",
+          "message": "Specify a file, use \`--code\`, or pass \`-\` to read standard input.",
         }
       `)
     })
@@ -219,7 +219,7 @@ describe('create', () => {
       expect(output).toMatchInlineSnapshot(`
         {
           "code": "no_snippet",
-          "message": "Name a file, pass \`--code\`, or pass \`-\` to read standard input.",
+          "message": "Specify a file, use \`--code\`, or pass \`-\` to read standard input.",
         }
       `)
     })
@@ -251,7 +251,7 @@ describe('create', () => {
       expect(output).toMatchInlineSnapshot(`
         {
           "code": "output_collision",
-          "message": "The image would overwrite the snippet it was made from. Name an \`--out\`.",
+          "message": "The image output would overwrite the source file. Specify a different path with \`--out\`.",
         }
       `)
     })
