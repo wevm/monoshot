@@ -3,12 +3,17 @@ import type ts from 'typescript'
 /**
  * Fills a virtual file system with the types a document's imports need.
  *
- * One request per package, against a route that reads whole npm tarballs,
- * rather than one per declaration file: `shiki` alone ships 442 of them, and a
- * CDN that serves files singly turns acquiring it into 442 round trips.
+ * One request per package, reading whole npm tarballs rather than one file at
+ * a time: `shiki` alone ships 442 declarations, and a CDN that serves them
+ * singly turns acquiring it into 442 round trips.
+ *
+ * `load` is where a package's declarations come from, because a browser cannot
+ * reach the registry across origins and reads them back through a route
+ * instead. Everything after it is shared, so every surface resolves the same
+ * types for the same imports.
  */
 export async function acquire(options: acquire.Options): Promise<void> {
-  const { code, compiler, files, onProgress } = options
+  const { code, compiler, files, load, onProgress } = options
   const seen = new Set<string>()
   let queue = references(compiler, code)
   let done = 0
@@ -48,19 +53,6 @@ export async function acquire(options: acquire.Options): Promise<void> {
     const types = await load(`@types/${mangle(name)}`)
     return types ? { files: types.files, name: `@types/${mangle(name)}` } : fetched
   }
-
-  async function load(name: string): Promise<acquire.Package | undefined> {
-    try {
-      const response = await fetch(`${options.endpoint ?? '/api/types'}/${name}`)
-      if (!response.ok) return undefined
-      const body = (await response.json()) as { files: Record<string, string>; name: string }
-      return { files: body.files, name: body.name }
-    } catch {
-      // An import that cannot be resolved leaves its types as `any`, which is
-      // what the editor already shows before any of this runs.
-      return undefined
-    }
-  }
 }
 
 export declare namespace acquire {
@@ -71,8 +63,11 @@ export declare namespace acquire {
     compiler: typeof ts
     /** The virtual file system to fill, keyed by absolute path. */
     files: Map<string, string>
-    /** Where the types route is mounted. Defaults to `/api/types`. */
-    endpoint?: string | undefined
+    /**
+     * Reads one package's declarations. Answers `undefined` for a package with
+     * none, which leaves its imports as `any`.
+     */
+    load: (name: string) => Promise<Package | undefined>
     /** Called as packages land, for a caller that shows progress. */
     onProgress?: ((loaded: number, total: number) => void) | undefined
   }

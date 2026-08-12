@@ -1,9 +1,8 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono } from 'hono'
 import { Api } from 'monoshot'
+import * as Twoslash from 'monoshot/twoslash'
 import * as z from 'zod'
-
-import * as Registry from './registry.js'
 
 // Registered rather than left to the default: the bundler drops the locale
 // zod reaches for otherwise, and every rejection reads `Invalid input`.
@@ -36,13 +35,13 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
 
     const result = await (async () => {
       try {
-        return await Registry.types({ name, version })
+        return await Twoslash.types({ name, version })
       } catch (cause) {
         return cause instanceof Error ? cause : new Error(String(cause))
       }
     })()
     if (result instanceof Error)
-      return c.json({ error: result.message }, result instanceof Registry.RegistryError ? 404 : 502)
+      return c.json({ error: result.message }, result instanceof Twoslash.RegistryError ? 404 : 502)
 
     const response = Response.json(result, {
       headers: {

@@ -1,4 +1,4 @@
-import * as Registry from './registry.js'
+import * as Registry from './Registry.js'
 
 /**
  * Builds a tar archive in memory. Real npm tarballs are the thing under test
