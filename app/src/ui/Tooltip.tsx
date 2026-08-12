@@ -38,7 +38,7 @@ const styles = stylex.create({
  * library writes `transition: none` there for the frame it mounts, which only a
  * style of its own outranks.
  */
-const travel = `transform ${motion.fast} ${motion.inOut}`
+const travel = `transform ${motion.medium} ${motion.inOut}`
 
 /**
  * The hint rolling to what it says next.
