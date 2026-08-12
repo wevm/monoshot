@@ -56,6 +56,7 @@ let pending: Aim | undefined
 let resting = true
 let hiding: ReturnType<typeof setTimeout> | undefined
 let stood: number | undefined
+let dragged = false
 let settling: ReturnType<typeof setTimeout> | undefined
 const watching = new Set<() => void>()
 
@@ -109,6 +110,16 @@ const linger = 100
 const hover = 100
 
 /**
+ * How long a control the pointer was dragging stands still before it counts as
+ * having stopped.
+ *
+ * Longer than the wait for a control that never moved: a pointer sweeping gently
+ * leaves gaps of its own between moves, and answering in one of those is
+ * answering mid-sweep.
+ */
+const settled = 300
+
+/**
  * Watches the pointer, so a hint answers what it came to rest on rather than
  * everything it passed on the way.
  *
@@ -128,13 +139,20 @@ function pace() {
     // they are, and the hint travels between them instead.
     if (aim) {
       const top = aim.at.getBoundingClientRect().top
-      if (stood !== undefined && Math.abs(top - stood) > 0.5) hideSoon()
+      if (stood !== undefined && Math.abs(top - stood) > 0.5) {
+        dragged = true
+        hideSoon()
+      }
       stood = top
     }
-    settling = setTimeout(() => {
-      resting = true
-      if (pending) aimAt(pending)
-    }, hover)
+    settling = setTimeout(
+      () => {
+        resting = true
+        dragged = false
+        if (pending) aimAt(pending)
+      },
+      dragged ? settled : hover,
+    )
   }
   window.addEventListener('pointermove', moved, { passive: true })
   return () => window.removeEventListener('pointermove', moved)
