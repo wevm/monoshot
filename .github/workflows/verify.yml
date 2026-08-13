@@ -14,12 +14,15 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
+
+      - name: Build
+        run: pnpm build
 
       # Fails when `wrangler.json` changed without regenerating the committed
       # Worker types.
@@ -32,11 +35,17 @@ jobs:
       - name: Check code
         run: pnpm exec vp check
 
+      - name: Check documentation examples
+        run: pnpm check:examples
+
+      - name: Check agent skill discovery
+        run: pnpm check:skill
+
+      - name: Check package contents
+        run: pnpm check:pack
+
       - name: Check types
         run: pnpm check:types
-
-      - name: Build
-        run: pnpm build
 
       # The app has to bundle through the full Vite plugin stack, which the
       # library checks cannot tell us. Also generates `routeTree.gen.ts`,
@@ -55,7 +64,7 @@ jobs:
 
     steps:
       - name: Clone repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 

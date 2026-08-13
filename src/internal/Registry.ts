@@ -10,7 +10,8 @@ export type Types = Record<string, string>
  */
 export async function types(options: types.Options): Promise<types.Result> {
   const { name, version } = options
-  const meta = await metadata(name, version)
+  const request = options.fetch ?? fetch
+  const meta = await metadata({ fetch: request, name, version })
   const resolved = typeof meta['version'] === 'string' ? meta['version'] : version
   const dist = meta['dist']
   const tarball =
@@ -24,14 +25,16 @@ export async function types(options: types.Options): Promise<types.Result> {
   if (typeof tarball !== 'string')
     throw new RegistryError(`\`${name}\` has no tarball to read.`, { absent: true })
 
-  const response = await fetch(tarball)
+  const response = await request(tarball)
   if (!response.ok || !response.body)
     throw new RegistryError(`Could not download \`${name}@${resolved}\`.`)
-  const tar = await new Response(
-    response.body.pipeThrough(new DecompressionStream('gzip')),
-  ).arrayBuffer()
+  const compressed = await bytes(response.body, limits.compressed, name)
+  const packed = new ArrayBuffer(compressed.length)
+  new Uint8Array(packed).set(compressed)
+  const stream = new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))
+  const tar = await bytes(stream, limits.decompressed, name)
 
-  return { files: extract(new Uint8Array(tar)), name, version: resolved }
+  return { files: extract(tar), name, version: resolved }
 }
 
 /**
@@ -40,7 +43,7 @@ export async function types(options: types.Options): Promise<types.Result> {
  * The compiler reads declarations, and the manifest to find them; the rest of
  * a package is implementation it never opens.
  */
-export function extract(tar: Uint8Array): Types {
+export function extract(tar: Uint8Array, options: extract.Options = {}): Types {
   const decoder = new TextDecoder()
   const files: Types = {}
   const entries = [...untar(tar)]
@@ -53,18 +56,37 @@ export function extract(tar: Uint8Array): Types {
     }),
   )
   const wrapper = wrappers.size === 1 ? (wrappers.values().next().value ?? '') : ''
+  let count = 0
+  let size = 0
   for (const entry of entries) {
     const path = entry.name.startsWith(wrapper) ? entry.name.slice(wrapper.length) : entry.name
     if (!/\.d\.[cm]?ts$/.test(path) && path !== 'package.json') continue
+    if (count >= (options.files ?? limits.files))
+      throw new RegistryError('The package contains too many declaration files.')
+    count++
+    size += entry.body.length
+    if (size > (options.size ?? limits.declarations))
+      throw new RegistryError('The package declarations are too large.')
     files[`/${path}`] = decoder.decode(entry.body)
   }
   return files
+}
+
+export declare namespace extract {
+  type Options = {
+    /** Maximum declaration and manifest files. */
+    files?: number | undefined
+    /** Maximum declaration and manifest bytes. */
+    size?: number | undefined
+  }
 }
 
 export declare namespace types {
   type Options = {
     /** Package name, scope included. */
     name: string
+    /** Request implementation. Tests can provide a deterministic registry. */
+    fetch?: typeof globalThis.fetch | undefined
     /** An exact version or a tag such as `latest`. */
     version: string
   }
@@ -80,6 +102,13 @@ export declare namespace types {
 }
 
 const registry = 'https://registry.npmjs.org'
+const limits = {
+  compressed: 8 * 1024 * 1024,
+  declarations: 16 * 1024 * 1024,
+  decompressed: 32 * 1024 * 1024,
+  files: 4_096,
+} as const
+
 const metadataSources = [
   (name: string, version: string) =>
     `${registry}/${encodeName(name)}/${encodeURIComponent(version)}`,
@@ -89,20 +118,65 @@ const metadataSources = [
     `https://unpkg.com/${encodeName(name)}@${encodeURIComponent(version)}/package.json`,
 ] as const
 
+async function bytes(
+  stream: ReadableStream<Uint8Array>,
+  limit: number,
+  name: string,
+): Promise<Uint8Array> {
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    while (true) {
+      const result = await reader.read()
+      if (result.done) break
+      size += result.value.length
+      if (size > limit) {
+        await reader.cancel()
+        throw new RegistryError(`\`${name}\` is too large to read.`)
+      }
+      chunks.push(result.value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  const output = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    output.set(chunk, offset)
+    offset += chunk.length
+  }
+  return output
+}
+
 /** Resolves a package version even when npm rate-limits shared Worker egress. */
-async function metadata(name: string, version: string) {
+async function metadata(options: {
+  fetch: typeof globalThis.fetch
+  name: string
+  version: string
+}) {
+  const { name, version } = options
   let failure: unknown
-  for (const [at, source] of metadataSources.entries()) {
+  const ranged = range(version)
+  const sources = ranged ? metadataSources.slice(1) : metadataSources
+  for (const [at, source] of sources.entries()) {
     try {
-      return await json({ name, url: source(name, version), version })
+      return await json({ ...options, url: source(name, version) })
     } catch (cause) {
       // npm is authoritative when a package or version does not exist. Mirrors
       // are only fallbacks for a source that could not answer reliably.
-      if (at === 0 && cause instanceof RegistryError && cause.absent) throw cause
+      if (!ranged && at === 0 && cause instanceof RegistryError && cause.absent) throw cause
       failure = cause
     }
   }
   throw failure
+}
+
+/** Whether a dependency specification needs a source that resolves ranges. */
+function range(version: string) {
+  return (
+    /^[~^<>=*]/.test(version) || /\s|\|\||\bx\b/i.test(version) || /^v?\d+(?:\.\d+)?$/.test(version)
+  )
 }
 
 /** Tarballs name a scoped package by its final segment. */
@@ -118,8 +192,13 @@ function encodeName(name: string) {
     .join('/')
 }
 
-async function json(options: { name: string; url: string; version: string }) {
-  const response = await fetch(options.url, { headers: { accept: 'application/json' } })
+async function json(options: {
+  fetch: typeof globalThis.fetch
+  name: string
+  url: string
+  version: string
+}) {
+  const response = await options.fetch(options.url, { headers: { accept: 'application/json' } })
   // The upstream URL stays out of the message: a caller gets its own request
   // back, not ours.
   if (response.status === 404)

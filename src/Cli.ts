@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import { text } from 'node:stream/consumers'
@@ -10,6 +9,7 @@ import * as z from 'zod'
 import * as Codec from './Codec.js'
 import type * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
+import * as Launch from './internal/Launch.js'
 import * as Terminal from './internal/Terminal.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
@@ -244,7 +244,14 @@ export function create() {
       async run({ args, error, options }) {
         const result = await link(args.file, options)
         if ('message' in result) return error(result)
-        launch(result.url)
+        const opened = await Launch.open({ url: result.url }).catch((cause: unknown) =>
+          cause instanceof Error ? cause : new Error(String(cause)),
+        )
+        if (opened instanceof Error)
+          return error({
+            code: 'open_failed',
+            message: `Could not open the link: ${opened.message}`,
+          })
         return { url: result.url }
       },
     })
@@ -378,26 +385,12 @@ async function link(
   })()
   if (base === undefined)
     return { code: 'invalid_base', message: `\`${options.base}\` is not a URL.` }
+  if (base.protocol !== 'http:' && base.protocol !== 'https:')
+    return { code: 'invalid_base', message: 'The link base must use HTTP or HTTPS.' }
   // Assigned rather than appended: a base carrying its own fragment would
   // otherwise leave two, and a browser reads everything after the first as one.
   base.hash = fragment
   return { url: base.toString() }
-}
-
-/**
- * Opens a link with the platform URL handler. The detached process may outlive
- * the CLI process, and launch errors do not affect the returned URL.
- */
-function launch(url: string): void {
-  const [command, args]: [string, readonly string[]] =
-    process.platform === 'darwin'
-      ? ['open', [url]]
-      : process.platform === 'win32'
-        ? ['cmd', ['/c', 'start', '', url]]
-        : ['xdg-open', [url]]
-  const child = spawn(command, [...args], { detached: true, stdio: 'ignore' })
-  child.on('error', () => {})
-  child.unref()
 }
 
 /** Resolves the default image output path. */

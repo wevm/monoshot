@@ -22,52 +22,64 @@ export async function acquire(options: acquire.Options): Promise<acquire.Result>
   while (queue.length) {
     // Deduplicated first: a package named by fifty declaration files is still
     // one package, and filtering alone lets every copy through.
-    const wanted = [...new Set(queue)].filter((name) => !seen.has(name))
-    for (const name of wanted) seen.add(name)
-    if (!wanted.length) break
-
-    const packages = (await Promise.all(wanted.map((name) => read(name)))).filter(
-      (value) => value !== undefined,
+    const wanted = queue.filter(
+      (entry, at) =>
+        queue.findIndex((candidate) => candidate.name === entry.name) === at &&
+        !seen.has(entry.name),
     )
+    for (const entry of wanted) seen.add(entry.name)
+    if (!wanted.length) break
+    if (seen.size > limits.packages)
+      throw new Error(`A snippet may import at most ${limits.packages} packages.`)
+
+    const packages = []
+    for (let at = 0; at < wanted.length; at += limits.concurrency) {
+      const batch = await Promise.all(wanted.slice(at, at + limits.concurrency).map(read))
+      for (const entry of batch) if (entry !== undefined) packages.push(entry)
+    }
     done += wanted.length
 
     // Package declarations can reference additional packages, which form the
     // next acquisition round.
     queue = packages.flatMap((entry) => {
-      const found: string[] = []
+      const found: Reference[] = []
+      const versions = dependencies(entry.files)
       for (const [path, source] of Object.entries(entry.files)) {
         files.set(`/node_modules/${entry.name}${path}`, source)
         if (/\.d\.[cm]?ts$/.test(path))
-          for (const reference of inspect(source)) found.push(reference)
+          for (const reference of inspect(source, versions)) found.push(reference)
       }
       return found
     })
     // Counted after the next round is known, and over the names that will
     // require fetching: duplicate package names share one request, and a total
     // counting it twice never arrives at itself.
-    onProgress?.(done, done + new Set(queue.filter((name) => !seen.has(name))).size)
+    onProgress?.(done, done + new Set(queue.filter((entry) => !seen.has(entry.name))).size)
   }
 
   return { types: [...ambient] }
 
   /** Records ambient roots while returning the packages one source needs. */
-  function inspect(source: string) {
-    const found = references(compiler, source)
+  function inspect(source: string, versions: Record<string, string> = {}) {
+    const found = references(compiler, source, versions)
     for (const name of found.types) ambient.add(name)
     return found.packages
   }
 
-  async function read(name: string): Promise<acquire.Package | undefined> {
-    const fetched = await load(name)
+  async function read(request: Reference): Promise<acquire.Package | undefined> {
+    const fetched = await load(request.name, request.version)
     if (!fetched) return undefined
     // A package shipping no declarations may still be described on
     // DefinitelyTyped, which is where the compiler looks next.
-    const typed = Object.keys(fetched.files).some((path) => /\.d\.[cm]?ts$/.test(path))
-    if (typed) return fetched
-    const types = await load(`@types/${mangle(name)}`)
-    return types ? { files: types.files, name: `@types/${mangle(name)}` } : fetched
+    const hasTypes = Object.keys(fetched.files).some((path) => /\.d\.[cm]?ts$/.test(path))
+    if (hasTypes) return fetched
+    const typed = `@types/${mangle(request.name)}`
+    const types = await load(typed, 'latest')
+    return types ? { ...types, name: typed } : fetched
   }
 }
+
+const limits = { concurrency: 8, packages: 64 } as const
 
 export declare namespace acquire {
   type Options = {
@@ -81,7 +93,7 @@ export declare namespace acquire {
      * Reads one package's declarations. Returns `undefined` for a package with
      * none, which leaves its imports as `any`.
      */
-    load: (name: string) => Promise<Package | undefined>
+    load: (name: string, version: string) => Promise<Package | undefined>
     /** Called as packages land, for a caller that shows progress. */
     onProgress?: ((loaded: number, total: number) => void) | undefined
   }
@@ -96,6 +108,8 @@ export declare namespace acquire {
   type Package = {
     files: Record<string, string>
     name: string
+    /** Exact version resolved by the package source. */
+    version?: string | undefined
   }
 }
 
@@ -105,12 +119,19 @@ export declare namespace acquire {
  * A `node:` specifier names a runtime builtin, whose declarations come from
  * `@types/node` rather than from a package with the specifier's name.
  */
-function references(compiler: typeof ts, code: string) {
+type Reference = { name: string; version: string }
+
+function references(
+  compiler: typeof ts,
+  code: string,
+  versions: Record<string, string> = {},
+): { packages: Reference[]; types: string[] } {
   const info = compiler.preProcessFile(code, true, true)
   const references = info.importedFiles.concat(info.referencedFiles).map((file) => file.fileName)
   const imported = references
     .filter((name) => !name.startsWith('.') && !name.startsWith('/') && !name.startsWith('node:'))
     .map(bare)
+    .map((name) => ({ name, version: versions[name] ?? 'latest' }))
   // A `/// <reference types="node" />` names a DefinitelyTyped package, not an
   // import: `node` is a package of its own on npm and not the one meant. The
   // directive spells a scope out already, so `@types/` is all it needs.
@@ -118,7 +139,16 @@ function references(compiler: typeof ts, code: string) {
   if (references.some((name) => name.startsWith('node:')) || hasNodeGlobal(compiler, code))
     ambient.push('node')
   const types = [...new Set(ambient)]
-  return { packages: [...imported, ...types.map((name) => `@types/${name}`)], types }
+  return {
+    packages: [
+      ...imported,
+      ...types.map((name) => {
+        const packageName = `@types/${name}`
+        return { name: packageName, version: versions[packageName] ?? 'latest' }
+      }),
+    ],
+    types,
+  }
 }
 
 /** Runtime names whose declarations are supplied by `@types/node`. */
@@ -164,6 +194,22 @@ function hasNodeGlobal(compiler: typeof ts, code: string) {
     if (compiler.isPropertyAccessExpression(parent) && parent.name === node) return false
     if (compiler.isQualifiedName(parent) && parent.right === node) return false
     return true
+  }
+}
+
+/** Dependency ranges declared by a package manifest. */
+function dependencies(files: Record<string, string>): Record<string, string> {
+  try {
+    const manifest = JSON.parse(files['/package.json'] ?? '{}') as Record<string, unknown>
+    const entries = ['dependencies', 'peerDependencies'].flatMap((field) => {
+      const value = manifest[field]
+      return typeof value === 'object' && value !== null ? Object.entries(value) : []
+    })
+    return Object.fromEntries(
+      entries.filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    )
+  } catch {
+    return {}
   }
 }
 

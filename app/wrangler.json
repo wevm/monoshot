@@ -9,9 +9,6 @@
   "observability": {
     "enabled": true
   },
-  "ai": {
-    "binding": "AI"
-  },
   "assets": {
     "binding": "ASSETS"
   },

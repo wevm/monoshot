@@ -32,7 +32,11 @@ import type {
  * import { Frame } from 'monoshot'
  *
  * const frame = Frame.create()
- * const result = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+ * const result = await frame.render({
+ *   code: 'const a = 1',
+ *   lang: 'ts',
+ *   theme: 'vitesse-dark'
+ * })
  * result.html
  * // ^?
  * ```
@@ -115,7 +119,11 @@ export function create<const themes extends Themes = []>(
       instance.getLoadedThemes().includes(theme)
         ? undefined
         : instance.loadTheme(
-            Theme.composed.find((one) => one.name === theme) ?? (theme as BundledTheme),
+            // Shiki declares registrations mutable, although loading only reads
+            // them. The package-owned registrations stay deeply frozen.
+            (Theme.composed.find((one) => one.name === theme) ?? (theme as BundledTheme)) as
+              | ThemeRegistrationRaw
+              | BundledTheme,
           ),
       instance.getLoadedLanguages().includes(lang) ? undefined : instance.loadLanguage(lang),
     ])
@@ -314,7 +322,7 @@ export declare namespace create {
      * `background` or a font field carries CSS that would leave the stylesheet
      * or fetch a resource.
      */
-    toDocument: (options: toDocument.Options) => Promise<toDocument.ReturnType>
+    toDocument: (options: toDocument.Options<themes>) => Promise<toDocument.ReturnType>
     /**
      * Tokenizes code without rendering it, for a surface that draws its own
      * text. An editor colors its own document from these.

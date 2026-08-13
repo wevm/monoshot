@@ -5,7 +5,7 @@ import type { BundledLanguage } from 'shiki'
 import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { detect, languages } from '#/lib/detect.js'
+import * as Language from '#/lib/language.js'
 import * as Export from '#/lib/export.js'
 import * as Links from '#/lib/links.js'
 import * as Opening from '#/lib/opening.js'
@@ -305,7 +305,7 @@ function restore(hash: string) {
   const language =
     state.lang === 'auto'
       ? 'auto'
-      : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
+      : (Language.list.find((entry) => entry.id === state.lang)?.id ?? 'auto')
   return {
     // Use the sample when a fragment is unreadable or contains an empty document.
     code: state.code || sample,
@@ -463,8 +463,16 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   // guess that cannot be made leaves the language where it is.
   useEffect(() => {
     if (settings.language !== 'auto') return
-    const timer = setTimeout(() => setDetected((current) => detect(code) ?? current), 400)
-    return () => clearTimeout(timer)
+    let active = true
+    const timer = setTimeout(() => {
+      void import('#/lib/detect.js').then(({ detect }) => {
+        if (active) setDetected((current) => detect(code) ?? current)
+      })
+    }, 400)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
   }, [code, settings.language])
 
   // The sample was resolved as one language at build time, and reads as that
@@ -485,6 +493,20 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     }, 500)
     return () => clearTimeout(timer)
   }, [code, navigate, settings, state, title])
+
+  // A closing page may not live long enough for the debounce to fire. Flush
+  // the current state through the synchronous History API during pagehide.
+  useEffect(() => {
+    function flush() {
+      const hash = share({ code, settings, title })
+      if (state === hash) return
+      const url = new URL('/', window.location.origin)
+      url.hash = hash
+      window.history.replaceState(window.history.state, '', url)
+    }
+    window.addEventListener('pagehide', flush)
+    return () => window.removeEventListener('pagehide', flush)
+  }, [code, settings, state, title])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
@@ -774,9 +796,9 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     const controller = new AbortController()
     void Warm.themes({
       from: settings.theme,
-      // The full sweep is a couple of megabytes of chunks, so a metered
-      // connection preloads only adjacent themes.
-      limit: metered() ? 4 : names.length,
+      // Keep speculative downloads bounded. The Network Information API is
+      // unavailable in major browsers, so absence cannot imply free bandwidth.
+      limit: 8,
       list: names,
       load: (theme) => renderer.load({ lang: 'tsx', theme }),
       signal: controller.signal,
@@ -788,9 +810,14 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     function walk(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
-      if (!direction || !(event.target instanceof Element)) return
-      // A field or a frame handle owns its own arrow keys.
-      if (event.target.closest('input, textarea, [role="slider"], [contenteditable]')) return
+      if (!direction || !(event.target instanceof Node)) return
+      // Theme stepping is local to these controls. Other controls and editable
+      // surfaces retain their native arrow-key behavior.
+      if (
+        !previousArrow.current?.contains(event.target) &&
+        !nextArrow.current?.contains(event.target)
+      )
+        return
       event.preventDefault()
       step(direction)
       // Focus the corresponding control and show brief pressed feedback.
@@ -1139,15 +1166,6 @@ function copying(event: KeyboardEvent) {
   const { target } = event
   if (target instanceof Element && target.closest('input, textarea, [contenteditable]')) return true
   return getSelection()?.isCollapsed === false
-}
-
-/** Whether the connection indicates reduced data usage. */
-function metered() {
-  const { connection } = navigator as Navigator & {
-    connection?: { effectiveType?: string; saveData?: boolean } | undefined
-  }
-  if (!connection) return false
-  return connection.saveData === true || /^(slow-)?2g$/.test(connection.effectiveType ?? '')
 }
 
 /** Rough perceptual lightness of a `#rrggbb` color, from 0 to 1. */

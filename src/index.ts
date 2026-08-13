@@ -1,7 +1,6 @@
 /**
- * Renders a frame over HTTP, as routes to mount on a Hono app. See
- * {@link Api.route} for the ready-made ones and {@link Api.create} to choose
- * the renderer they draw with.
+ * Renders a frame over HTTP, as routes to mount on a Hono app. Call
+ * {@link Api.route} to create an independently owned route and renderer.
  */
 export * as Api from './Api.js'
 /**

@@ -21,7 +21,11 @@ import * as Raster from './internal/Raster.js'
  * import * as Headless from 'monoshot/headless'
  *
  * const renderer = Headless.create()
- * const png = await renderer.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+ * const png = await renderer.render({
+ *   code: 'const a = 1',
+ *   lang: 'ts',
+ *   theme: 'vitesse-dark'
+ * })
  * await renderer.dispose()
  * ```
  */
@@ -113,7 +117,7 @@ export declare namespace create {
  * const png = await Headless.render({
  *   code: 'const a = 1',
  *   lang: 'ts',
- *   theme: 'vitesse-dark',
+ *   theme: 'vitesse-dark'
  * })
  * ```
  */

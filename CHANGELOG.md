@@ -1,6 +1,7 @@
 # monoshot
 
 ## 0.0.6
+
 ### Patch Changes
 
 - 430fe1d: Fixed local rendering to include the artwork for every composed theme.

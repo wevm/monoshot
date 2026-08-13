@@ -1,5 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { bundledLanguages } from 'shiki'
 import * as z from 'zod'
 
@@ -10,6 +11,10 @@ import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
 const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
+const requestLimit = bodyLimit({
+  maxSize: 5 * 1024 * 1024,
+  onError: (c) => c.json({ error: 'The request body is too large.' }, 413),
+})
 
 /** Shiki language IDs and aliases that Twoslash can compile. */
 const typed: ReadonlySet<string> = new Set(['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'])
@@ -20,21 +25,75 @@ namespace schema {
    * A resolved twoslash run, as twoslash produced it. The cuts come with it:
    * they are what proves the run describes this snippet rather than another.
    */
-  const run = z.object({
-    code: z.string().max(limit.code),
-    meta: z.object({ removals: z.array(z.tuple([z.number(), z.number()])).max(limit.nodes) }),
-    nodes: z
-      .array(
-        // Accept additional Twoslash fields but limit rendered text.
-        z.looseObject({
-          length: z.number(),
-          start: z.number(),
-          text: z.string().max(limit.text).optional(),
-          type: z.string(),
-        }),
-      )
-      .max(limit.nodes),
-  })
+  const index = z.number().int().nonnegative().finite()
+  const text = z.string().max(limit.text)
+  const positioned = {
+    character: index,
+    length: index,
+    line: index,
+    start: index,
+  }
+  const documented = {
+    docs: text.optional(),
+    tags: z
+      .array(z.tuple([text, text.optional()]))
+      .max(limit.nodes)
+      .optional(),
+    target: text,
+    text,
+  }
+  const node = z.discriminatedUnion('type', [
+    z.strictObject({ ...positioned, ...documented, type: z.literal('hover') }),
+    z.strictObject({ ...positioned, ...documented, type: z.literal('query') }),
+    z.strictObject({ ...positioned, text: text.optional(), type: z.literal('highlight') }),
+    z.strictObject({
+      ...positioned,
+      completions: z.array(z.strictObject({ kind: text.optional(), name: text })).max(limit.nodes),
+      completionsPrefix: text,
+      type: z.literal('completion'),
+    }),
+    z.strictObject({
+      ...positioned,
+      code: z.union([z.number(), text]).optional(),
+      filename: text.optional(),
+      id: text.optional(),
+      level: z.enum(['warning', 'error', 'suggestion', 'message']).optional(),
+      text,
+      type: z.literal('error'),
+    }),
+    z.strictObject({ ...positioned, name: text, text: text.optional(), type: z.literal('tag') }),
+  ])
+  const run = z
+    .strictObject({
+      code: z.string().max(limit.code),
+      meta: z.strictObject({ removals: z.array(z.tuple([index, index])).max(limit.nodes) }),
+      nodes: z.array(node).max(limit.nodes),
+    })
+    .superRefine((result, context) => {
+      const lines = result.code.split('\n')
+      let offset = 0
+      const starts = lines.map((line) => {
+        const start = offset
+        offset += line.length + 1
+        return start
+      })
+      for (const [at, entry] of result.nodes.entries()) {
+        const line = lines[entry.line]
+        const begins = starts[entry.line]
+        if (
+          line === undefined ||
+          begins === undefined ||
+          entry.character > line.length ||
+          entry.start !== begins + entry.character ||
+          entry.start + entry.length > result.code.length
+        )
+          context.addIssue({
+            code: 'custom',
+            message: 'the node position is outside the resolved code.',
+            path: ['nodes', at],
+          })
+      }
+    })
 
   /**
    * The frame to draw, described strictly. The codec falls back on every field
@@ -119,6 +178,9 @@ namespace schema {
   /** Error response returned when a route rejects a request. */
   export const failure = z.object({ error: z.string() })
 
+  /** Raw binary response body. */
+  export const binary = z.string().meta({ format: 'binary' })
+
   /** Response returned by `/themes`. */
   export const themes = z.array(
     z.object({
@@ -140,10 +202,13 @@ namespace schema {
  * import { Hono } from 'hono'
  * import { Api, Frame } from 'monoshot'
  *
- * const app = new Hono().route('/v1', Api.create({ frame: Frame.create() }))
+ * const app = new Hono().route(
+ *   '/v1',
+ *   Api.route({ frame: Frame.create() })
+ * )
  * ```
  */
-export function create(options: create.Options = {}) {
+export function route(options: route.Options = {}) {
   // The JavaScript engine by default: shiki's own compiles WebAssembly at
   // runtime, which a Worker refuses, and a Worker is what this is for.
   const frame = options.frame ?? Frame.create({ engine: 'javascript' })
@@ -162,12 +227,11 @@ export function create(options: create.Options = {}) {
     try {
       return await frame.toDocument({
         ...state,
-        // Asserted through `unknown`: the run is validated structurally here,
-        // and the renderer's node union declares positions this neither reads
-        // nor requires a caller to send.
         twoslash:
           typeof request.twoslash === 'object'
-            ? (request.twoslash as unknown as Frame.render.Types)
+            ? // Zod validated the complete Twoslash node union. Its optional
+              // fields include `undefined`, unlike the dependency's declarations.
+              (request.twoslash as Frame.render.Types)
             : (request.twoslash ?? typed.has(state.lang)),
         ...(request.height === undefined ? {} : { height: request.height }),
         ...(request.picture === undefined ? {} : { picture: request.picture }),
@@ -183,11 +247,13 @@ export function create(options: create.Options = {}) {
   const app = new Hono()
     .post(
       '/document',
+      requestLimit,
       OpenApi.validate('json', schema.body, {
         description:
           'Renders a snippet as a standalone document without scripts or external requests.',
         responses: {
           200: { description: 'The document.', media: 'text/html', schema: z.string() },
+          413: { description: 'The request body is too large.', schema: schema.failure },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
         },
         summary: 'Render a document',
@@ -201,11 +267,13 @@ export function create(options: create.Options = {}) {
     )
     .post(
       '/image',
+      requestLimit,
       OpenApi.validate('json', schema.picture, {
         description:
           'Renders a snippet as a PNG by capturing the document with a Browser Rendering binding.',
         responses: {
-          200: { description: 'The image.', media: 'image/png', schema: z.string() },
+          200: { description: 'The image.', media: 'image/png', schema: schema.binary },
+          413: { description: 'The request body is too large.', schema: schema.failure },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
           503: {
             description: 'Browser Rendering is not configured for this deployment.',
@@ -260,7 +328,7 @@ export function create(options: create.Options = {}) {
   )
 }
 
-export declare namespace create {
+export declare namespace route {
   type Options = {
     /**
      * The browser to screenshot in, read off each request. A binding reaches a
@@ -372,17 +440,3 @@ namespace OpenApi {
 
 /** Read inside the namespace, which cannot reach the other one by name. */
 const schema_failure = schema.failure
-
-/**
- * The routes, ready to mount. Holds a renderer of its own; reach for
- * {@link create} to share one or to choose the engine.
- *
- * @example
- * ```ts twoslash
- * import { Hono } from 'hono'
- * import { Api } from 'monoshot'
- *
- * const app = new Hono().route('/v1', Api.route)
- * ```
- */
-export const route = create()
