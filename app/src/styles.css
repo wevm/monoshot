@@ -65,6 +65,11 @@
      otherwise win over anything inherited from the frame. */
   .shiki,
   .shiki code {
+    /* Shiki inlines the theme's own background on the pre. The window behind
+       it already paints that color, and a translucent theme stacked twice is
+       twice as opaque as it asked to be. Important, because inline style wins
+       over anything less. */
+    background: transparent !important;
     font-family: var(--code-font-family);
     font-size: var(--code-font-size);
     /* Ligatures would break the 1:1 character metrics both surfaces rely on. */
