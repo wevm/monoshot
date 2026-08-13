@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- fdc7f5c: Added a fixed `height` to the document and image routes, holding a link preview to one card shape whatever the snippet's length.
+- fdc7f5c: Added fixed-height rendering to document and image routes so shared-link previews retain consistent dimensions regardless of snippet length.
 - 5fb0bc4: Read the compiler's lib files from the installed package in Node rather than fetching them, so resolution no longer depends on a network that can throttle it.
 - 32ef06f: Raised the default render scale to 3 and turned the title bar off by default, leaving both settable.
 - eeefa6a: Added SVG output to the renderer and the command, written as vector markup rather than a raster.

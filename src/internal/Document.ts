@@ -26,10 +26,7 @@ export type Options = {
   annotated?: boolean | undefined
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
-  /**
-   * Fixed canvas height in pixels. Centers the window and clips overflow.
-   * Defaults to following the window's own height.
-   */
+  /** Fixed canvas height in pixels. Centers content and clips overflow when specified. */
   height?: number | undefined
   /** Embedded backdrop image as a data URL. Overrides {@link background}. */
   picture?: string | undefined

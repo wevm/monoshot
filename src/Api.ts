@@ -46,7 +46,7 @@ namespace schema {
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
-      /** Fixed canvas height. The frame otherwise grows with the code. */
+      /** Fixed canvas height in pixels. By default, the canvas follows the content height. */
       height: z.number().int().min(120).max(2160).optional(),
       padding: z.number().int().min(0).max(256).optional(),
       /** Embedded backdrop image for the request-free renderer. */

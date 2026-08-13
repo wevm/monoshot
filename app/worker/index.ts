@@ -45,9 +45,7 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     await c.env.LINKS.put(id, JSON.stringify({ ...said, state: canonical }), {
       expirationTtl: Links.limits.ttl,
     })
-    // Draw the card now, while the sharer still holds the link, and keep it
-    // where every colo reads it: a crawler follows within seconds of a paste,
-    // and a browser launched on its clock is a preview it gave up on.
+    // Render and store the card during sharing to reduce latency for preview clients.
     if (c.env.BROWSER)
       c.executionCtx.waitUntil(
         card(c.env, c.executionCtx, new URL(c.req.url).origin, canonical).then((drawn) =>
@@ -114,8 +112,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
-    // The copy the share drew, kept where every colo can read it: this cache
-    // is colo-local, and a crawler rarely lands where the sharer did.
+    // Read from KV because the Cache API entry may exist only in another data center.
     const held = await c.env.LINKS?.get(`og:${id}`, 'arrayBuffer')
     if (held) {
       const response = pictured(held)
@@ -156,27 +153,24 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
 export default app
 
-/** How a link's card is drawn: the card's own shape, never the editor's. */
+/** Fixed dimensions and rendering settings for shared-link cards. */
 const shape = { height: 420, padding: 88, scale: 1.5, width: 800 } as const
 
 /**
- * A link's card, drawn from its state.
+ * Renders a shared-link card from encoded editor state.
  *
- * Drawn through the image route rather than beside it, so a preview and a
- * caller asking for the same frame get the same image from the same
- * validation. Answers nothing rather than throwing: every caller has a
- * fallback card to serve.
+ * Uses the image route to share validation and rendering behavior. Returns
+ * `undefined` when rendering fails so callers can serve the default card.
  */
 async function card(
   env: Cloudflare.Env,
-  // Hono's own idea of the context, which is what `api.request` accepts.
+  // Pass the Hono execution context required by `api.request`.
   ctx: Parameters<typeof api.request>[3],
   origin: string,
   state: string,
 ): Promise<ArrayBuffer | undefined> {
   const settings = Codec.deserialize(state)
-  // The picture the frame stands on, carried rather than named: the renderer
-  // fetches nothing, so a backdrop reaches it as data or not at all.
+  // Embed wallpaper data because the standalone renderer performs no requests.
   const named =
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
@@ -185,21 +179,17 @@ async function card(
     '/image',
     {
       body: JSON.stringify({
-        // A wallpaper reaches the renderer as `picture`; the name it goes by
-        // here means nothing there.
+        // Pass wallpaper content through `picture`, not the application identifier.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        // Bounded rather than whole: the canvas holds one card of lines, and
-        // a hundred more would only be cut.
+        // Limit source lines to the number visible within the fixed canvas.
         code: Links.excerpt(settings.code),
-        // The card's own shape: a canvas following a one-line snippet is a
-        // sliver no preview shows well.
+        // Use a fixed height so short snippets retain standard card dimensions.
         height: shape.height,
-        // `auto` is the editor asking to be told, which it answers in the
-        // browser. The renderer takes a language shiki bundles or nothing.
+        // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
         padding: shape.padding,
         ...(picture ? { picture } : {}),
-        // The frame a theme asks for, which is what the app draws it in.
+        // Apply the selected theme's frame radius override.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
         scale: shape.scale,
         theme: settings.theme,
@@ -216,7 +206,7 @@ async function card(
   return drawn.arrayBuffer()
 }
 
-/** The card as a response. The state behind an id never changes. */
+/** Creates an immutable PNG response from rendered card data. */
 function pictured(bytes: ArrayBuffer): Response {
   return new Response(bytes, {
     headers: {
@@ -226,7 +216,7 @@ function pictured(bytes: ArrayBuffer): Response {
   })
 }
 
-/** Keeps a drawn card beside its link, and gone with it. */
+/** Stores a rendered card with the same retention period as its shared link. */
 function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void> {
   return env.LINKS.put(`og:${id}`, bytes, { expirationTtl: Links.limits.ttl })
 }
@@ -235,8 +225,8 @@ function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void
  * Loads a Worker-served wallpaper as a data URL.
  *
  * The standalone renderer performs no external requests, so wallpaper data
- * must be embedded in the document. Read through the assets binding: a fetch
- * of this Worker's own URL is refused by the platform as recursion.
+ * must be embedded in the document. The assets binding avoids a recursive
+ * request to the Worker's public URL.
  */
 async function inlined(
   env: Cloudflare.Env,
@@ -244,8 +234,7 @@ async function inlined(
   id: string,
 ): Promise<string | undefined> {
   try {
-    // The Worker's own URL, resolved by the binding rather than the network:
-    // the binding takes the path from it, and refuses a host that is not ours.
+    // Resolve the local asset path through the binding instead of the network.
     const response = await env.ASSETS.fetch(new URL(`/wallpapers/${id}.webp`, origin))
     if (!response.ok) return undefined
     const bytes = new Uint8Array(await response.arrayBuffer())
