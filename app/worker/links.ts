@@ -4,9 +4,10 @@
  * The size cap is the codec's own fragment limit: a state larger than that is
  * one the reader could not have opened anyway. Ninety days because a link
  * pasted into a chat is read within days, and a store that never expires only
- * grows. Twelve lines is what a card shows before it crops.
+ * grows. Nine lines is what the card's fixed canvas holds before the window's
+ * own edges are cut.
  */
-export const limits = { lines: 12, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+export const limits = { lines: 9, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /**
  * A short, unguessable name for a snippet.
@@ -58,6 +59,9 @@ export function page(options: page.Options): string {
 <meta property="og:description" content="${escape(description)}">
 <meta property="og:url" content="${escape(`${origin}/s/${id}`)}">
 <meta property="og:image" content="${escape(image)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${escape(title)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escape(title)}">
 <meta name="twitter:description" content="${escape(description)}">

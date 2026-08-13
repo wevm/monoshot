@@ -216,6 +216,7 @@ describe('create', () => {
         "background",
         "code",
         "lang",
+        "height",
         "padding",
         "picture",
         "radius",

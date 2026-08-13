@@ -9,6 +9,9 @@
   "observability": {
     "enabled": true
   },
+  "assets": {
+    "binding": "ASSETS"
+  },
   "browser": {
     "binding": "BROWSER"
   },

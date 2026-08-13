@@ -46,6 +46,8 @@ namespace schema {
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
+      /** Fixed canvas height. The frame otherwise grows with the code. */
+      height: z.number().int().min(120).max(2160).optional(),
       padding: z.number().int().min(0).max(256).optional(),
       /**
        * A backdrop to stand the frame on, as a `data:` URL. Carried rather
@@ -161,6 +163,7 @@ export function create(options: create.Options = {}) {
         ...(request.twoslash
           ? { twoslash: request.twoslash as unknown as Frame.render.Types }
           : {}),
+        ...(request.height === undefined ? {} : { height: request.height }),
         ...(request.picture === undefined ? {} : { picture: request.picture }),
         lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
       })

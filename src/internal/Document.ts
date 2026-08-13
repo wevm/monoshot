@@ -28,6 +28,13 @@ export type Options = {
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
   /**
+   * A fixed canvas height in pixels. The canvas otherwise follows the window,
+   * which follows the code: a one-line snippet makes a sliver and a long one a
+   * tower, where a link preview is cropped to one shape. The window is centred
+   * and whatever passes the edges is cut. Defaults to following the window.
+   */
+  height?: number | undefined
+  /**
    * A picture to stand the frame on, as a `data:` URL, drawn over whatever
    * {@link background} would otherwise paint. Carried as data because the
    * document makes no requests: a URL would be a fetch the capture never waits
@@ -96,8 +103,10 @@ ${fontFaces(fonts)}
 * { box-sizing: border-box; margin: 0; }
 body { -webkit-font-smoothing: antialiased; }
 .canvas {
+  align-items: center;
   background: ${backdrop};
   display: flex;
+  ${options.height === undefined ? '' : `height: ${options.height}px;\n  overflow: hidden;`}
   padding: ${padding}px;
   width: ${width}px;
 }

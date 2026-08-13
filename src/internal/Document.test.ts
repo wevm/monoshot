@@ -93,7 +93,7 @@ describe('build', () => {
   test('renders the configured backdrop', async () => {
     const shown = async (background: string) => {
       const document = await frame.toDocument({ ...options, background })
-      return /\.canvas \{\n  background: ([^;]+);/.exec(document)?.[1]
+      return /\.canvas \{[^}]*?\n  background: ([^;]+);/.exec(document)?.[1]
     }
     expect({
       custom: await shown('#101014'),
