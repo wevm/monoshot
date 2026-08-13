@@ -59,6 +59,41 @@ describe('page', () => {
   })
 })
 
+describe('geometry', () => {
+  test('keeps a short snippet at the standard canvas', () => {
+    expect(Links.geometry('const a = 1\n')).toMatchInlineSnapshot(`
+      {
+        "height": 420,
+        "scale": 1.5,
+        "width": 800,
+      }
+    `)
+  })
+
+  test('grows the canvas with the snippet, at the card ratio', () => {
+    const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
+    const grown = Links.geometry(fifteen)
+    expect(grown).toMatchInlineSnapshot(`
+      {
+        "height": 546,
+        "scale": 1.1538461538461537,
+        "width": 1040,
+      }
+    `)
+    // Whatever the canvas, the screenshot lands on the card's size.
+    expect(Math.round(grown.width * grown.scale)).toBe(1200)
+    expect(Math.round(grown.height * grown.scale)).toBe(630)
+  })
+
+  test('holds the excerpt cap at its widest canvas', () => {
+    const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
+    const grown = Links.geometry(most)
+    expect(grown.width).toBe(1600)
+    // The window still fits: lines and chrome inside the padded canvas.
+    expect(29 * 22 + 26).toBeLessThanOrEqual(grown.height - 2 * 88)
+  })
+})
+
 describe('describe', () => {
   /** Creates a deterministic implementation of the model interface. */
   function answering(answer: unknown): Links.describe.Model {
