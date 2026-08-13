@@ -7,6 +7,41 @@ vi.mock('@tanstack/react-start/server-entry', () => ({
 const env = {
   ASSETS: { fetch: () => Promise.resolve(new Response('skill')) },
 } as never
+const executionCtx = { passThroughOnException: vi.fn(), waitUntil: vi.fn() } as never
+
+async function document(body: unknown) {
+  const response = await app.request(
+    '/api/document',
+    {
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    },
+    env,
+    executionCtx,
+  )
+  return response.text()
+}
+
+describe('api rendering', () => {
+  test('applies curated theme framing when frame options are omitted', async () => {
+    const html = await document({ code: 'const a = 1', lang: 'typescript', theme: 'tempo' })
+    expect(html).toContain('background: url("data:image/webp;base64,c2tpbGw=") center / cover;')
+    expect(html).toContain('border-radius: 0px;')
+  })
+
+  test('preserves explicit frame options for curated themes', async () => {
+    const html = await document({
+      background: 'none',
+      code: 'const a = 1',
+      lang: 'typescript',
+      radius: 8,
+      theme: 'tempo',
+    })
+    expect(html).toContain('background: transparent;')
+    expect(html).toContain('border-radius: 8px;')
+  })
+})
 
 describe('agent skill', () => {
   test('serves the skill when Markdown is accepted', async () => {

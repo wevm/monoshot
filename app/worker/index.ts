@@ -1,5 +1,5 @@
 import handler from '@tanstack/react-start/server-entry'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { accepts } from 'hono/accepts'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
@@ -13,11 +13,14 @@ import * as Links from './links.js'
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
+const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
+
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))
+  .post('/document', (c) => apiRender(c, '/document'))
+  .post('/image', (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.
-  // Resolve the browser binding per request from the Worker environment.
-  .route('/', Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER }))
+  .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
   .post('/share', async (c) => {
     if (!c.env.LINKS)
@@ -219,6 +222,46 @@ const markdownUserAgents = [
   'httpie-go/',
   'xh/',
 ]
+
+async function apiRender(
+  c: Context<{ Bindings: Cloudflare.Env }>,
+  path: '/document' | '/image',
+): Promise<Response> {
+  const text = await c.req.text()
+  const headers = new Headers(c.req.raw.headers)
+  headers.delete('content-length')
+  const send = (body: string) =>
+    renderer.request(path, { body, headers, method: 'POST' }, c.env, c.executionCtx)
+
+  let request: unknown
+  try {
+    request = JSON.parse(text)
+  } catch {
+    return send(text)
+  }
+  if (!request || typeof request !== 'object' || Array.isArray(request)) return send(text)
+
+  const input = request as Record<string, unknown>
+  const theme = typeof input['theme'] === 'string' ? input['theme'] : ''
+  const frame = Themes.frame(theme)
+  const wallpaper =
+    input['background'] === undefined || input['background'] === 'default'
+      ? Wallpapers.byId(theme)
+      : undefined
+  const picture =
+    wallpaper && input['picture'] === undefined
+      ? await inlined(c.env, new URL(c.req.url).origin, wallpaper.id)
+      : undefined
+  return send(
+    JSON.stringify({
+      ...input,
+      ...(picture ? { picture } : {}),
+      ...(input['radius'] === undefined && frame.radius !== undefined
+        ? { radius: frame.radius }
+        : {}),
+    }),
+  )
+}
 
 /** Reads an agent resource from the deployed static assets. */
 async function agentAsset(
