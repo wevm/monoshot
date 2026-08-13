@@ -1,5 +1,14 @@
 # monoshot
 
+## 0.0.7
+### Patch Changes
+
+- 1df3813: Changed `Api.route` to return an independently owned route.
+  
+  ```ts
+  const app = new Hono().route('/v1', Api.route())
+  ```
+
 ## 0.0.6
 
 ### Patch Changes
