@@ -10,7 +10,9 @@ export type Types = Record<string, string>
  */
 export async function types(options: types.Options): Promise<types.Result> {
   const { name, version } = options
+  const request = options.fetch ?? fetch
   const meta = await json({
+    fetch: request,
     name,
     url: `${registry}/${encodeName(name)}/${encodeURIComponent(version)}`,
     version,
@@ -26,7 +28,7 @@ export async function types(options: types.Options): Promise<types.Result> {
   if (typeof tarball !== 'string')
     throw new RegistryError(`\`${name}\` has no tarball to read.`, { absent: true })
 
-  const response = await fetch(tarball)
+  const response = await request(tarball)
   if (!response.ok || !response.body)
     throw new RegistryError(`Could not download \`${name}@${resolved}\`.`)
   const compressed = await bytes(response.body, limits.compressed, name)
@@ -86,6 +88,8 @@ export declare namespace types {
   type Options = {
     /** Package name, scope included. */
     name: string
+    /** Request implementation. Tests can provide a deterministic registry. */
+    fetch?: typeof globalThis.fetch | undefined
     /** An exact version or a tag such as `latest`. */
     version: string
   }
@@ -147,8 +151,13 @@ function encodeName(name: string) {
     .join('/')
 }
 
-async function json(options: { name: string; url: string; version: string }) {
-  const response = await fetch(options.url, { headers: { accept: 'application/json' } })
+async function json(options: {
+  fetch: typeof globalThis.fetch
+  name: string
+  url: string
+  version: string
+}) {
+  const response = await options.fetch(options.url, { headers: { accept: 'application/json' } })
   // The upstream URL stays out of the message: a caller gets its own request
   // back, not ours.
   if (response.status === 404)
