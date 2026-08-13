@@ -5,7 +5,7 @@ import * as z from 'zod'
 
 import * as Codec from './Codec.js'
 import * as Frame from './Frame.js'
-import * as Raster from './internal/Raster.js'
+import * as Browser from './internal/Browser.js'
 import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
@@ -265,71 +265,6 @@ export declare namespace create {
      * engine. Pass one to share loaded grammars, or to choose the engine.
      */
     frame?: Frame.create.ReturnType | undefined
-  }
-}
-
-/**
- * Captures screenshots through Cloudflare Browser Rendering. The binding
- * provides an existing browser without starting a local process.
- */
-namespace Browser {
-  /** Browser Rendering binding that implements `fetch`. */
-  export type Endpoint = { fetch: typeof fetch }
-
-  /**
-   * Screenshots the frame a document draws.
-   *
-   * Imported here rather than at the top of the module: `@cloudflare/puppeteer`
-   * only resolves inside a Worker, and this module is what a Node consumer
-   * reaches through the root entrypoint.
-   */
-  export async function screenshot(
-    endpoint: Endpoint,
-    options: { html: string; scale: number },
-  ): Promise<Uint8Array> {
-    const { html, scale } = options
-    const puppeteer = await import('@cloudflare/puppeteer').catch(() => {
-      throw new Error('Image rendering requires `@cloudflare/puppeteer`.')
-    })
-    const browser = await open(puppeteer, endpoint)
-    try {
-      const page = await browser.newPage()
-      await page.setContent(html, { waitUntil: 'load' })
-      // The document embeds its fonts, so this resolves without the network.
-      await page.evaluate(() => document.fonts.ready)
-      const canvas = await page.$('.canvas')
-      if (!canvas) throw new Error('The document rendered no frame.')
-      const box = await canvas.boundingBox()
-      await page.setViewport({
-        deviceScaleFactor: Raster.fit(box, scale),
-        height: Math.ceil(box?.height ?? 1),
-        width: Math.ceil(box?.width ?? 1),
-      })
-      return await canvas.screenshot({ omitBackground: true, type: 'png' })
-    } finally {
-      // Disconnected rather than closed: the session outlives this request, so
-      // the next one skips a launch that costs seconds.
-      await browser.disconnect()
-    }
-  }
-
-  /**
-   * A browser to draw in: one already running where there is one, since a
-   * launch is the expensive part and a session is reusable.
-   */
-  async function open(
-    puppeteer: typeof import('@cloudflare/puppeteer'),
-    endpoint: Endpoint,
-  ): Promise<Awaited<ReturnType<typeof puppeteer.launch>>> {
-    const free = await puppeteer
-      .sessions(endpoint)
-      .then((all) => all.find((session) => !session.connectionId))
-      .catch(() => undefined)
-    if (free) {
-      const reused = await puppeteer.connect(endpoint, free.sessionId).catch(() => undefined)
-      if (reused) return reused
-    }
-    return await puppeteer.launch(endpoint)
   }
 }
 

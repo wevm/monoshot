@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
+import * as Browser from '../../src/internal/Browser.js'
 import { detect } from '../src/lib/detect.js'
 import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
@@ -113,7 +114,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     if (hit) return hit
 
     // Read from KV because the Cache API entry may exist only in another data center.
-    const held = await c.env.LINKS?.get(`og:${id}`, 'arrayBuffer')
+    const held = await c.env.LINKS?.get(`og:${Links.card.version}:${id}`, 'arrayBuffer')
     if (held) {
       const response = pictured(held)
       c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
@@ -172,28 +173,25 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Truncate source to the maximum row count supported by the largest canvas.
+  // Limit source to a fixed viewport so dense snippets remain readable.
   const shown = Links.excerpt(settings.code)
-  // Derive canvas dimensions from the rendered row count.
-  const shape = Links.geometry(shown)
   const drawn = await api.request(
-    '/image',
+    '/document',
     {
       body: JSON.stringify({
         // Pass wallpaper content through `picture`, not the application identifier.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        code: shown,
-        height: shape.height,
+        code: shown.code,
+        height: Links.card.height,
         // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-        padding: shape.padding,
+        padding: Links.card.padding,
         ...(picture ? { picture } : {}),
         // Apply the selected theme's frame radius override.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
-        scale: shape.scale,
         theme: settings.theme,
         titleBar: false,
-        width: shape.width,
+        width: Links.card.width,
       }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -202,7 +200,15 @@ async function card(
     ctx,
   )
   if (!drawn.ok) return undefined
-  return drawn.arrayBuffer()
+  try {
+    const png = await Browser.screenshot(env.BROWSER, {
+      html: Links.fade(await drawn.text(), shown.overflow),
+      scale: Links.card.scale,
+    })
+    return png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer
+  } catch {
+    return undefined
+  }
 }
 
 /** Creates an immutable PNG response from rendered card data. */
@@ -217,7 +223,9 @@ function pictured(bytes: ArrayBuffer): Response {
 
 /** Stores a rendered card with the same retention period as its shared link. */
 function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void> {
-  return env.LINKS.put(`og:${id}`, bytes, { expirationTtl: Links.limits.ttl })
+  return env.LINKS.put(`og:${Links.card.version}:${id}`, bytes, {
+    expirationTtl: Links.limits.ttl,
+  })
 }
 
 /**

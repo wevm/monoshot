@@ -39,7 +39,7 @@ describe('page', () => {
       title: 'const a = 1',
     })
     expect(html).toContain(
-      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png">',
+      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png?v=2">',
     )
     expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
     // Redirect to the editor with the encoded state in the URL fragment.
@@ -59,52 +59,55 @@ describe('page', () => {
   })
 })
 
-describe('geometry', () => {
-  test('uses standard dimensions for a short snippet', () => {
-    expect(Links.geometry('const a = 1\n')).toMatchInlineSnapshot(`
+describe('card', () => {
+  test('renders the readable canvas at social-card dimensions', () => {
+    expect(Links.card).toMatchInlineSnapshot(`
       {
         "height": 420,
         "padding": 80,
         "scale": 1.5,
+        "version": 2,
         "width": 800,
       }
     `)
-  })
-
-  test('preserves output dimensions as the canvas grows', () => {
-    const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
-    const grown = Links.geometry(fifteen)
-    expect(grown).toMatchInlineSnapshot(`
-      {
-        "height": 546,
-        "padding": 80,
-        "scale": 1.1538461538461537,
-        "width": 1040,
-      }
-    `)
-    // Verify that scaling produces the fixed social-card dimensions.
-    expect(Math.round(grown.width * grown.scale)).toBe(1200)
-    expect(Math.round(grown.height * grown.scale)).toBe(630)
-  })
-
-  test('supports the line limit at the maximum canvas width', () => {
-    const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
-    const grown = Links.geometry(most)
-    expect(grown.width).toBe(1600)
-    // Verify that code and window padding fit within the padded canvas.
-    expect(29 * 22 + 40).toBeLessThanOrEqual(grown.height - 2 * grown.padding)
-  })
-
-  test('grows the canvas when a long line wraps', () => {
-    expect(Links.geometry('x'.repeat(721)).width).toBeGreaterThan(800)
+    expect(Links.card.width * Links.card.scale).toBe(1200)
+    expect(Links.card.height * Links.card.scale).toBe(630)
   })
 })
 
 describe('excerpt', () => {
-  test('limits wrapped code to the rows available at the widest canvas', () => {
-    const shown = Links.excerpt('x'.repeat(10_000))
-    expect(shown.length).toBeLessThan(10_000)
-    expect(Links.geometry(shown).width).toBe(1600)
+  test('limits long lines to 72 display columns', () => {
+    const shown = Links.excerpt('x'.repeat(100))
+    expect(shown.code).toHaveLength(72)
+    expect(shown.overflow).toEqual({ horizontal: true, vertical: false })
+  })
+
+  test('limits tall snippets to ten lines', () => {
+    const shown = Links.excerpt(Array.from({ length: 12 }, (_, at) => `line ${at}`).join('\n'))
+    expect(shown.code.split('\n')).toHaveLength(10)
+    expect(shown.overflow).toEqual({ horizontal: false, vertical: true })
+  })
+
+  test('preserves code that fits the viewport', () => {
+    expect(Links.excerpt('const a = 1')).toEqual({
+      code: 'const a = 1',
+      overflow: { horizontal: false, vertical: false },
+    })
+  })
+})
+
+describe('fade', () => {
+  const html = '<html><head></head><body><div class="body">code</div></body></html>'
+
+  test('leaves a document unchanged when nothing was clipped', () => {
+    expect(Links.fade(html, { horizontal: false, vertical: false })).toBe(html)
+  })
+
+  test('fades each clipped edge', () => {
+    const faded = Links.fade(html, { horizontal: true, vertical: true })
+    expect(faded).toContain('class="body preview-overflow-x preview-overflow-y"')
+    expect(faded).toContain('linear-gradient(to right')
+    expect(faded).toContain('linear-gradient(to bottom')
   })
 })
 
