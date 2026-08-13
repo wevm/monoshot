@@ -153,9 +153,6 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
 export default app
 
-/** Fixed dimensions and rendering settings for shared-link cards. */
-const shape = { height: 420, padding: 88, scale: 1.5, width: 800 } as const
-
 /**
  * Renders a shared-link card from encoded editor state.
  *
@@ -175,15 +172,17 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
+  // Truncate source to the maximum row count supported by the largest canvas.
+  const shown = Links.excerpt(settings.code)
+  // Derive canvas dimensions from the rendered row count.
+  const shape = Links.geometry(shown)
   const drawn = await api.request(
     '/image',
     {
       body: JSON.stringify({
         // Pass wallpaper content through `picture`, not the application identifier.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        // Limit source lines to the number visible within the fixed canvas.
-        code: Links.excerpt(settings.code),
-        // Use a fixed height so short snippets retain standard card dimensions.
+        code: shown,
         height: shape.height,
         // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
