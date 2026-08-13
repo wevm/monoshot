@@ -32,6 +32,9 @@ jobs:
       - name: Check code
         run: pnpm exec vp check
 
+      - name: Check agent skill discovery
+        run: pnpm check:skill
+
       - name: Check types
         run: pnpm check:types
 

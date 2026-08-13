@@ -4,9 +4,9 @@
     {
       "name": "monoshot",
       "type": "skill-md",
-      "description": "Create code images, editor links, and standalone code documents with Monoshot.",
+      "description": "Create code images, editor links, and standalone code documents with Monoshot. Use when an agent needs to open code in the Monoshot editor, export a local PNG or SVG, create an editor link, render an image or HTML document through the hosted API, list themes, or configure the Monoshot skill or MCP server.",
       "url": "/.well-known/agent-skills/monoshot/SKILL.md",
-      "digest": "sha256:f4224399f6f89082cdea1aba2bdd60d6b1b4f971e358ed04fa9a5419cdcbd234"
+      "digest": "sha256:97cb5ef4f75784650725f0b732a603fda46095b580269102cc9548d2fda89b46"
     }
   ]
 }
