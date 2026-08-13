@@ -5,7 +5,10 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "target": "esnext",
-    "paths": { "monoshot": ["./src/index.ts"] },
+    "paths": {
+      "monoshot": ["./src/index.ts"],
+      "monoshot/twoslash": ["./src/Twoslash.ts"]
+    },
     "types": ["node", "vite-plus/test/globals"],
 
     // Other Outputs

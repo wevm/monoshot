@@ -25,17 +25,6 @@ describe('create', () => {
     const frame = Frame.create({ themes: [theme, 'nord'] })
     expectTypeOf(frame.render).toBeCallableWith({ code: 'a', lang: 'ts', theme: 'mine' })
     expectTypeOf(frame.load).toBeCallableWith({ lang: 'ts', theme: 'mine' })
-    expectTypeOf(frame.toDocument).toBeCallableWith({
-      background: 'default',
-      code: 'a',
-      lang: 'ts',
-      padding: 48,
-      radius: 12,
-      theme: 'mine',
-      title: '',
-      titleBar: true,
-      width: 800,
-    })
     expectTypeOf(frame.tokens).toBeCallableWith({ code: 'a', lang: 'ts', theme: 'mine' })
   })
 
@@ -52,18 +41,5 @@ describe('Name', () => {
     expectTypeOf<'nord'>().toExtend<Frame.Name>()
     expectTypeOf<Theme.Composed>().toExtend<Frame.Name>()
     expectTypeOf<'nope'>().not.toExtend<Frame.Name>()
-  })
-})
-
-describe('Theme.composed', () => {
-  test('exposes immutable shared registrations', () => {
-    const theme = Theme.composed[0]
-    if (!theme) return
-    // @ts-expect-error -- shared registrations cannot be renamed by a caller.
-    theme.name = 'changed'
-    const rule = theme.settings[0]
-    if (!rule) return
-    // @ts-expect-error -- nested theme data is immutable too.
-    rule.settings.foreground = '#000000'
   })
 })

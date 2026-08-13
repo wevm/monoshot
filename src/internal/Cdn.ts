@@ -37,12 +37,7 @@ export const compilerOptions = {
 export function create(): create.ReturnType {
   /** The compiler's file system, written to directly by both stages. */
   const files = new Map<string, string>()
-  const load = cached(read)
   let started: Promise<Cdn> | undefined
-  let storage: Promise<Storage> | undefined
-
-  /** Storage owned by this resolver for compiler libraries in browser runtimes. */
-  const cache = () => (storage ??= import('unstorage').then((module) => module.createStorage()))
 
   /** Compiler and Twoslash options shared by local and CDN-backed resolvers. */
   const overrides = {
@@ -94,62 +89,11 @@ export function create(): create.ReturnType {
         code,
         compiler: cdn.compiler,
         files,
-        load,
+        load: (name) => read(name),
       })
       return (source, lang) => cdn.run(source, lang, acquired.types)
     },
   }
-}
-
-/** Deduplicates bounded package reads by package and requested version. */
-export function cached(
-  load: (name: string, version: string) => Promise<acquire.Package | undefined>,
-  options: cached.Options = {},
-): (name: string, version: string) => Promise<acquire.Package | undefined> {
-  const limit = options.limit ?? 128
-  const now = options.now ?? Date.now
-  const ttl = options.ttl ?? 5 * 60_000
-  const held = new Map<string, { expires: number; loading: Promise<acquire.Package | undefined> }>()
-  return (name, version) => {
-    const key = `${name}@${version}`
-    const found = held.get(key)
-    if (found && found.expires > now()) {
-      held.delete(key)
-      held.set(key, found)
-      return found.loading
-    }
-    held.delete(key)
-    const loading = load(name, version)
-    const entry = { expires: exact(version) ? Number.POSITIVE_INFINITY : now() + ttl, loading }
-    held.set(key, entry)
-    const oldest = held.size > limit ? held.keys().next().value : undefined
-    if (oldest !== undefined) held.delete(oldest)
-    void loading.then(
-      (result) => {
-        if (result === undefined && held.get(key) === entry) entry.expires = now() + ttl
-      },
-      () => {
-        if (held.get(key) === entry) held.delete(key)
-      },
-    )
-    return loading
-  }
-}
-
-export declare namespace cached {
-  type Options = {
-    /** Maximum retained package reads. */
-    limit?: number | undefined
-    /** Clock used to expire mutable specifications and misses. */
-    now?: (() => number) | undefined
-    /** Milliseconds before a mutable specification or miss is revalidated. */
-    ttl?: number | undefined
-  }
-}
-
-/** Whether a package version can never resolve to different contents. */
-function exact(version: string) {
-  return /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)
 }
 
 /**
@@ -189,6 +133,12 @@ export declare namespace create {
   type Twoslasher = (code: string, lang?: string) => TwoslashReturn
 }
 
+/** Shared storage for compiler libraries fetched by filesystem-free runtimes. */
+let storage: Promise<Storage> | undefined
+function cache() {
+  return (storage ??= import('unstorage').then((module) => module.createStorage()))
+}
+
 /** Initialized compiler and Twoslash runner. */
 type Cdn = {
   compiler: typeof import('typescript')
@@ -226,10 +176,10 @@ async function bundled(compiler: typeof import('typescript')) {
 }
 
 /** Loads one package's declarations from the registry. */
-async function read(name: string, version: string): Promise<acquire.Package | undefined> {
+async function read(name: string) {
   try {
-    const result = await Registry.types({ name, version })
-    return { files: result.files, name: result.name, version: result.version }
+    const result = await Registry.types({ name, version: 'latest' })
+    return { files: result.files, name: result.name }
   } catch (cause) {
     // Missing declaration packages resolve as `any`. Registry failures remain
     // errors because treating them as absent would produce incorrect annotations.

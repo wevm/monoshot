@@ -4,11 +4,9 @@ import { createTwoslasher } from 'twoslash'
 import * as Api from './Api.js'
 import * as Browser from './internal/Browser.js'
 
-const route = Api.route()
-
 /** Posts a body to the routes, as a Worker would hand them a request. */
 async function post(body: unknown) {
-  const response = await route.request('/document', {
+  const response = await Api.route.request('/document', {
     body: typeof body === 'string' ? body : JSON.stringify(body),
     headers: { 'content-type': 'application/json' },
     method: 'POST',
@@ -22,7 +20,7 @@ async function post(body: unknown) {
   }
 }
 
-describe('route', () => {
+describe('create', () => {
   test('renders a snippet to a standalone document', async () => {
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts' })
     expect(status).toBe(200)
@@ -70,54 +68,6 @@ describe('route', () => {
     expect(body).toContain('twoslash-query-line')
   })
 
-  test('refuses resolved nodes without renderer positions', async () => {
-    const code = 'const a = 1\n'
-    const { body, status } = await post({
-      code,
-      lang: 'ts',
-      twoslash: {
-        code,
-        meta: { removals: [] },
-        nodes: [{ length: 1, start: 6, target: 'a', text: 'const a: 1', type: 'query' }],
-      },
-    })
-    expect(status).toBe(400)
-    expect(body).toMatchInlineSnapshot(`
-      {
-        "error": "twoslash: Invalid input",
-      }
-    `)
-  })
-
-  test('refuses resolved nodes outside the compiled source', async () => {
-    const code = 'const a = 1\n'
-    const { body, status } = await post({
-      code,
-      lang: 'ts',
-      twoslash: {
-        code,
-        meta: { removals: [] },
-        nodes: [
-          {
-            character: 0,
-            length: 1,
-            line: 2,
-            start: 20,
-            target: 'a',
-            text: 'const a: 1',
-            type: 'query',
-          },
-        ],
-      },
-    })
-    expect(status).toBe(400)
-    expect(body).toMatchInlineSnapshot(`
-      {
-        "error": "twoslash.nodes.0: the node position is outside the resolved code.",
-      }
-    `)
-  })
-
   test('refuses a setting the codec would replace rather than reject', async () => {
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts', width: 5000 })
     expect(status).toBe(400)
@@ -143,16 +93,6 @@ describe('route', () => {
   test('refuses a snippet past what one request may weigh', async () => {
     const { status } = await post({ code: 'x'.repeat(100_001), lang: 'ts' })
     expect(status).toBe(400)
-  })
-
-  test('refuses an oversized body before parsing it', async () => {
-    const response = await route.request('/document', {
-      body: 'x'.repeat(5 * 1024 * 1024 + 1),
-      headers: { 'content-type': 'application/json' },
-      method: 'POST',
-    })
-    expect(response.status).toBe(413)
-    expect(await response.json()).toEqual({ error: 'The request body is too large.' })
   })
 
   test('refuses a run resolved against other code', async () => {
@@ -196,7 +136,7 @@ describe('route', () => {
   })
 
   test('names the prefix it was mounted under', async () => {
-    const mounted = new Hono().route('/v1', route)
+    const mounted = new Hono().route('/v1', Api.route)
     const response = await mounted.request('/v1/openapi.json')
     const spec = (await response.json()) as { paths: Record<string, unknown> }
     expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
@@ -209,7 +149,7 @@ describe('route', () => {
   })
 
   test('describes success and error responses for every route', async () => {
-    const response = await route.request('/openapi.json')
+    const response = await Api.route.request('/openapi.json')
     const spec = (await response.json()) as {
       paths: Record<string, Record<string, { responses: Record<string, unknown> }>>
     }
@@ -221,7 +161,6 @@ describe('route', () => {
           "document": [
             "200",
             "400",
-            "413",
             "500",
           ],
           "themes": [
@@ -232,23 +171,13 @@ describe('route', () => {
       `)
   })
 
-  test('describes image responses as binary data', async () => {
-    const response = await route.request('/openapi.json')
-    const spec = (await response.json()) as {
-      paths: { '/image': { post: { responses: { 200: { content: Record<string, unknown> } } } } }
-    }
-    expect(spec.paths['/image'].post.responses[200].content).toEqual({
-      'image/png': { schema: expect.objectContaining({ format: 'binary', type: 'string' }) },
-    })
-  })
-
   describe('image', () => {
     test('captures the same automatic-width document', async () => {
       const screenshot = vi
         .spyOn(Browser, 'screenshot')
         .mockResolvedValue(new Uint8Array([1, 2, 3]))
       try {
-        const route = Api.route({ browser: () => ({ fetch }) as never })
+        const route = Api.create({ browser: () => ({ fetch }) as never })
         const response = await route.request('/image', {
           body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts' }),
           headers: { 'content-type': 'application/json' },
@@ -266,7 +195,7 @@ describe('route', () => {
     test('returns a clear error when browser rendering is unavailable', async () => {
       // Every other route works without one, so this is the deployment's
       // state rather than the request's mistake.
-      const response = await route.request('/image', {
+      const response = await Api.route.request('/image', {
         body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts' }),
         headers: { 'content-type': 'application/json' },
         method: 'POST',
@@ -281,7 +210,7 @@ describe('route', () => {
 
     test('validates a request before invoking browser rendering', async () => {
       // A request it cannot read is answered whether or not one is configured.
-      const response = await route.request('/image', {
+      const response = await Api.route.request('/image', {
         body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts', scale: 99 }),
         headers: { 'content-type': 'application/json' },
         method: 'POST',
@@ -296,7 +225,7 @@ describe('route', () => {
   })
 
   test('describes itself', async () => {
-    const response = await route.request('/openapi.json')
+    const response = await Api.route.request('/openapi.json')
     const spec = (await response.json()) as { paths: Record<string, unknown> }
     expect(response.status).toBe(200)
     expect(Object.keys(spec.paths).sort()).toMatchInlineSnapshot(`

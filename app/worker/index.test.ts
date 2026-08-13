@@ -1,5 +1,3 @@
-import { Codec } from 'monoshot'
-
 import app from './index.js'
 
 const startFetch = vi.hoisted(() =>
@@ -46,60 +44,6 @@ describe('api rendering', () => {
     })
     expect(html).toContain('background: transparent;')
     expect(html).toContain('border-radius: 8px;')
-  })
-
-  test('rejects oversized bodies before preprocessing them', async () => {
-    const response = await app.request(
-      '/api/document',
-      {
-        body: 'x'.repeat(5 * 1024 * 1024 + 1),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      },
-      env,
-      executionCtx,
-    )
-    expect(response.status).toBe(413)
-    expect(await response.json()).toEqual({ error: 'The request body is too large.' })
-  })
-})
-
-describe('sharing', () => {
-  test('rejects oversized bodies without relying on Content-Length', async () => {
-    const response = await app.request(
-      '/api/share',
-      {
-        body: 'x'.repeat(40_001),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      },
-      env,
-      executionCtx,
-    )
-    expect(response.status).toBe(413)
-    expect(await response.json()).toEqual({ error: 'That snippet is too large to share.' })
-  })
-
-  test('stores canonical state without waiting for metadata generation', async () => {
-    const put = vi.fn((_key: string, _value: string) => Promise.resolve())
-    const sharing = {
-      ASSETS: { fetch: () => Promise.resolve(new Response('skill')) },
-      LINKS: { put },
-      SHARE_RATE: { limit: () => Promise.resolve({ success: true }) },
-    }
-    const state = Codec.serialize({ code: 'const a = 1' })
-    const response = await app.request(
-      '/api/share',
-      {
-        body: JSON.stringify({ state }),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      },
-      sharing as never,
-      executionCtx,
-    )
-    expect(response.status).toBe(201)
-    expect(JSON.parse(put.mock.calls[0]?.[1] ?? '')).toEqual({ state })
   })
 })
 
@@ -186,23 +130,5 @@ describe('agent skill', () => {
     expect(await response.text()).toBe('html')
     expect(response.headers.get('location')).toBeNull()
     expect(startFetch).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('security headers', () => {
-  test('protects browser responses', async () => {
-    const response = await app.request(
-      '/',
-      { headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0' } },
-      env,
-    )
-    expect(Object.fromEntries(response.headers)).toMatchObject({
-      'content-security-policy': expect.stringContaining("frame-ancestors 'none'"),
-      'permissions-policy': 'camera=(), geolocation=(), microphone=()',
-      'referrer-policy': 'strict-origin-when-cross-origin',
-      'strict-transport-security': 'max-age=31536000; includeSubDomains',
-      'x-content-type-options': 'nosniff',
-      'x-frame-options': 'DENY',
-    })
   })
 })

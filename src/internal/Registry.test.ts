@@ -102,49 +102,9 @@ describe('extract', () => {
       ]
     `)
   })
-
-  test('limits declaration file count', () => {
-    const archive = tar([
-      { body: 'declare const a: 1', name: 'package/a.d.ts' },
-      { body: 'declare const b: 2', name: 'package/b.d.ts' },
-    ])
-    expect(() => Registry.extract(archive, { files: 1 })).toThrow(
-      'The package contains too many declaration files.',
-    )
-  })
-
-  test('limits total declaration bytes', () => {
-    const archive = tar([{ body: 'declare const value: 1', name: 'package/index.d.ts' }])
-    expect(() => Registry.extract(archive, { size: 10 })).toThrow(
-      'The package declarations are too large.',
-    )
-  })
 })
 
 describe('types', () => {
-  test('resolves dependency ranges before downloading the tarball', async () => {
-    const archive = tar([
-      { body: '{"name":"child","types":"index.d.ts"}', name: 'package/package.json' },
-      { body: 'export declare const child: 1', name: 'package/index.d.ts' },
-    ])
-    const request = vi.fn((input: RequestInfo | URL) => {
-      const url = requestUrl(input)
-      if (url === 'https://cdn.jsdelivr.net/npm/child@%5E2.1.0/package.json')
-        return Promise.resolve(Response.json({ name: 'child', version: '2.1.3' }))
-      if (url === 'https://registry.npmjs.org/child/-/child-2.1.3.tgz')
-        return Promise.resolve(new Response(gzipSync(archive)))
-      return Promise.resolve(new Response('unexpected request', { status: 500 }))
-    })
-
-    await expect(
-      Registry.types({ fetch: request, name: 'child', version: '^2.1.0' }),
-    ).resolves.toMatchObject({ name: 'child', version: '2.1.3' })
-    expect(request.mock.calls.map(([input]) => requestUrl(input))).toEqual([
-      'https://cdn.jsdelivr.net/npm/child@%5E2.1.0/package.json',
-      'https://registry.npmjs.org/child/-/child-2.1.3.tgz',
-    ])
-  })
-
   test('falls back when npm rate-limits package metadata', async () => {
     const archive = tar([
       { body: '{"name":"wagmi","types":"dist/types/index.d.ts"}', name: 'package/package.json' },
@@ -175,9 +135,10 @@ describe('types', () => {
   })
 
   test('marks a package that is not on npm as absent', async () => {
-    const request = vi.fn(() => Promise.resolve(new Response(undefined, { status: 404 })))
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('not found', { status: 404 }))
     const cause = await Registry.types({
-      fetch: request,
       name: '@monoshot/not-a-package-000',
       version: 'latest',
     }).catch((error: unknown) => error)
@@ -185,7 +146,7 @@ describe('types', () => {
     // The caller reads this to tell a package with no types from a registry
     // that failed to say, and leaves only the first as `any`.
     expect((cause as Registry.RegistryError).absent).toBe(true)
-    expect(request).toHaveBeenCalledOnce()
+    expect(fetch).toHaveBeenCalledOnce()
   })
 })
 
