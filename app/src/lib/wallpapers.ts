@@ -1,9 +1,9 @@
 import { converter, formatCss } from 'culori'
 
 /**
- * The default macOS wallpapers, offered as backdrops. Apple's artwork, taken
- * from 512pixels.net's archive and resized to 2560px WebP here, which neither
- * Apple nor that archive licenses for redistribution.
+ * The backdrops on offer. Tempo's own artwork, and the default macOS
+ * wallpapers: Apple's, taken from 512pixels.net's archive and resized to WebP
+ * here, which neither Apple nor that archive licenses for redistribution.
  *
  * @see https://512pixels.net/projects/default-mac-wallpapers-in-5k/
  */
@@ -11,8 +11,17 @@ import { converter, formatCss } from 'culori'
 /** What a background carries when it names a wallpaper rather than a color. */
 const prefix = 'wallpaper:'
 
-/** A wallpaper offered as a backdrop, named for the release it shipped with. */
-export type Wallpaper = { id: string; name: string }
+/** A wallpaper a theme stands on, named for the release it shipped with. */
+export type Wallpaper = {
+  id: string
+  name: string
+  /**
+   * Whether the picture belongs to its theme rather than standing on its own.
+   * Such a picture backs the theme named after it and is not offered as a
+   * backdrop for any other.
+   */
+  themed?: boolean
+}
 
 /** A loaded wallpaper: the image itself, and the color it reads as. */
 export type Picture = {
@@ -25,8 +34,9 @@ export type Picture = {
   source: string
 }
 
-/** The wallpapers on offer, newest release first. */
+/** Every wallpaper, newest release first. */
 export const list: readonly Wallpaper[] = [
+  { id: 'tempo', name: 'Tempo', themed: true },
   { id: 'golden-gate-light', name: 'Golden Gate' },
   { id: 'golden-gate-dark', name: 'Golden Gate Dark' },
   { id: 'tahoe-light', name: 'Tahoe' },
@@ -37,6 +47,9 @@ export const list: readonly Wallpaper[] = [
   { id: 'snow-leopard', name: 'Snow Leopard' },
   { id: 'panther', name: 'Panther' },
 ]
+
+/** The wallpapers a reader can set as a backdrop, which is the rest of them. */
+export const offered: readonly Wallpaper[] = list.filter((wallpaper) => !wallpaper.themed)
 
 /** The background a wallpaper is set as. */
 export function background(id: string) {

@@ -123,4 +123,9 @@ export const swatches: Record<string, { backdrop: string; colors: readonly strin
       'linear-gradient(140deg, oklch(0.809262718781545 0.06858151993379337 234.39768583741227), oklch(0.749262718781545 0.06858151993379337 284.39768583741227))',
     colors: ['#26292e', '#2a51aa', '#15607f'],
   },
+  tempo: {
+    backdrop:
+      'linear-gradient(140deg, oklch(0.16 0.11960052397510522 240.52169946321533), oklch(0.1 0.11960052397510522 290.5216994632153))',
+    colors: ['#d9dfe5', '#7fbcff', '#bdc3ff'],
+  },
 }

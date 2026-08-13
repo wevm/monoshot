@@ -20,6 +20,32 @@ import { converter, formatCss } from 'culori'
 /** How many colors a theme is built from, most telling first. */
 const wanted = 6
 
+/**
+ * Colors for pictures with none in them to read.
+ *
+ * A picture drawn in black and white yields nothing to build a theme from, and
+ * a theme built from nothing lands on the zero-degree red. Named here, beside
+ * the reading that failed, rather than hand-written into the generated file.
+ */
+const borrowed: Record<string, readonly string[]> = {
+  // Line art on black, which reads no color at all. The blue the app draws
+  // with, and white. In that order: a theme takes its colors in turn, and the
+  // second is where strings land.
+  tempo: ['oklch(64.94% 0.1982 251.813)', '#ffffff'],
+}
+
+/**
+ * Canvases stated rather than derived.
+ *
+ * A backdrop that is a flat color wants the window to sit on that color, and a
+ * background derived from a borrowed hue lands a shade off it.
+ */
+const canvas: Record<string, string> = {
+  // Black, and a tenth of the way through: the artwork behind the frame reads
+  // as the frame's own, rather than as something the frame covers.
+  tempo: '#000000e6',
+}
+
 /** How coarsely a picture is read: enough pixels to weigh it, few to walk. */
 const grid = { height: 60, width: 96 }
 
@@ -38,12 +64,21 @@ const palettes = fs
     // for standalone images.
     const paired = id.endsWith('-light') ? 'light' : id.endsWith('-dark') ? 'dark' : undefined
     return {
+      ...(canvas[id] ? { background: canvas[id] } : {}),
       colors: strongest(pixels),
       displayName: titled(id),
       id,
       type: paired ?? (dark(pixels) ? 'dark' : 'light'),
     }
   })
+
+for (const palette of palettes) {
+  if (palette.colors.length > 0) continue
+  const stated = borrowed[palette.id]
+  if (!stated?.length)
+    throw new Error(`\`${palette.id}\` reads no color, and none is named for it.`)
+  palette.colors = [...stated]
+}
 
 fs.writeFileSync(
   output,
@@ -55,6 +90,7 @@ fs.writeFileSync(
  * Generated: edit the script, not this.
  */
 export const palettes = ${JSON.stringify(palettes, null, 2)} as const satisfies readonly {
+  background?: string
   colors: readonly string[]
   displayName: string
   id: string
