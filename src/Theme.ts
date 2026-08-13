@@ -330,15 +330,32 @@ export type Composed = (typeof palettes)[number]['id']
  * A renderer loads one of these by name the way it loads a bundled theme; this
  * is what it loads.
  */
-export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) =>
-  compose({
-    ...('background' in palette ? { background: palette.background } : {}),
-    colors: palette.colors,
-    displayName: palette.displayName,
-    name: palette.id,
-    type: palette.type,
-  }),
+export const composed: readonly Immutable<ThemeRegistrationRaw>[] = Object.freeze(
+  palettes.map((palette) =>
+    freeze(
+      compose({
+        ...('background' in palette ? { background: palette.background } : {}),
+        colors: palette.colors,
+        displayName: palette.displayName,
+        name: palette.id,
+        type: palette.type,
+      }),
+    ),
+  ),
 )
+
+type Immutable<value> = value extends readonly (infer item)[]
+  ? readonly Immutable<item>[]
+  : value extends object
+    ? { readonly [key in keyof value]: Immutable<value[key]> }
+    : value
+
+/** Recursively freezes one shared theme registration. */
+function freeze<const value>(value: value): Immutable<value> {
+  if (typeof value !== 'object' || value === null) return value as Immutable<value>
+  for (const nested of Object.values(value)) freeze(nested)
+  return Object.freeze(value) as Immutable<value>
+}
 
 // `bundledThemesInfo` types `id` as a plain string; `Theme.test.ts` verifies the
 // narrowing. Freeze the array because `list()` returns this shared instance.

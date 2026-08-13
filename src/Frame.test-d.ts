@@ -54,3 +54,16 @@ describe('Name', () => {
     expectTypeOf<'nope'>().not.toExtend<Frame.Name>()
   })
 })
+
+describe('Theme.composed', () => {
+  test('exposes immutable shared registrations', () => {
+    const theme = Theme.composed[0]
+    if (!theme) return
+    // @ts-expect-error -- shared registrations cannot be renamed by a caller.
+    theme.name = 'changed'
+    const rule = theme.settings[0]
+    if (!rule) return
+    // @ts-expect-error -- nested theme data is immutable too.
+    rule.settings.foreground = '#000000'
+  })
+})
