@@ -186,7 +186,7 @@ export function create() {
               options.preview === true && !formatExplicit
                 ? type === 'png'
                   ? image
-                  : await renderer.render({ ...parameters, type: 'png' })
+                  : await renderer.render({ ...parameters, type: 'png' }).catch(() => undefined)
                 : undefined
             return { image, preview }
           } catch (cause) {

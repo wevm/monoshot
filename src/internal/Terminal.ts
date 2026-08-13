@@ -5,7 +5,7 @@ export async function preview(image: Uint8Array, options: preview.Options = {}):
   try {
     const render = options.render ?? (await import('terminal-image')).default.buffer
     const output = await render(image, { height: '50%', width: '80%' })
-    if (output) stream.write(output)
+    if (output) stream.write(output.endsWith('\n') ? output : `${output}\n`)
     return true
   } catch {
     return false

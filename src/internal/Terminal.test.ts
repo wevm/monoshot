@@ -16,7 +16,16 @@ describe('preview', () => {
     const image = new Uint8Array([137, 80, 78, 71])
     expect(await Terminal.preview(image, { render, stream })).toBe(true)
     expect(render).toHaveBeenCalledWith(image, { height: '50%', width: '80%' })
-    expect(stream.write).toHaveBeenCalledWith('\u001B_Gimage\u001B\\')
+    expect(stream.write).toHaveBeenCalledWith('\u001B_Gimage\u001B\\\n')
+  })
+
+  test('does not add a second newline', async () => {
+    const stream = { isTTY: true, write: vi.fn() }
+    await Terminal.preview(new Uint8Array(), {
+      render: () => Promise.resolve('image\n'),
+      stream,
+    })
+    expect(stream.write).toHaveBeenCalledWith('image\n')
   })
 
   test('allows a native renderer to write directly', async () => {
