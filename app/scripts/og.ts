@@ -10,7 +10,7 @@ import { sample } from '../src/lib/sample.js'
 const card = { height: 630, scale: 2, width: 1200 } as const
 
 /** Where the frame starts, and how far it runs past the right edge. */
-const frameAt = { bleed: 320, left: 596 } as const
+const frameAt = { bleed: 560, left: 628 } as const
 
 /**
  * Draws the link preview: the wordmark, and the snippet the app opens on.
@@ -81,9 +81,9 @@ body {
   background: transparent !important;
   color: ${palette.window.foreground};
   font-family: 'Geist Mono', ui-monospace, monospace;
-  font-size: 17px;
+  font-size: 21px;
   font-variant-ligatures: none;
-  line-height: 27px;
+  line-height: 33px;
   tab-size: 2;
   white-space: pre;
 }
