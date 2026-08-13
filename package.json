@@ -23,7 +23,7 @@
   "[!start-pkg]": "",
   "name": "monoshot",
   "type": "module",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "description": "Render code images with type-aware Twoslash annotations.",
   "repository": {
