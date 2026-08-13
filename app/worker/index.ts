@@ -15,7 +15,7 @@ import * as Packages from './Packages.js'
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
-const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
+const renderer = Api.route({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
 const renderLimit = bodyLimit({
   maxSize: 5 * 1024 * 1024,
   onError: (c) => c.json({ error: 'The request body is too large.' }, 413),

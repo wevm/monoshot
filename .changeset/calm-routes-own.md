@@ -2,9 +2,9 @@
 'monoshot': major
 ---
 
-Removed the shared `Api.route` singleton in favor of explicitly owned routes.
+Changed `Api.route` from a shared singleton to a factory that returns an independently owned route.
 
 ```diff
 -const app = new Hono().route('/v1', Api.route)
-+const app = new Hono().route('/v1', Api.create())
++const app = new Hono().route('/v1', Api.route())
 ```

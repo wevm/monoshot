@@ -204,11 +204,11 @@ namespace schema {
  *
  * const app = new Hono().route(
  *   '/v1',
- *   Api.create({ frame: Frame.create() })
+ *   Api.route({ frame: Frame.create() })
  * )
  * ```
  */
-export function create(options: create.Options = {}) {
+export function route(options: route.Options = {}) {
   // The JavaScript engine by default: shiki's own compiles WebAssembly at
   // runtime, which a Worker refuses, and a Worker is what this is for.
   const frame = options.frame ?? Frame.create({ engine: 'javascript' })
@@ -328,7 +328,7 @@ export function create(options: create.Options = {}) {
   )
 }
 
-export declare namespace create {
+export declare namespace route {
   type Options = {
     /**
      * The browser to screenshot in, read off each request. A binding reaches a

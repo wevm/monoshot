@@ -4,7 +4,7 @@ import { createTwoslasher } from 'twoslash'
 import * as Api from './Api.js'
 import * as Browser from './internal/Browser.js'
 
-const route = Api.create()
+const route = Api.route()
 
 /** Posts a body to the routes, as a Worker would hand them a request. */
 async function post(body: unknown) {
@@ -22,7 +22,7 @@ async function post(body: unknown) {
   }
 }
 
-describe('create', () => {
+describe('route', () => {
   test('renders a snippet to a standalone document', async () => {
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts' })
     expect(status).toBe(200)
@@ -248,7 +248,7 @@ describe('create', () => {
         .spyOn(Browser, 'screenshot')
         .mockResolvedValue(new Uint8Array([1, 2, 3]))
       try {
-        const route = Api.create({ browser: () => ({ fetch }) as never })
+        const route = Api.route({ browser: () => ({ fetch }) as never })
         const response = await route.request('/image', {
           body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts' }),
           headers: { 'content-type': 'application/json' },
