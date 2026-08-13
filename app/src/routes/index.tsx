@@ -779,9 +779,14 @@ function Page() {
     function walk(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
-      if (!direction || !(event.target instanceof Element)) return
-      // A field or a frame handle owns its own arrow keys.
-      if (event.target.closest('input, textarea, [role="slider"], [contenteditable]')) return
+      if (!direction || !(event.target instanceof Node)) return
+      // Theme stepping is local to these controls. Other controls and editable
+      // surfaces retain their native arrow-key behavior.
+      if (
+        !previousArrow.current?.contains(event.target) &&
+        !nextArrow.current?.contains(event.target)
+      )
+        return
       event.preventDefault()
       step(direction)
       // Focus the corresponding control and show brief pressed feedback.

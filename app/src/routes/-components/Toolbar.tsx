@@ -9,6 +9,7 @@ import * as detect from '#/lib/detect.js'
 import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
+import * as Shortcut from '#/lib/shortcut.js'
 import { text } from '#/theme/text.js'
 import { Roll } from '#/ui/Roll.js'
 import { Tooltip } from '#/ui/Tooltip.js'
@@ -16,7 +17,7 @@ import { color, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const themes = Theme.list()
 
-/** The key that reaches each control from anywhere on the page. */
+/** The key that reaches each control while focus is in the toolbar. */
 const shortcuts = {
   background: 'b',
   language: 'a',
@@ -405,13 +406,11 @@ export function Toolbar(props: Toolbar.Props) {
 
   useEffect(() => {
     function press(event: KeyboardEvent) {
-      if (event.altKey || event.ctrlKey || event.metaKey) return
-      if (
-        event.target instanceof Element &&
-        event.target.closest('input, textarea, [contenteditable]')
-      )
-        return
-      const shortcut = event.key.toLowerCase()
+      const target = event.target
+      const shortcut = Shortcut.scoped(event, {
+        active: target instanceof Node && root.current?.contains(target) === true,
+        editable: target instanceof Element && target.closest('input, textarea') !== null,
+      })
       if (shortcut === shortcuts.theme) toggle('theme')
       else if (shortcut === shortcuts.background) toggle('background')
       else if (shortcut === shortcuts.language) toggle('language')
@@ -851,7 +850,7 @@ function Item(props: {
   onClick: () => void
   open?: boolean
   pressed?: boolean
-  /** Key that reaches this control from anywhere. */
+  /** Key that reaches this control while focus is in the toolbar. */
   shortcut: string
   title: string
   /** Direction the value rolls: up for a larger or enabled value. */
