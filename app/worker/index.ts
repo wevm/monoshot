@@ -9,6 +9,7 @@ import { detect } from '../src/lib/detect.js'
 import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
 import * as Links from './links.js'
+import * as Packages from './Packages.js'
 
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
@@ -63,17 +64,25 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   // in the browser, where fetching them file by file from a CDN costs hundreds
   // of round trips for a package like `shiki`.
   .get('/types/*', async (c) => {
-    const spec = decodeURIComponent(c.req.path.replace(/^\/api\/types\//, ''))
-    const { name, version } = parse(spec)
+    const spec = (() => {
+      try {
+        return decodeURIComponent(c.req.path.replace(/^\/api\/types\//, ''))
+      } catch {
+        return undefined
+      }
+    })()
+    if (spec === undefined) return c.json({ error: 'Name a valid package to read types for.' }, 400)
+    const { name, version } = Packages.parse(spec)
     if (!name) return c.json({ error: 'Name a package to read types for.' }, 400)
 
     // Exact package versions are immutable and need no revalidation. Tags may
     // resolve to a different version after a release.
-    const exact = version !== 'latest'
+    const exact = Packages.exact(version)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
     const cache = await caches.open('types')
-    const hit = await cache.match(c.req.raw)
+    const key = Packages.key(c.req.url, { name, version })
+    const hit = await cache.match(key)
     if (hit) return hit
 
     const result = await (async () => {
@@ -99,7 +108,7 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
             'public, max-age=300',
       },
     })
-    c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
+    c.executionCtx.waitUntil(cache.put(key, response.clone()))
     return response
   })
 
@@ -388,14 +397,4 @@ async function inlined(
     // Omit the picture when the wallpaper cannot be loaded.
     return undefined
   }
-}
-
-/**
- * Splits `shiki@4.4.2` into package and version components while preserving
- * scoped package prefixes. Missing versions default to `latest`.
- */
-function parse(spec: string) {
-  const at = spec.lastIndexOf('@')
-  if (at <= 0) return { name: spec, version: 'latest' }
-  return { name: spec.slice(0, at), version: spec.slice(at + 1) }
 }
