@@ -12,7 +12,7 @@ import { motion } from '../theme/tokens.stylex.js'
 const title = 'monoshot'
 const description = 'Render code images with type-aware annotations.'
 /** Drawn by `gen:og`, which records what it rendered at. */
-const card = { height: '630', path: '/og.png', width: '1200' } as const
+const card = { height: '630', path: '/og.jpg', width: '1200' } as const
 
 export const Route = createRootRoute({
   head: () => ({
