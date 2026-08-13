@@ -32,7 +32,7 @@ describe('serialize', () => {
         "title": "",
         "titleBar": false,
         "types": true,
-        "width": 640,
+        "width": undefined,
       }
     `)
   })
@@ -103,7 +103,7 @@ describe('deserialize', () => {
         "title": "",
         "titleBar": false,
         "types": true,
-        "width": 640,
+        "width": undefined,
       }
     `)
   })
@@ -170,8 +170,15 @@ describe('deserialize', () => {
     expect({ padding: negative.padding, width: wide.width }).toMatchInlineSnapshot(`
       {
         "padding": 64,
-        "width": 640,
+        "width": undefined,
       }
     `)
+  })
+
+  test('keeps the fixed width carried by an existing link', () => {
+    const hash = lzString.compressToEncodedURIComponent(
+      JSON.stringify({ c: 'const a = 1', w: 640 }),
+    )
+    expect(Codec.deserialize(hash).width).toBe(640)
   })
 })

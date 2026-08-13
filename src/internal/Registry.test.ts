@@ -52,6 +52,14 @@ describe('extract', () => {
     `)
   })
 
+  test('removes a package-named top-level directory', () => {
+    const archive = tar([
+      { body: '{"name":"@types/node"}', name: 'node/package.json' },
+      { body: 'declare const process: object', name: 'node/index.d.ts' },
+    ])
+    expect(Object.keys(Registry.extract(archive))).toEqual(['/package.json', '/index.d.ts'])
+  })
+
   test('reads a path too long for the name field out of its pax header', () => {
     const long = `package/${'nested/'.repeat(15)}deep.d.ts`
     const record = `${`path=${long}\n`.length + 4} path=${long}\n`

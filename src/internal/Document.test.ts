@@ -54,6 +54,27 @@ describe('build', () => {
     `)
   })
 
+  test('sets intrinsic source and annotation sizing when width is omitted', async () => {
+    const automatic = await frame.toDocument({
+      ...options,
+      twoslash: { code: options.code, nodes: [] },
+      width: undefined,
+    })
+    const fixed = await frame.toDocument(options)
+    expect({
+      automatic: automatic.includes('min-width: 320px;\n  width: max-content;'),
+      fixed: fixed.includes('width: 640px;'),
+    }).toMatchInlineSnapshot(`
+      {
+        "automatic": true,
+        "fixed": true,
+      }
+    `)
+    expect(automatic).toContain('--code-annotation-max-width: none;')
+    expect(automatic).toContain('max-width: var(--code-annotation-max-width, 64ch);')
+    expect(fixed).not.toContain('--code-annotation-max-width: none;')
+  })
+
   test('gives the window the depth the preview draws', async () => {
     const shadow = async (theme: 'vitesse-dark' | 'vitesse-light') => {
       const document = await frame.toDocument({ ...options, theme })

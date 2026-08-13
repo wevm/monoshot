@@ -56,7 +56,10 @@ export function create(): create.ReturnType {
       for (const [path, source] of lib) files.set(path, source)
       const { createTwoslasher } = await import('twoslash')
       const twoslasher = createTwoslasher({ ...overrides, fsMap: files })
-      return { compiler, run: (code, lang) => twoslasher(code, lang) }
+      return {
+        compiler,
+        run: (code, lang, types) => twoslasher(code, lang, runOptions(types)),
+      }
     }
     // Fetch compiler libraries when the runtime has no filesystem access.
     const { createTwoslashFromCDN } = await import('twoslash-cdn')
@@ -68,7 +71,10 @@ export function create(): create.ReturnType {
     })
     // Only the lib files. Acquiring a document's packages is the second stage.
     await twoslash.init()
-    return { compiler, run: (code, lang) => twoslash.runSync(code, lang) }
+    return {
+      compiler,
+      run: (code, lang, types) => twoslash.runSync(code, lang, runOptions(types)),
+    }
   }
 
   return {
@@ -79,13 +85,13 @@ export function create(): create.ReturnType {
         started = undefined
         throw cause
       }))
-      await acquire({
+      const acquired = await acquire({
         code,
         compiler: cdn.compiler,
         files,
         load: (name) => read(name),
       })
-      return (source, lang) => cdn.run(source, lang)
+      return (source, lang) => cdn.run(source, lang, acquired.types)
     },
   }
 }
@@ -136,7 +142,12 @@ function cache() {
 /** Initialized compiler and Twoslash runner. */
 type Cdn = {
   compiler: typeof import('typescript')
-  run: create.Twoslasher
+  run: (code: string, lang: string | undefined, types: readonly string[]) => TwoslashReturn
+}
+
+/** Adds only the ambient roots this document acquired to a Twoslash run. */
+function runOptions(types: readonly string[]) {
+  return types.length ? { compilerOptions: { types: [...types] } } : undefined
 }
 
 /**

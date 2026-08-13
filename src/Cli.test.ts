@@ -114,6 +114,21 @@ describe('create', () => {
       `)
     })
 
+    test('applies Tempo framing unless the radius is explicit', async () => {
+      const source = await file('demo.ts')
+      const implicit = await run(['share', source, '--theme', 'tempo'])
+      const explicit = await run(['share', source, '--theme', 'tempo', '--radius', '8'])
+      expect({
+        explicit: settings((explicit.output as { url: string }).url).radius,
+        implicit: settings((implicit.output as { url: string }).url).radius,
+      }).toMatchInlineSnapshot(`
+        {
+          "explicit": 8,
+          "implicit": 0,
+        }
+      `)
+    })
+
     test('refuses a file and a snippet together', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['share', source, '--code', 'const a = 1'])
@@ -233,6 +248,80 @@ describe('create', () => {
   })
 
   describe('render', () => {
+    test('renders Tempo on its artwork with square corners by default', async () => {
+      const source = await file('demo.ts')
+      const render = vi.fn((_options: Headless.render.Options) =>
+        Promise.resolve(new Uint8Array([1, 2, 3])),
+      )
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render,
+      } as never)
+      try {
+        await run(['render', source, '--theme', 'tempo'])
+        const options = render.mock.calls[0]?.[0]
+        expect({
+          background: options?.background,
+          picture: options?.picture?.startsWith('data:image/webp;base64,'),
+          radius: options?.radius,
+          width: options?.width,
+        }).toMatchInlineSnapshot(`
+          {
+            "background": "default",
+            "picture": true,
+            "radius": 0,
+            "width": undefined,
+          }
+        `)
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    test('preserves explicit Tempo frame settings', async () => {
+      const source = await file('demo.ts')
+      const render = vi.fn((_options: Headless.render.Options) =>
+        Promise.resolve(new Uint8Array([1, 2, 3])),
+      )
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render,
+      } as never)
+      try {
+        await run(['render', source, '--theme', 'tempo', '--background', 'none'])
+        await run(['render', source, '--theme', 'tempo', '--radius', '8'])
+        const background = render.mock.calls[0]?.[0]
+        const radius = render.mock.calls[1]?.[0]
+        expect({
+          background: {
+            background: background?.background,
+            picture: background?.picture,
+            radius: background?.radius,
+          },
+          radius: {
+            background: radius?.background,
+            picture: radius?.picture?.startsWith('data:image/webp;base64,'),
+            radius: radius?.radius,
+          },
+        }).toMatchInlineSnapshot(`
+          {
+            "background": {
+              "background": "none",
+              "picture": undefined,
+              "radius": 0,
+            },
+            "radius": {
+              "background": "default",
+              "picture": true,
+              "radius": 8,
+            },
+          }
+        `)
+      } finally {
+        create.mockRestore()
+      }
+    })
+
     test('suggests creating a matching editor link', async () => {
       const source = await file('demo.ts')
       const create = vi.spyOn(Headless, 'create').mockReturnValue({

@@ -44,6 +44,7 @@
     "monoshot.src": "./src/bin.ts"
   },
   "files": [
+    "app/public/wallpapers/tempo.webp",
     "dist",
     "src"
   ],

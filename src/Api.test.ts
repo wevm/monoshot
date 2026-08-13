@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { createTwoslasher } from 'twoslash'
 
 import * as Api from './Api.js'
+import * as Browser from './internal/Browser.js'
 
 /** Posts a body to the routes, as a Worker would hand them a request. */
 async function post(body: unknown) {
@@ -27,6 +28,15 @@ describe('create', () => {
     expect(body).toContain('class="canvas"')
     // The standalone document requires no scripts or external requests.
     expect(body).not.toContain('<script')
+  })
+
+  test('fits omitted width to rendered lines and preserves an explicit width', async () => {
+    const automatic = await post({ code: 'const a = 1\n', lang: 'ts' })
+    const fixed = await post({ code: 'const a = 1\n', lang: 'ts', width: 640 })
+    expect(automatic.body).toContain('min-width: 320px;\n  width: max-content;')
+    expect(automatic.body).toContain('--code-annotation-max-width: none;')
+    expect(fixed.body).toContain('width: 640px;')
+    expect(fixed.body).not.toContain('--code-annotation-max-width: none;')
   })
 
   test('resolves queried types by default', async () => {
@@ -162,6 +172,26 @@ describe('create', () => {
   })
 
   describe('image', () => {
+    test('captures the same automatic-width document', async () => {
+      const screenshot = vi
+        .spyOn(Browser, 'screenshot')
+        .mockResolvedValue(new Uint8Array([1, 2, 3]))
+      try {
+        const route = Api.create({ browser: () => ({ fetch }) as never })
+        const response = await route.request('/image', {
+          body: JSON.stringify({ code: 'const a = 1\n', lang: 'ts' }),
+          headers: { 'content-type': 'application/json' },
+          method: 'POST',
+        })
+        expect(response.status).toBe(200)
+        expect(screenshot.mock.calls[0]?.[1].html).toContain(
+          'min-width: 320px;\n  width: max-content;',
+        )
+      } finally {
+        screenshot.mockRestore()
+      }
+    })
+
     test('returns a clear error when browser rendering is unavailable', async () => {
       // Every other route works without one, so this is the deployment's
       // state rather than the request's mistake.

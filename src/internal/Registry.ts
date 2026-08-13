@@ -45,9 +45,18 @@ export async function types(options: types.Options): Promise<types.Result> {
 export function extract(tar: Uint8Array): Types {
   const decoder = new TextDecoder()
   const files: Types = {}
-  for (const entry of untar(tar)) {
-    // npm wraps every tarball in a single `package/` directory.
-    const path = entry.name.replace(/^package\//, '')
+  const entries = [...untar(tar)]
+  // npm tarballs have one top-level directory. Most call it `package`, while
+  // DefinitelyTyped packages use their own name, such as `node`.
+  const wrappers = new Set(
+    entries.map((entry) => {
+      const slash = entry.name.indexOf('/')
+      return slash === -1 ? '' : entry.name.slice(0, slash + 1)
+    }),
+  )
+  const wrapper = wrappers.size === 1 ? (wrappers.values().next().value ?? '') : ''
+  for (const entry of entries) {
+    const path = entry.name.startsWith(wrapper) ? entry.name.slice(wrapper.length) : entry.name
     if (!/\.d\.[cm]?ts$/.test(path) && path !== 'package.json') continue
     files[`/${path}`] = decoder.decode(entry.body)
   }

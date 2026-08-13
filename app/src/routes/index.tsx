@@ -40,9 +40,11 @@ const styles = stylex.create({
     // In the document so it lays out at its real size, off the page so it is
     // never seen. Not `display: none`, which would give it no box at all.
     insetBlockStart: 0,
-    insetInlineStart: -20000,
+    insetInlineStart: 0,
     pointerEvents: 'none',
     position: 'fixed',
+    transform: 'translateX(calc(-100% - 1px))',
+    width: 'max-content',
   },
   page: {
     display: 'flex',
@@ -250,7 +252,7 @@ const emptyOffsets: readonly number[] = []
 const quiet: Editor.Props['diagnostics'] = []
 
 /** Everything on screen that a shared link carries, less the code and title. */
-type Settings = Toolbar.State & { padding: number; radius: number; width: number }
+type Settings = Toolbar.State & { padding: number; radius: number; width?: number | undefined }
 
 /**
  * Snapshot of offscreen export content. Captures span asynchronous operations,
@@ -290,7 +292,6 @@ const fallback: Settings = {
   theme: 'golden-gate-dark',
   titleBar: false,
   types: true,
-  width: 640,
 }
 
 /**

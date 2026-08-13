@@ -86,7 +86,7 @@ npx monoshot themes
 
 The `open`, `render`, and `share` commands accept common frame options such as `--background`, `--lang`, `--padding`, `--radius`, `--theme`, `--title`, `--title-bar`, and `--width`.
 
-Omit `--width` for CLI calls and `width` for API calls by default. Reformat long lines before increasing the width, and keep it at or below 800 px unless the user requests otherwise. Use `scale` to increase PNG resolution without widening the layout.
+Omit `--width` for CLI calls and `width` for API calls by default. Monoshot sizes the frame to its longest rendered source or annotation line. Set a width only when the image should wrap at a fixed measure. Use `scale` to increase PNG resolution without widening the layout.
 
 Inspect the current command contract when an option is uncertain:
 

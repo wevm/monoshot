@@ -12,7 +12,7 @@ describe('acquire', () => {
     // `node` is a package of its own on npm, and not the one the directive
     // means, so the name has to arrive already pointed at `@types`.
     const asked: string[] = []
-    await acquire({
+    const result = await acquire({
       code: '/// <reference types="node" />\nconst a = 1\n',
       compiler: ts,
       files: new Map(),
@@ -21,11 +21,84 @@ describe('acquire', () => {
         return Promise.resolve(undefined)
       },
     })
+    expect(result.types).toEqual(['node'])
     expect(asked).toMatchInlineSnapshot(`
       [
         "@types/node",
       ]
     `)
+  })
+
+  test.each(['import { readFile } from "node:fs"', 'export { join } from "node:path"'])(
+    'reads Node declarations for a builtin reference in %s',
+    async (code) => {
+      const asked: string[] = []
+      const result = await acquire({
+        code,
+        compiler: ts,
+        files: new Map(),
+        load: (name) => {
+          asked.push(name)
+          return shipping('export {}')(name)
+        },
+      })
+      expect(asked).toEqual(['@types/node'])
+      expect(result.types).toEqual(['node'])
+    },
+  )
+
+  test.each(['process.env.NODE_ENV', 'Buffer.from("value")', 'NodeJS.Process'])(
+    'reads Node declarations for the global in %s',
+    async (code) => {
+      const asked: string[] = []
+      const result = await acquire({
+        code,
+        compiler: ts,
+        files: new Map(),
+        load: (name) => {
+          asked.push(name)
+          return shipping('export {}')(name)
+        },
+      })
+      expect(asked).toEqual(['@types/node'])
+      expect(result.types).toEqual(['node'])
+    },
+  )
+
+  test('ignores Node names in comments and strings', async () => {
+    const asked: string[] = []
+    const result = await acquire({
+      code: [
+        '// process and Buffer',
+        'const prose = "node:process require NodeJS"',
+        'const pattern = /process/',
+        'const value = { process: true }',
+        'function local(process: string) { return true }',
+      ].join('\n'),
+      compiler: ts,
+      files: new Map(),
+      load: (name) => {
+        asked.push(name)
+        return shipping('export {}')(name)
+      },
+    })
+    expect(asked).toEqual([])
+    expect(result.types).toEqual([])
+  })
+
+  test('reads Node declarations referenced by an acquired package', async () => {
+    const asked: string[] = []
+    const result = await acquire({
+      code: 'import "library"',
+      compiler: ts,
+      files: new Map(),
+      load: (name) => {
+        asked.push(name)
+        return shipping(name === 'library' ? 'import "node:stream"' : 'export {}')(name)
+      },
+    })
+    expect(asked).toEqual(['library', '@types/node'])
+    expect(result.types).toEqual(['node'])
   })
 
   test('writes what it reads under the package it came from', async () => {

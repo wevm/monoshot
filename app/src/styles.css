@@ -135,8 +135,7 @@
     font-family: var(--code-font-family);
     font-size: var(--code-annotation-size);
     line-height: 1.5;
-    /* Real types run long, so they wrap at a readable measure rather than
-       stretching a popover across the whole frame. */
+    /* Hover types stay readable instead of stretching across the frame. */
     max-width: 64ch;
     padding: 6px 10px;
     position: relative;
@@ -344,6 +343,8 @@
     /* Pinning is deliberate and pushes the code below it down, so this one
        earns more travel than the hover it replaces. */
     animation: twoslash-in var(--motion-medium) var(--motion-out) both;
+    /* An intrinsic frame lets its saved annotation define the artwork width. */
+    max-width: var(--code-annotation-max-width, 64ch);
   }
 
   /* A notch pointing back at the token the type belongs to. Bound to the

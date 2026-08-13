@@ -6,7 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react'
-import { createContext, useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import * as Annotation from '#/lib/editor/annotation.js'
 import * as Identifier from '#/lib/editor/identifier.js'
@@ -32,6 +32,11 @@ const styles = stylex.create({
   root: {
     '--handle-opacity': { default: 0, ':hover': 0.45 },
     position: 'relative',
+  },
+  intrinsic: {
+    '--code-annotation-max-width': 'none',
+    minWidth: 320,
+    width: 'max-content',
   },
   // Grips take the opposite polarity from the artwork, so they read on a light
   // theme as well as a dark one, with a hairline in the other direction to
@@ -211,19 +216,37 @@ export function Frame(props: Frame.Props) {
   // Held in state rather than a ref: what draws into it is a child, which has to
   // render again once the element exists.
   const [aside, setAside] = useState<HTMLDivElement | null>(null)
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const [measured, setMeasured] = useState(Frame.minWidth(padding))
+
+  // Intrinsic width remains state rather than becoming a saved setting. The
+  // frame can then keep following the longest line until a handle fixes it.
+  useLayoutEffect(() => {
+    if (!root) return
+    const measure = () => setMeasured(root.getBoundingClientRect().width)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [root])
+
+  // Fixed widths share the codec's ceiling. An intrinsic frame may be wider,
+  // but its first resize pins it to a value that a shared link can preserve.
+  const value = width ?? Math.min(measured, widthCeiling)
 
   // Leave the theme arrows and their labels a gutter, but never let a narrow
   // viewport drag the artwork smaller than it already is. Route components are
   // client-only, so the server branch is a fallback rather than a real case.
   const widthMax =
-    typeof window === 'undefined' ? 1280 : Math.max(width, Math.min(1280, window.innerWidth - 320))
+    typeof window === 'undefined' ? 1280 : Math.max(value, Math.min(1280, window.innerWidth - 320))
   // Move both bounds together to preserve a usable code width.
-  const paddingMax = Frame.maxPadding(width)
+  const paddingMax = Frame.maxPadding(value)
   const widthMin = Frame.minWidth(padding)
 
   return (
     <MotionConfig reducedMotion="user">
       <div
+        ref={setRoot}
         {...stylex.props(
           styles.root,
           styles.asidePalette({
@@ -232,7 +255,7 @@ export function Frame(props: Frame.Props) {
             foreground: palette.window.foreground,
           }),
           styles.gripPalette(palette.type === 'light'),
-          styles.width(width),
+          width === undefined ? styles.intrinsic : styles.width(width),
         )}
       >
         <div
@@ -347,7 +370,7 @@ export function Frame(props: Frame.Props) {
             min={widthMin}
             onChange={onWidthChange}
             step={16}
-            value={width}
+            value={value}
           />
           <Handle
             axis="x"
@@ -360,7 +383,7 @@ export function Frame(props: Frame.Props) {
             min={widthMin}
             onChange={onWidthChange}
             step={16}
-            value={width}
+            value={value}
           />
         </div>
         <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
@@ -527,8 +550,8 @@ export declare namespace Frame {
      * all a captured copy has.
      */
     wallpaper?: { source: string; spread: 'artwork' | 'viewport' } | undefined
-    /** Artwork width, in pixels. */
-    width: number
+    /** Artwork width in pixels, or intrinsic to the longest line when omitted. */
+    width?: number | undefined
   }
 }
 
@@ -543,6 +566,9 @@ type Palette = {
 
 /** The most padding the frame takes, however wide the artwork is. */
 const paddingCeiling = 160
+
+/** Largest fixed width the shared frame codec accepts. */
+const widthCeiling = 1600
 
 export namespace Frame {
   /**
@@ -615,8 +641,8 @@ const code = stylex.create({
     lineHeight: '22px',
     // Ligatures would break the 1:1 metrics the editor relies on later.
     fontVariantLigatures: 'none',
-    // No scroller: the lines wrap, and one would clip the marks that reach past
-    // the code as well as leave a scrollbar in the picture.
+    // The frame owns overflow: fixed widths wrap, while an intrinsic frame
+    // expands to the longest line without adding a scrollbar to the picture.
     paddingBlock: 12,
     tabSize: 2,
   },

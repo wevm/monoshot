@@ -28,20 +28,24 @@ export function create(options: create.Options): create.ReturnType {
   // The root file the current program was built around. A document's language
   // can change, and the program retains its original roots.
   let root: string | undefined
+  /** Ambient roots the current program was built with. */
+  let ambient = ''
 
   return {
     at(options_at) {
-      const { code, lang, position } = options_at
+      const { code, lang, position, types } = options_at
       const path = `/index.${lang}`
+      const key = types.join('\0')
       files.set(path, code)
       const service = (() => {
-        if (environment && root === path) return environment
+        if (environment && root === path && ambient === key) return environment
         root = path
+        ambient = key
         environment = createVirtualTypeScriptEnvironment(
           createSystem(files),
           [path],
           compiler,
-          compilerOptions,
+          types.length ? { ...compilerOptions, types: [...types] } : compilerOptions,
         )
         return environment
       })()
@@ -70,6 +74,7 @@ export function create(options: create.Options): create.ReturnType {
     forget() {
       environment = undefined
       root = undefined
+      ambient = ''
     },
   }
 }
@@ -92,6 +97,8 @@ export declare namespace create {
     lang: Lang
     /** Document offset of the caret. */
     position: number
+    /** Ambient package roots acquired for the document. */
+    types: readonly string[]
   }
 
   type ReturnType = {

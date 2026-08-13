@@ -38,8 +38,8 @@ export const schema = z.object({
   titleBar: z.boolean().catch(false),
   /** Whether the snippet is type checked, which only a TypeScript one can be. */
   types: z.boolean().catch(true),
-  /** Width of the window, in pixels. */
-  width: z.number().int().min(320).max(1600).catch(640),
+  /** Fixed width of the window, in pixels. Omitted, the rendered lines set it. */
+  width: z.number().int().min(320).max(1600).optional().catch(undefined),
 })
 
 /** The state {@link serialize} writes and {@link deserialize} reads. */
@@ -80,7 +80,7 @@ export function serialize(state: serialize.Options): string {
 }
 
 export declare namespace serialize {
-  /** State to pack. Anything omitted takes the schema's fallback. */
+  /** State to pack. Omitted width stays automatic; other omissions use their fallback. */
   type Options = Partial<State>
 }
 
