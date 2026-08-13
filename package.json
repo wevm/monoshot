@@ -76,6 +76,7 @@
     "lz-string": "catalog:",
     "puppeteer-core": "catalog:",
     "shiki": "catalog:",
+    "terminal-image": "5.0.1",
     "twoslash": "catalog:",
     "twoslash-cdn": "catalog:",
     "unstorage": "catalog:",

@@ -65,11 +65,14 @@ curl https://monoshot.dev/api/image \
 ```sh
 npx monoshot render -c 'console.log("Hello, world!")' -o hello.png
 npx monoshot render -c 'console.log("Hello, world!")' -o hello.svg
+npx monoshot render -c 'console.log("Hello, world!")' --preview
 npx monoshot share -c 'console.log("Hello, world!")' -t vitesse-light
 ```
 
 > [!NOTE]
 > Use `pnpx monoshot` with pnpm or `bunx monoshot` with Bun.
+
+`--preview` displays the image with native terminal graphics when available and ANSI blocks otherwise.
 
 ### Reference
 

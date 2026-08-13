@@ -10,6 +10,7 @@ import * as z from 'zod'
 import * as Codec from './Codec.js'
 import type * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
+import * as Terminal from './internal/Terminal.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
 
@@ -100,6 +101,11 @@ export function create() {
       examples: [
         { args: { file: 'app.ts' }, options: { out: 'app.png' } },
         { args: { file: 'app.ts' }, description: 'Render as SVG.', options: { type: 'svg' } },
+        {
+          args: { file: 'app.ts' },
+          description: 'Display an inline terminal preview.',
+          options: { preview: true },
+        },
         { description: 'Render inline source code.', options: { code: 'const a = 1' } },
         {
           args: { file: 'app.ts' },
@@ -122,6 +128,7 @@ export function create() {
           .string()
           .optional()
           .describe('Image output path. Defaults to a file beside the source.'),
+        preview: z.boolean().optional().describe('Display the rendered image in the terminal.'),
         scale: z
           .number()
           .positive()
@@ -139,7 +146,7 @@ export function create() {
         bytes: z.number().describe('Size of the image written.'),
         path: z.string().describe('Where the image was written.'),
       }),
-      async run({ args, error, options }) {
+      async run({ args, error, formatExplicit, options }) {
         const code = await read(args.file, options.code)
         if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
         const resolved = frame(args.file, code, options)
@@ -163,23 +170,36 @@ export function create() {
           })
         // `error` returns its result rather than throwing, so a failed render
         // has to come back as a value the handler can return through.
-        const image = await (async () => {
+        const rendered = await (async () => {
+          const renderer = Headless.create({
+            ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
+            ...(options.executable === undefined ? {} : { executable: options.executable }),
+          })
           try {
-            return await Headless.render({
+            const parameters = {
               ...resolved.state,
-              type,
               twoslash: options.twoslash ?? typed.has(resolved.state.lang),
-              ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
-              ...(options.executable === undefined ? {} : { executable: options.executable }),
               ...(options.scale === undefined ? {} : { scale: options.scale }),
-            })
+            }
+            const image = await renderer.render({ ...parameters, type })
+            const preview =
+              options.preview === true && !formatExplicit
+                ? type === 'png'
+                  ? image
+                  : await renderer.render({ ...parameters, type: 'png' })
+                : undefined
+            return { image, preview }
           } catch (cause) {
             return cause instanceof Error ? cause : new Error(String(cause))
+          } finally {
+            await renderer.dispose()
           }
         })()
-        if (image instanceof Error) return error({ code: 'render_failed', message: image.message })
-        await fs.writeFile(out, image)
-        return { bytes: image.length, path: out }
+        if (rendered instanceof Error)
+          return error({ code: 'render_failed', message: rendered.message })
+        await fs.writeFile(out, rendered.image)
+        if (rendered.preview) await Terminal.preview(rendered.preview)
+        return { bytes: rendered.image.length, path: out }
       },
     })
     .command('share', {
