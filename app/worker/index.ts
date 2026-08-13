@@ -115,7 +115,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/s/:id/og.png', async (c) => {
     const kept = await c.env.LINKS?.get(c.req.param('id'))
     // A link that expired still has a card, which is the app's own.
-    if (!kept) return c.redirect('/og.png', 302)
+    if (!kept) return c.redirect('/og.jpg', 302)
     const { state } = Links.read(kept)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
@@ -123,7 +123,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
-    if (!c.env.BROWSER) return c.redirect('/og.png', 302)
+    if (!c.env.BROWSER) return c.redirect('/og.jpg', 302)
     const settings = Codec.deserialize(state)
     // The picture the frame stands on, carried rather than named: the renderer
     // fetches nothing, so a backdrop reaches it as data or not at all.
@@ -165,7 +165,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
       c.env,
       c.executionCtx,
     )
-    if (!drawn.ok) return c.redirect('/og.png', 302)
+    if (!drawn.ok) return c.redirect('/og.jpg', 302)
 
     const response = new Response(drawn.body, {
       // The state behind an id never changes, so a hit needs no revalidation.
