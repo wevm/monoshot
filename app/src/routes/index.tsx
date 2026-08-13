@@ -494,6 +494,20 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     return () => clearTimeout(timer)
   }, [code, navigate, settings, state, title])
 
+  // A closing page may not live long enough for the debounce to fire. Flush
+  // the current state through the synchronous History API during pagehide.
+  useEffect(() => {
+    function flush() {
+      const hash = share({ code, settings, title })
+      if (state === hash) return
+      const url = new URL('/', window.location.origin)
+      url.hash = hash
+      window.history.replaceState(window.history.state, '', url)
+    }
+    window.addEventListener('pagehide', flush)
+    return () => window.removeEventListener('pagehide', flush)
+  }, [code, settings, state, title])
+
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
