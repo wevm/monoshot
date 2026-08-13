@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 
 import * as Scheme from '#/lib/scheme.js'
 import * as Site from '#/lib/site.js'
+import * as Opening from '#/lib/opening.js'
 import appCss from '#/styles.css?url'
 import { Tooltip } from '#/ui/Tooltip.js'
 import { motion } from '../theme/tokens.stylex.js'
@@ -80,7 +81,7 @@ function Layout() {
 
 // Runs before first paint so a stored override never flashes the OS scheme.
 // Inlined rather than imported because module scripts are deferred.
-const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{}`
+const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{};try{if(sessionStorage.getItem(${JSON.stringify(Opening.storageKey)})==='true')document.documentElement.style.setProperty('--loading-screen-display','none')}catch{}`
 
 function Document({ children }: { children: ReactNode }) {
   return (

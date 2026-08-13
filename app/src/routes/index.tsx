@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Links from '#/lib/links.js'
+import * as Opening from '#/lib/opening.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
 import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
@@ -19,7 +20,7 @@ import { sample } from '#/lib/sample.js'
 import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
 import { ButtonLink } from '#/ui/Button.js'
-import { font, motion } from '../theme/tokens.stylex.js'
+import { color, font, motion } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
 import { Editor } from './-components/Editor.js'
 import { Frame } from './-components/Frame.js'
@@ -27,6 +28,11 @@ import { Toolbar } from './-components/Toolbar.js'
 
 export const Route = createFileRoute('/')({
   component: Page,
+})
+
+const loadingReveal = stylex.keyframes({
+  from: { clipPath: 'inset(0 100% 0 0)', opacity: 0.7 },
+  to: { clipPath: 'inset(0)', opacity: 1 },
 })
 
 const styles = stylex.create({
@@ -195,6 +201,44 @@ const styles = stylex.create({
     position: 'fixed',
   },
   controlsInner: { pointerEvents: 'auto' },
+  loadingScreen: {
+    alignItems: 'center',
+    backgroundColor: color.background,
+    color: color.gray1000,
+    display: 'var(--loading-screen-display, flex)',
+    inset: 0,
+    justifyContent: 'center',
+    opacity: 1,
+    position: 'fixed',
+    transitionDuration: motion.medium,
+    transitionProperty: 'opacity',
+    transitionTimingFunction: motion.out,
+    zIndex: 100,
+  },
+  loadingScreenReady: { opacity: 0, pointerEvents: 'none' },
+  loadingMark: { blockSize: 48, inlineSize: 184, position: 'relative' },
+  loadingLogo: {
+    backgroundColor: 'currentColor',
+    inset: 0,
+    maskImage: 'url("/logo-light.svg")',
+    maskPosition: 'center',
+    maskRepeat: 'no-repeat',
+    maskSize: 'contain',
+    position: 'absolute',
+  },
+  loadingLogoBase: { opacity: 0.16 },
+  loadingLogoReveal: {
+    animationDirection: 'alternate',
+    animationDuration: motion.slow,
+    animationIterationCount: 'infinite',
+    animationName: loadingReveal,
+    animationTimingFunction: motion.inOut,
+    '@media (prefers-reduced-motion: reduce)': {
+      animationName: 'none',
+      clipPath: 'inset(0)',
+      opacity: 0.7,
+    },
+  },
 })
 
 /** Held still so the editor is not reconfigured with a fresh array each render. */
@@ -400,6 +444,10 @@ function Page() {
   // Held as data rather than drawn from its URL: the copy an export captures is
   // read as it stands, and a fetch it started would not have landed by then.
   const [wallpaper, setWallpaper] = useState<Wallpapers.Picture>()
+  // Gate only the opening visual assets; type resolution remains progressive.
+  const [pictureReady, setPictureReady] = useState(false)
+  const [fontsReady, setFontsReady] = useState(false)
+  const [opening, setOpening] = useState(true)
   const stage = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
@@ -492,14 +540,19 @@ function Page() {
     // while the next one loads, which is the last theme's backdrop under this
     // theme's colors.
     setWallpaper(undefined)
+    setPictureReady(!picture)
     if (!picture) return
     let active = true
     void Wallpapers.embed(picture).then(
       (source) => {
-        if (active) setWallpaper({ source })
+        if (!active) return
+        setWallpaper({ source })
+        setPictureReady(true)
       },
       (cause: Error) => {
-        if (active) setNotice(cause.message)
+        if (!active) return
+        setNotice(cause.message)
+        setPictureReady(true)
       },
     )
     // Behind the picture rather than before it: the shell takes the picture's
@@ -517,6 +570,23 @@ function Page() {
     // The picture is what this loads; every other setting leaves it alone, and
     // a drag on the padding would otherwise reload it on every frame.
   }, [picture])
+
+  useEffect(() => {
+    let active = true
+    void document.fonts.ready.then(() => {
+      if (active) setFontsReady(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    // Latch open so later theme loads never bring the screen back.
+    if (!fontsReady || !(error || (frame && pictureReady))) return
+    setOpening(false)
+    Opening.remember()
+  }, [error, fontsReady, frame, pictureReady])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 
@@ -782,6 +852,7 @@ function Page() {
 
   return (
     <main
+      aria-busy={opening}
       {...stylex.props(
         styles.page,
         canvas ? styles.canvasColor(canvas) : null,
@@ -793,6 +864,17 @@ function Page() {
           : null,
       )}
     >
+      <div
+        aria-hidden
+        data-loading-screen
+        {...stylex.props(styles.loadingScreen, !opening && styles.loadingScreenReady)}
+      >
+        <div {...stylex.props(styles.loadingMark)}>
+          <span {...stylex.props(styles.loadingLogo, styles.loadingLogoBase)} />
+          <span {...stylex.props(styles.loadingLogo, styles.loadingLogoReveal)} />
+        </div>
+      </div>
+
       {rect && (
         // Constrain guides to artwork bounds when a backdrop defines visible edges.
         <div aria-hidden {...stylex.props(styles.guides)}>
