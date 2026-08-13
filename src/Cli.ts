@@ -322,10 +322,13 @@ function frame(
   }
 }
 
-/** Returns the picture owned by a theme when its default backdrop is selected. */
+/** Returns the artwork a composed theme owns when its default backdrop is selected. */
 async function themedPicture(state: Codec.State): Promise<string | undefined> {
-  if (state.theme !== 'tempo' || state.background !== 'default') return undefined
-  const bytes = await fs.readFile(new URL('../app/public/wallpapers/tempo.webp', import.meta.url))
+  if (state.background !== 'default' || !Theme.composed.some((theme) => theme.name === state.theme))
+    return undefined
+  const bytes = await fs.readFile(
+    new URL(`../app/public/wallpapers/${state.theme}.webp`, import.meta.url),
+  )
   return `data:image/webp;base64,${bytes.toString('base64')}`
 }
 

@@ -248,7 +248,7 @@ describe('create', () => {
   })
 
   describe('render', () => {
-    test('renders Tempo on its artwork with square corners by default', async () => {
+    test('renders every composed theme on its artwork', async () => {
       const source = await file('demo.ts')
       const render = vi.fn((_options: Headless.render.Options) =>
         Promise.resolve(new Uint8Array([1, 2, 3])),
@@ -258,21 +258,34 @@ describe('create', () => {
         render,
       } as never)
       try {
-        await run(['render', source, '--theme', 'tempo'])
-        const options = render.mock.calls[0]?.[0]
-        expect({
-          background: options?.background,
-          picture: options?.picture?.startsWith('data:image/webp;base64,'),
-          radius: options?.radius,
-          width: options?.width,
-        }).toMatchInlineSnapshot(`
-          {
-            "background": "default",
-            "picture": true,
-            "radius": 0,
-            "width": undefined,
-          }
-        `)
+        const themes = [
+          'golden-gate-dark',
+          'golden-gate-light',
+          'mountain-lion',
+          'panther',
+          'sequoia-dark',
+          'sequoia-light',
+          'snow-leopard',
+          'tahoe-dark',
+          'tahoe-light',
+          'tempo',
+        ]
+        for (const theme of themes) await run(['render', source, '--theme', theme])
+        expect(
+          render.mock.calls.map(([options]) => ({
+            picture: options.picture?.startsWith('data:image/webp;base64,'),
+            radius: options.radius,
+            theme: options.theme,
+            width: options.width,
+          })),
+        ).toEqual(
+          themes.map((theme) => ({
+            picture: true,
+            radius: theme === 'tempo' ? 0 : 12,
+            theme,
+            width: undefined,
+          })),
+        )
       } finally {
         create.mockRestore()
       }
