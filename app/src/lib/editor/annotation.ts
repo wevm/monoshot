@@ -107,12 +107,5 @@ function control(action: Action): HTMLElement {
     Tooltip.point()
     action.select()
   })
-  // Native buttons report keyboard activation as a click without a click
-  // count. Pointer activation already ran on mousedown above.
-  button.addEventListener('click', (event) => {
-    if (event.detail !== 0) return
-    Tooltip.point()
-    action.select()
-  })
   return button
 }

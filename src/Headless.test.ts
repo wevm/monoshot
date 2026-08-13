@@ -84,14 +84,17 @@ describe('render', () => {
     })
     // The PNG signature, so a blank or truncated capture is not mistaken for
     // a rendered one.
-    expect({ png: Array.from(png.slice(0, 4)), sized: png.length > 5000 }).toMatchInlineSnapshot(`
+    expect({ png: png.slice(0, 4), sized: png.length > 5000 }).toMatchInlineSnapshot(`
       {
-        "png": [
-          137,
-          80,
-          78,
-          71,
-        ],
+        "png": {
+          "data": [
+            137,
+            80,
+            78,
+            71,
+          ],
+          "type": "Buffer",
+        },
         "sized": true,
       }
     `)

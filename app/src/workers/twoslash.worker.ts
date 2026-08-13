@@ -187,15 +187,11 @@ type Resolved = Extract<Response, { result: Twoslash.Result }>
  * Loads one package's declarations through the app route.
  * The route avoids registry CORS restrictions and consolidates tarball requests.
  */
-async function load(name: string, version: string) {
+async function load(name: string) {
   try {
-    const response = await fetch(`/api/types/${name}@${encodeURIComponent(version)}`)
+    const response = await fetch(`/api/types/${name}`)
     if (!response.ok) return undefined
-    return (await response.json()) as {
-      files: Record<string, string>
-      name: string
-      version: string
-    }
+    return (await response.json()) as { files: Record<string, string>; name: string }
   } catch {
     // Preserve the initial `any` result when declaration loading fails.
     return undefined

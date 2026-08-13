@@ -1,7 +1,6 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono, type Context } from 'hono'
 import { accepts } from 'hono/accepts'
-import { bodyLimit } from 'hono/body-limit'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
@@ -10,31 +9,26 @@ import { detect } from '../src/lib/detect.js'
 import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
 import * as Links from './links.js'
-import * as Packages from './Packages.js'
 
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
-const renderer = Api.route({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
-const renderLimit = bodyLimit({
-  maxSize: 5 * 1024 * 1024,
-  onError: (c) => c.json({ error: 'The request body is too large.' }, 413),
-})
-const shareLimit = bodyLimit({
-  maxSize: Links.limits.size * 2,
-  onError: (c) => c.json({ error: 'That snippet is too large to share.' }, 413),
-})
+const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))
-  .post('/document', renderLimit, (c) => apiRender(c, '/document'))
-  .post('/image', renderLimit, (c) => apiRender(c, '/image'))
+  .post('/document', (c) => apiRender(c, '/document'))
+  .post('/image', (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.
   .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
-  .post('/share', shareLimit, async (c) => {
+  .post('/share', async (c) => {
     if (!c.env.LINKS)
       return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
+    // Reject oversized bodies before parsing to limit memory use by unauthenticated requests.
+    const declared = Number(c.req.header('content-length') ?? 0)
+    if (declared > Links.limits.size * 2)
+      return c.json({ error: 'That snippet is too large to share.' }, 413)
     // Limit writes per client address because each share persists for 90 days.
     const caller = c.req.header('cf-connecting-ip') ?? 'anonymous'
     if (!(await c.env.SHARE_RATE.limit({ key: caller })).success)
@@ -48,10 +42,12 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
 
     const id = Links.id()
+    // Generate metadata once during sharing instead of delaying every preview request.
     const settings = Codec.deserialize(state)
+    const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
     // Re-encode validated settings to remove trailing data ignored by the decoder.
     const canonical = Codec.serialize(settings)
-    await c.env.LINKS.put(id, JSON.stringify({ state: canonical }), {
+    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: canonical }), {
       expirationTtl: Links.limits.ttl,
     })
     // Render and store the card during sharing to reduce latency for preview clients.
@@ -67,25 +63,17 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   // in the browser, where fetching them file by file from a CDN costs hundreds
   // of round trips for a package like `shiki`.
   .get('/types/*', async (c) => {
-    const spec = (() => {
-      try {
-        return decodeURIComponent(c.req.path.replace(/^\/api\/types\//, ''))
-      } catch {
-        return undefined
-      }
-    })()
-    if (spec === undefined) return c.json({ error: 'Name a valid package to read types for.' }, 400)
-    const { name, version } = Packages.parse(spec)
+    const spec = decodeURIComponent(c.req.path.replace(/^\/api\/types\//, ''))
+    const { name, version } = parse(spec)
     if (!name) return c.json({ error: 'Name a package to read types for.' }, 400)
 
     // Exact package versions are immutable and need no revalidation. Tags may
     // resolve to a different version after a release.
-    const exact = Packages.exact(version)
+    const exact = version !== 'latest'
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
     const cache = await caches.open('types')
-    const key = Packages.key(c.req.url, { name, version })
-    const hit = await cache.match(key)
+    const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
     const result = await (async () => {
@@ -111,23 +99,11 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
             'public, max-age=300',
       },
     })
-    c.executionCtx.waitUntil(cache.put(key, response.clone()))
+    c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
     return response
   })
 
 const app = new Hono<{ Bindings: Cloudflare.Env }>()
-  .use('*', async (c, next) => {
-    await next()
-    c.header(
-      'content-security-policy',
-      "default-src 'self'; base-uri 'self'; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:",
-    )
-    c.header('permissions-policy', 'camera=(), geolocation=(), microphone=()')
-    c.header('referrer-policy', 'strict-origin-when-cross-origin')
-    c.header('strict-transport-security', 'max-age=31536000; includeSubDomains')
-    c.header('x-content-type-options', 'nosniff')
-    c.header('x-frame-options', 'DENY')
-  })
   .route('/api', api)
   // Render server-side preview images before the application fall-through routes.
   .get('/s/:id/og.png', async (c) => {
@@ -395,4 +371,14 @@ async function inlined(
     // Omit the picture when the wallpaper cannot be loaded.
     return undefined
   }
+}
+
+/**
+ * Splits `shiki@4.4.2` into package and version components while preserving
+ * scoped package prefixes. Missing versions default to `latest`.
+ */
+function parse(spec: string) {
+  const at = spec.lastIndexOf('@')
+  if (at <= 0) return { name: spec, version: 'latest' }
+  return { name: spec.slice(0, at), version: spec.slice(at + 1) }
 }

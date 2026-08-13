@@ -48,6 +48,7 @@
     "@cloudflare/vite-plugin": "catalog:",
     "@rolldown/plugin-babel": "catalog:",
     "@stylexjs/unplugin": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
     "@types/babel__core": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
@@ -55,6 +56,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
+    "typescript": "catalog:",
     "unplugin": "catalog:",
     "vite-plus": "catalog:",
     "wrangler": "catalog:"

@@ -2,7 +2,7 @@ import { converter, formatCss } from 'culori'
 
 /**
  * Available backdrops include Tempo artwork and macOS wallpapers sourced from
- * the 512 Pixels archive.
+ * the 512 Pixels archive. Neither source grants redistribution rights here.
  *
  * @see https://512pixels.net/projects/default-mac-wallpapers-in-5k/
  */

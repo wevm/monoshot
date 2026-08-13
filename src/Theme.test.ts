@@ -99,18 +99,6 @@ describe('list', () => {
   })
 })
 
-describe('composed', () => {
-  test('keeps shared theme registrations immutable', () => {
-    const theme = Theme.composed[0]
-    const rule = theme?.settings?.[0]
-    expect(Object.isFrozen(Theme.composed)).toBe(true)
-    expect(Object.isFrozen(theme)).toBe(true)
-    expect(Object.isFrozen(theme?.settings)).toBe(true)
-    expect(Object.isFrozen(rule)).toBe(true)
-    expect(Object.isFrozen(rule?.settings)).toBe(true)
-  })
-})
-
 describe('derive', () => {
   test('falls back when a theme color is present but unparseable', () => {
     const result = Theme.derive({

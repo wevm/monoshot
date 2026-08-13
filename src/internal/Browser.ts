@@ -15,22 +15,18 @@ export async function screenshot(
   const browser = await open(puppeteer, endpoint)
   try {
     const page = await browser.newPage()
-    try {
-      await page.setContent(html, { waitUntil: 'load' })
-      // The document embeds its fonts, so this resolves without the network.
-      await page.evaluate(() => document.fonts.ready)
-      const canvas = await page.$('.canvas')
-      if (!canvas) throw new Error('The document rendered no frame.')
-      const box = await canvas.boundingBox()
-      await page.setViewport({
-        deviceScaleFactor: Raster.fit(box, scale),
-        height: Math.ceil(box?.height ?? 1),
-        width: Math.ceil(box?.width ?? 1),
-      })
-      return await canvas.screenshot({ omitBackground: true, type: 'png' })
-    } finally {
-      await page.close()
-    }
+    await page.setContent(html, { waitUntil: 'load' })
+    // The document embeds its fonts, so this resolves without the network.
+    await page.evaluate(() => document.fonts.ready)
+    const canvas = await page.$('.canvas')
+    if (!canvas) throw new Error('The document rendered no frame.')
+    const box = await canvas.boundingBox()
+    await page.setViewport({
+      deviceScaleFactor: Raster.fit(box, scale),
+      height: Math.ceil(box?.height ?? 1),
+      width: Math.ceil(box?.width ?? 1),
+    })
+    return await canvas.screenshot({ omitBackground: true, type: 'png' })
   } finally {
     // Disconnected rather than closed because the session outlives this request.
     await browser.disconnect()
