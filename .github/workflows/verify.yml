@@ -38,14 +38,14 @@ jobs:
       - name: Check agent skill discovery
         run: pnpm check:skill
 
+      - name: Build
+        run: pnpm build
+
       - name: Check package contents
         run: pnpm check:pack
 
       - name: Check types
         run: pnpm check:types
-
-      - name: Build
-        run: pnpm build
 
       # The app has to bundle through the full Vite plugin stack, which the
       # library checks cannot tell us. Also generates `routeTree.gen.ts`,
