@@ -59,3 +59,37 @@ describe('page', () => {
     expect(html).toContain('&lt;/title&gt;&lt;script&gt;')
   })
 })
+
+describe('read', () => {
+  test('reads a link kept with what was made of it', () => {
+    const kept = JSON.stringify({
+      description: 'A code snippet of x',
+      state: 'N4Ig',
+      title: 'Sums',
+    })
+    expect(Links.read(kept)).toMatchInlineSnapshot(`
+      {
+        "description": "A code snippet of x",
+        "state": "N4Ig",
+        "title": "Sums",
+      }
+    `)
+  })
+
+  test('reads a link kept before a snippet was ever read', () => {
+    // The fragment alone, which is every link written before this existed.
+    expect(Links.read('N4IgRiBcICYKYDM')).toMatchInlineSnapshot(`
+      {
+        "state": "N4IgRiBcICYKYDM",
+      }
+    `)
+  })
+
+  test('keeps a fragment that merely looks like a record', () => {
+    expect(Links.read('{"nope":1}')).toMatchInlineSnapshot(`
+      {
+        "state": "{"nope":1}",
+      }
+    `)
+  })
+})

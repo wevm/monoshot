@@ -129,3 +129,112 @@ function escape(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 }
+
+/**
+ * The model that reads a snippet. Small and quick: this runs while a reader
+ * waits for their link, and the answer is two short lines.
+ */
+const model = '@cf/meta/llama-3.2-3b-instruct'
+
+/** How much of a snippet the model is shown, and how long an answer may be. */
+const reading = { code: 4_000, description: 180, title: 60 } as const
+
+/**
+ * Reads a snippet and names it, for the preview a link carries.
+ *
+ * Answers `undefined` rather than throwing: a link whose snippet could not be
+ * read still opens, under the heading its first line gives it.
+ *
+ * The snippet is a stranger's text, and text that asks the model for something
+ * else is text it may follow. Nothing here acts on the answer, and the page
+ * escapes it, so the worst a crafted snippet buys is its own bad heading.
+ */
+export async function describe(ai: Ai, code: string): Promise<describe.Result | undefined> {
+  try {
+    const answer = await ai.run(model, {
+      max_tokens: 120,
+      messages: [
+        {
+          content:
+            'You label a code snippet for a link preview. Answer with exactly two lines and nothing else. First line: a name for the snippet, at most 5 words, no quotes and no full stop. Second line: what the code does, as one short phrase completing "A code snippet of ...". Describe the behaviour, never the language or library on its own.',
+          role: 'system',
+        },
+        { content: code.slice(0, reading.code), role: 'user' },
+      ],
+      temperature: 0.2,
+    })
+    const [title, subject] = lines(answer)
+    if (!title || !subject) return undefined
+    return { description: `A code snippet of ${subject}`, title }
+  } catch {
+    // The model is not what a link is for. A reader still gets their preview.
+    return undefined
+  }
+}
+
+/**
+ * The two lines of an answer, however the model wrapped them.
+ *
+ * Chat models answer in the shape the endpoint gives them, and the same
+ * binding has returned both an OpenAI-style envelope and a bare `response`.
+ * Labels are stripped where the model used them and forgiven where it did not,
+ * along with the opening the second line is asked to complete: this decides
+ * the phrasing rather than the model.
+ */
+function lines(answer: unknown): readonly (string | undefined)[] {
+  const held = (answer ?? {}) as Record<string, unknown>
+  const choice = Array.isArray(held['choices']) ? held['choices'][0] : undefined
+  const message = (choice as { message?: { content?: unknown } } | undefined)?.message?.content
+  const said = typeof message === 'string' ? message : held['response']
+  if (typeof said !== 'string') return []
+  return said
+    .split('\n')
+    .map((entry) =>
+      entry
+        .replace(/^\s*(?:title|subject|summary)\s*:\s*/i, '')
+        .replace(/^\s*(?:a\s+)?code snippet (?:of|that|which)\s+/i, '')
+        .replace(/^[-*\s]+/, '')
+        .replace(/^["\'`]|["\'`.]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    )
+    .filter((entry) => entry.length > 0)
+    .slice(0, 2)
+    .map((entry, at) => {
+      const limit = at === 0 ? reading.title : reading.description
+      return entry.length > limit ? `${entry.slice(0, limit - 1)}…` : entry
+    })
+}
+
+export declare namespace describe {
+  /** What a snippet is called, and what it is said to be. */
+  type Result = { description: string; title: string }
+}
+
+/**
+ * A kept link, however it was kept.
+ *
+ * Links written before a snippet was ever read hold the fragment alone, and a
+ * link is worth more than the heading it lacks: those open under the heading
+ * their first line gives them.
+ */
+export function read(kept: string): read.Link {
+  try {
+    const parsed: unknown = JSON.parse(kept)
+    if (typeof parsed !== 'object' || parsed === null) return { state: kept }
+    const { description, state, title } = parsed as Record<string, unknown>
+    if (typeof state !== 'string') return { state: kept }
+    return {
+      ...(typeof description === 'string' ? { description } : {}),
+      ...(typeof title === 'string' ? { title } : {}),
+      state,
+    }
+  } catch {
+    return { state: kept }
+  }
+}
+
+export declare namespace read {
+  /** The fragment a link carries, and what was made of it when it was shared. */
+  type Link = { description?: string | undefined; state: string; title?: string | undefined }
+}
