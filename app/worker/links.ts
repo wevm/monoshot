@@ -1,63 +1,19 @@
-/**
- * Size, retention, and preview limits for shared links. The row limit fits
- * within the maximum canvas dimensions returned by {@link geometry}.
- */
-export const limits = { rows: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
-
-/** Card output dimensions and canvas layout constants. */
-const card = {
-  /** Fixed output dimensions in pixels. */
-  height: 630,
-  width: 1200,
-  /** Canvas width limits in pixels. */
-  narrowest: 800,
-  widest: 1600,
-  /** Approximate width of one code column in pixels. */
-  column: 8.4,
-  /** Code-window horizontal inset in pixels. */
-  inset: 16,
-  /** Code-line height in pixels. */
-  line: 22,
-  /** Canvas space around the code window in pixels. */
-  padding: 80,
-  /** Code-window vertical padding in pixels. */
-  window: 40,
+/** Size, retention, and preview limits for shared links. */
+export const limits = {
+  columns: 72,
+  rows: 10,
+  size: 20_000,
+  ttl: 60 * 60 * 24 * 90,
 } as const
 
-/**
- * Computes canvas dimensions and scale from the rendered row count.
- *
- * Width grows at the 40:21 aspect ratio in 40-pixel increments, then scales to
- * the fixed 1200x630 output.
- */
-export function geometry(code: string): geometry.Result {
-  for (let width = card.narrowest; width <= card.widest; width += 40) {
-    const height = (width * card.height) / card.width
-    const window = rows(code, width) * card.line + card.window
-    if (window > height - card.padding * 2) continue
-    return { height, padding: card.padding, scale: card.width / width, width }
-  }
-  const width = card.widest
-  return {
-    height: (width * card.height) / card.width,
-    padding: card.padding,
-    scale: card.width / width,
-    width,
-  }
-}
-
-export declare namespace geometry {
-  type Result = {
-    /** Canvas height in pixels, derived from `width` at the card ratio. */
-    height: number
-    /** Canvas space around the code window in pixels. */
-    padding: number
-    /** Device scale factor that maps the canvas to the output size. */
-    scale: number
-    /** Canvas width in pixels. */
-    width: number
-  }
-}
+/** Fixed social-card canvas dimensions and cache version. */
+export const card = {
+  height: 420,
+  padding: 80,
+  scale: 1.5,
+  version: 2,
+  width: 800,
+} as const
 
 /**
  * Generates a 12-character identifier with 60 bits of entropy.
@@ -86,7 +42,7 @@ export function id(): string {
 export function page(options: page.Options): string {
   const { description, id, origin, state, title } = options
   const target = `${origin}/#${state}`
-  const image = `${origin}/s/${id}/og.png`
+  const image = `${origin}/s/${id}/og.png?v=${card.version}`
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -133,38 +89,70 @@ export declare namespace page {
   }
 }
 
-/** Truncates code by rendered row count to keep social-card text legible. */
-export function excerpt(code: string): string {
-  if (rows(code, card.widest) <= limits.rows) return code
-  const capacity = columns(card.widest)
+/** Limits code to the readable social-card viewport and reports clipped axes. */
+export function excerpt(code: string): excerpt.Result {
   const lines = code.replace(/\n$/, '').split('\n')
-  const output: string[] = []
-  let remaining = limits.rows
-  for (const line of lines) {
-    const needed = Math.max(1, Math.ceil(columnCount(line) / capacity))
-    if (needed <= remaining) {
-      output.push(line)
-      remaining -= needed
-      continue
-    }
-    if (remaining > 0) output.push(takeColumns(line, remaining * capacity))
-    return `${output.join('\n')}\n`
+  let horizontal = false
+  const shown = lines.slice(0, limits.rows).map((line) => {
+    if (columnCount(line) <= limits.columns) return line
+    horizontal = true
+    return takeColumns(line, limits.columns)
+  })
+  return {
+    code: shown.join('\n'),
+    overflow: { horizontal, vertical: lines.length > limits.rows },
   }
-  return code
 }
 
-/** Returns the number of code columns available at a canvas width. */
-function columns(width: number): number {
-  return Math.max(1, Math.floor((width - card.padding * 2 - card.inset * 2) / card.column))
+export declare namespace excerpt {
+  type Result = {
+    code: string
+    overflow: fade.Overflow
+  }
 }
 
-/** Counts rendered rows after code wraps at a canvas width. */
-function rows(code: string, width: number): number {
-  const capacity = columns(width)
-  return code
-    .replace(/\n$/, '')
-    .split('\n')
-    .reduce((count, line) => count + Math.max(1, Math.ceil(columnCount(line) / capacity)), 0)
+/** Adds edge fades to a standalone document for each clipped code axis. */
+export function fade(html: string, overflow: fade.Overflow): string {
+  const classes = [
+    'body',
+    ...(overflow.horizontal ? ['preview-overflow-x'] : []),
+    ...(overflow.vertical ? ['preview-overflow-y'] : []),
+  ]
+  if (classes.length === 1) return html
+  return html.replace('<div class="body">', `<div class="${classes.join(' ')}">`).replace(
+    '</head>',
+    `<style>
+.preview-overflow-x,
+.preview-overflow-y { position: relative; }
+.preview-overflow-x::before,
+.preview-overflow-y::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+.preview-overflow-x::before {
+  background: linear-gradient(to right, transparent, var(--window-background));
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 48px;
+}
+.preview-overflow-y::after {
+  background: linear-gradient(to bottom, transparent, var(--window-background));
+  block-size: 44px;
+  inset-block-end: 0;
+  inset-inline: 0;
+}
+</style>
+</head>`,
+  )
+}
+
+export declare namespace fade {
+  type Overflow = {
+    horizontal: boolean
+    vertical: boolean
+  }
 }
 
 /** Counts display columns, including two-column tabs and non-ASCII characters. */
