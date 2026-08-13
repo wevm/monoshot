@@ -773,9 +773,9 @@ function Page() {
     const controller = new AbortController()
     void Warm.themes({
       from: settings.theme,
-      // The full sweep is a couple of megabytes of chunks, so a metered
-      // connection preloads only adjacent themes.
-      limit: metered() ? 4 : names.length,
+      // Keep speculative downloads bounded. The Network Information API is
+      // unavailable in major browsers, so absence cannot imply free bandwidth.
+      limit: 8,
       list: names,
       load: (theme) => renderer.load({ lang: 'tsx', theme }),
       signal: controller.signal,
@@ -1143,15 +1143,6 @@ function copying(event: KeyboardEvent) {
   const { target } = event
   if (target instanceof Element && target.closest('input, textarea, [contenteditable]')) return true
   return getSelection()?.isCollapsed === false
-}
-
-/** Whether the connection indicates reduced data usage. */
-function metered() {
-  const { connection } = navigator as Navigator & {
-    connection?: { effectiveType?: string; saveData?: boolean } | undefined
-  }
-  if (!connection) return false
-  return connection.saveData === true || /^(slow-)?2g$/.test(connection.effectiveType ?? '')
 }
 
 /** Rough perceptual lightness of a `#rrggbb` color, from 0 to 1. */
