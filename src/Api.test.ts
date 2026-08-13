@@ -68,6 +68,54 @@ describe('create', () => {
     expect(body).toContain('twoslash-query-line')
   })
 
+  test('refuses resolved nodes without renderer positions', async () => {
+    const code = 'const a = 1\n'
+    const { body, status } = await post({
+      code,
+      lang: 'ts',
+      twoslash: {
+        code,
+        meta: { removals: [] },
+        nodes: [{ length: 1, start: 6, target: 'a', text: 'const a: 1', type: 'query' }],
+      },
+    })
+    expect(status).toBe(400)
+    expect(body).toMatchInlineSnapshot(`
+      {
+        "error": "twoslash: Invalid input",
+      }
+    `)
+  })
+
+  test('refuses resolved nodes outside the compiled source', async () => {
+    const code = 'const a = 1\n'
+    const { body, status } = await post({
+      code,
+      lang: 'ts',
+      twoslash: {
+        code,
+        meta: { removals: [] },
+        nodes: [
+          {
+            character: 0,
+            length: 1,
+            line: 2,
+            start: 20,
+            target: 'a',
+            text: 'const a: 1',
+            type: 'query',
+          },
+        ],
+      },
+    })
+    expect(status).toBe(400)
+    expect(body).toMatchInlineSnapshot(`
+      {
+        "error": "twoslash.nodes.0: the node position is outside the resolved code.",
+      }
+    `)
+  })
+
   test('refuses a setting the codec would replace rather than reject', async () => {
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts', width: 5000 })
     expect(status).toBe(400)
