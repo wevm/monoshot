@@ -39,6 +39,14 @@ export function render(code: string): string {
 }
 `
 
+const ambiguousTypescript = `class Client {
+  public async request() {
+    const result = await fetch('/api')
+    return new Response(result)
+  }
+}
+`
+
 const go = `package main
 
 import "fmt"
@@ -96,6 +104,10 @@ describe('detect', () => {
         "typescript": "typescript",
       }
     `)
+  })
+
+  test('prefers TypeScript when another language has the same score', () => {
+    expect(detect(ambiguousTypescript)).toBe('typescript')
   })
 
   test('declines a snippet too slight to call', () => {

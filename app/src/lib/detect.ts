@@ -102,6 +102,9 @@ export const languages: readonly Language[] = [
  * contains all approximately 190 languages supported by highlight.js.
  */
 const detectable: readonly { grammar: LanguageFn; id: BundledLanguage; name: string }[] = [
+  // Highlight.js resolves equal scores by registration order. Prefer TypeScript
+  // for ambiguous C-family snippets.
+  { grammar: typescript, id: 'typescript', name: 'typescript' },
   { grammar: bash, id: 'bash', name: 'bash' },
   { grammar: c, id: 'c', name: 'c' },
   { grammar: cpp, id: 'cpp', name: 'cpp' },
@@ -119,7 +122,6 @@ const detectable: readonly { grammar: LanguageFn; id: BundledLanguage; name: str
   { grammar: rust, id: 'rust', name: 'rust' },
   { grammar: sql, id: 'sql', name: 'sql' },
   { grammar: swift, id: 'swift', name: 'swift' },
-  { grammar: typescript, id: 'typescript', name: 'typescript' },
   { grammar: xml, id: 'html', name: 'xml' },
   { grammar: yaml, id: 'yaml', name: 'yaml' },
 ]
