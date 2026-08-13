@@ -5,7 +5,6 @@ import type { ReactElement, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { text } from '#/theme/text.js'
-import { Roll } from './Roll.js'
 import { color, font, motion, radius, shadow } from '../theme/tokens.stylex.js'
 
 /** Shared tooltip handle that reuses one popup across controls. */
@@ -29,9 +28,6 @@ const styles = stylex.create({
 
 /** Transition between tooltip anchors, applied inline to override Base UI. */
 const travel = `transform ${motion.fast} ${motion.inOut}`
-
-/** Non-bouncing transition for tooltip label changes. */
-const rolling = { bounce: 0, duration: 0.22, type: 'spring' } as const
 
 /** A tooltip target created through an imperative DOM API. */
 type Aim = { at: Element; label: string }
@@ -243,9 +239,7 @@ function Pill(props: {
         style={{ transition: still || !placed ? 'none' : travel }}
         {...stylex.props(styles.positioner)}
       >
-        <Base.Popup {...stylex.props(styles.popup, text.label13)}>
-          <Roll transition={rolling} value={label} />
-        </Base.Popup>
+        <Base.Popup {...stylex.props(styles.popup, text.label13)}>{label}</Base.Popup>
       </Base.Positioner>
     </Base.Portal>
   )
