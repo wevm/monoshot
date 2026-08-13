@@ -1,12 +1,10 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./app/public/logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./app/public/logo-light.svg">
-    <img alt="Monoshot" src="./app/public/logo-light.svg" width="360">
+    <source media="(prefers-color-scheme: dark)" srcset="./app/public/cover-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./app/public/cover-light.svg">
+    <img alt="Monoshot" src="./app/public/cover-light.svg" width="518">
   </picture>
 </p>
-
-<p align="center">Beautiful code images.</p>
 
 <p align="center">
   <a href="#overview">Overview</a> ·
