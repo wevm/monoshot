@@ -198,7 +198,10 @@ namespace schema {
  * import { Hono } from 'hono'
  * import { Api, Frame } from 'monoshot'
  *
- * const app = new Hono().route('/v1', Api.create({ frame: Frame.create() }))
+ * const app = new Hono().route(
+ *   '/v1',
+ *   Api.create({ frame: Frame.create() })
+ * )
  * ```
  */
 export function create(options: create.Options = {}) {

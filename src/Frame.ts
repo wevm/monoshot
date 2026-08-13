@@ -32,7 +32,11 @@ import type {
  * import { Frame } from 'monoshot'
  *
  * const frame = Frame.create()
- * const result = await frame.render({ code: 'const a = 1', lang: 'ts', theme: 'vitesse-dark' })
+ * const result = await frame.render({
+ *   code: 'const a = 1',
+ *   lang: 'ts',
+ *   theme: 'vitesse-dark'
+ * })
  * result.html
  * // ^?
  * ```

@@ -4,6 +4,7 @@
     "changeset:publish": "zile publish:prepare && changeset publish && zile publish:post",
     "changeset:version": "changeset version && node scripts/update-version.ts",
     "check": "vp check --fix",
+    "check:examples": "zile examples:check",
     "check:skill": "node --import tsx scripts/check-agent-skill.ts",
     "cli": "node --import tsx src/bin.ts",
     "check:types": "tsc",

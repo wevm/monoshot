@@ -52,7 +52,11 @@ export const marks = {
  * ```ts twoslash
  * import { Frame, Theme } from 'monoshot'
  *
- * const result = await Frame.create().render({ code: 'a', lang: 'ts', theme: 'nord' })
+ * const result = await Frame.create().render({
+ *   code: 'a',
+ *   lang: 'ts',
+ *   theme: 'nord'
+ * })
  * const palette = Theme.derive(result.theme)
  * palette.backdrop.from
  * // ^?
@@ -167,7 +171,7 @@ export declare namespace derive {
  *   colors: ['#4f9cf0', '#f0a84f', '#8bd18b'],
  *   displayName: 'Tahoe',
  *   name: 'tahoe',
- *   type: 'dark',
+ *   type: 'dark'
  * })
  * theme.name
  * // ^?

@@ -70,7 +70,10 @@ const keys = {
  * ```ts twoslash
  * import { Codec } from 'monoshot'
  *
- * const hash = Codec.serialize({ code: 'const a = 1', theme: 'vitesse-dark' })
+ * const hash = Codec.serialize({
+ *   code: 'const a = 1',
+ *   theme: 'vitesse-dark'
+ * })
  * ```
  */
 export function serialize(state: serialize.Options): string {
