@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./app/public/cover-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="./app/public/cover-light.svg">
-    <img alt="Monoshot" src="./app/public/cover-light.svg" width="518">
+    <img alt="Monoshot" src="./app/public/cover-light.svg" width="454">
   </picture>
 </p>
 
