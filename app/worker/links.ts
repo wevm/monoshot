@@ -1,32 +1,29 @@
 /**
- * Size, retention, and preview limits for shared links. The line cap matches
- * the largest canvas {@link geometry} produces.
+ * Size, retention, and preview limits for shared links. The line limit fits
+ * within the maximum canvas dimensions returned by {@link geometry}.
  */
 export const limits = { lines: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /** Card output dimensions and canvas layout constants. */
 const card = {
-  /** Output size of every rendered card. */
+  /** Fixed output dimensions in pixels. */
   height: 630,
   width: 1200,
-  /** Canvas width bounds. The floor keeps short snippets at the standard layout. */
+  /** Canvas width limits in pixels. */
   narrowest: 800,
   widest: 1600,
-  /** Space between the canvas edge and the window, in canvas pixels. */
+  /** Canvas space around the code window in pixels. */
   padding: 88,
-  /** Window chrome height and the height of one code line. */
+  /** Window chrome and code-line heights in pixels. */
   chrome: 26,
   line: 22,
 } as const
 
 /**
- * Computes the canvas size for a snippet's card and the scale that maps it to
- * the 1200x630 output.
+ * Computes canvas dimensions and scale from the rendered line count.
  *
- * The canvas grows with the snippet at the card's aspect ratio and the
- * screenshot scales it back down, so every line renders and all cards share
- * one shape. Widths round to multiples of 40, which keeps heights whole at
- * the 21:40 ratio.
+ * Width grows at the 40:21 aspect ratio in 40-pixel increments, then scales to
+ * the fixed 1200x630 output.
  */
 export function geometry(code: string): geometry.Result {
   const lines = Math.max(1, code.replace(/\n$/, '').split('\n').length)

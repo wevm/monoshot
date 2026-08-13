@@ -60,7 +60,7 @@ describe('page', () => {
 })
 
 describe('geometry', () => {
-  test('keeps a short snippet at the standard canvas', () => {
+  test('uses standard dimensions for a short snippet', () => {
     expect(Links.geometry('const a = 1\n')).toMatchInlineSnapshot(`
       {
         "height": 420,
@@ -70,7 +70,7 @@ describe('geometry', () => {
     `)
   })
 
-  test('grows the canvas with the snippet, at the card ratio', () => {
+  test('preserves output dimensions as the canvas grows', () => {
     const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
     const grown = Links.geometry(fifteen)
     expect(grown).toMatchInlineSnapshot(`
@@ -80,16 +80,16 @@ describe('geometry', () => {
         "width": 1040,
       }
     `)
-    // Every canvas maps to the same output size.
+    // Verify that scaling produces the fixed social-card dimensions.
     expect(Math.round(grown.width * grown.scale)).toBe(1200)
     expect(Math.round(grown.height * grown.scale)).toBe(630)
   })
 
-  test('holds the excerpt cap at its widest canvas', () => {
+  test('supports the line limit at the maximum canvas width', () => {
     const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
     const grown = Links.geometry(most)
     expect(grown.width).toBe(1600)
-    // The window fits: lines and chrome inside the padded canvas.
+    // Verify that code and window chrome fit within the padded canvas.
     expect(29 * 22 + 26).toBeLessThanOrEqual(grown.height - 2 * 88)
   })
 })
