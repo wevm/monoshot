@@ -467,7 +467,10 @@ function Page() {
     // for a document that needs no resolving, because a caret asking for
     // completions reaches through it and the worker inside is what is lazy.
     resolver.current ??= Twoslash.create({
-      onError: () => setResolved(undefined),
+      onError: (message) => {
+        console.error('Type resolution failed.', message)
+        setResolved(undefined)
+      },
       onResult: setResolved,
     })
     // Already resolved, and by something other than the worker: an untouched

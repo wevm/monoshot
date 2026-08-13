@@ -36,7 +36,8 @@ export async function acquire(options: acquire.Options): Promise<void> {
       const found: string[] = []
       for (const [path, source] of Object.entries(entry.files)) {
         files.set(`/node_modules/${entry.name}${path}`, source)
-        if (/\.d\.[cm]?ts$/.test(path)) found.push(...references(compiler, source))
+        if (/\.d\.[cm]?ts$/.test(path))
+          for (const reference of references(compiler, source)) found.push(reference)
       }
       return found
     })
