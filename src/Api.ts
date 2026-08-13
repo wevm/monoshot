@@ -35,7 +35,10 @@ namespace schema {
   }
   const documented = {
     docs: text.optional(),
-    tags: z.array(z.tuple([text, text.optional()])).max(limit.nodes).optional(),
+    tags: z
+      .array(z.tuple([text, text.optional()]))
+      .max(limit.nodes)
+      .optional(),
     target: text,
     text,
   }
@@ -45,9 +48,7 @@ namespace schema {
     z.strictObject({ ...positioned, text: text.optional(), type: z.literal('highlight') }),
     z.strictObject({
       ...positioned,
-      completions: z
-        .array(z.strictObject({ kind: text.optional(), name: text }))
-        .max(limit.nodes),
+      completions: z.array(z.strictObject({ kind: text.optional(), name: text })).max(limit.nodes),
       completionsPrefix: text,
       type: z.literal('completion'),
     }),
@@ -177,6 +178,9 @@ namespace schema {
   /** Error response returned when a route rejects a request. */
   export const failure = z.object({ error: z.string() })
 
+  /** Raw binary response body. */
+  export const binary = z.string().meta({ format: 'binary' })
+
   /** Response returned by `/themes`. */
   export const themes = z.array(
     z.object({
@@ -268,7 +272,7 @@ export function create(options: create.Options = {}) {
         description:
           'Renders a snippet as a PNG by capturing the document with a Browser Rendering binding.',
         responses: {
-          200: { description: 'The image.', media: 'image/png', schema: z.string() },
+          200: { description: 'The image.', media: 'image/png', schema: schema.binary },
           413: { description: 'The request body is too large.', schema: schema.failure },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
           503: {

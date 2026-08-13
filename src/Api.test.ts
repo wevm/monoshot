@@ -230,6 +230,16 @@ describe('create', () => {
       `)
   })
 
+  test('describes image responses as binary data', async () => {
+    const response = await Api.route.request('/openapi.json')
+    const spec = (await response.json()) as {
+      paths: { '/image': { post: { responses: { 200: { content: Record<string, unknown> } } } } }
+    }
+    expect(spec.paths['/image'].post.responses[200].content).toEqual({
+      'image/png': { schema: expect.objectContaining({ format: 'binary', type: 'string' }) },
+    })
+  })
+
   describe('image', () => {
     test('captures the same automatic-width document', async () => {
       const screenshot = vi
