@@ -1,5 +1,3 @@
-import { snapdom } from '@zumer/snapdom'
-
 /** Scales the export menu offers, as multiples of the artwork's own size. */
 export const scales = [2, 4, 6] as const
 
@@ -40,6 +38,7 @@ export function fit(size: { height: number; width: number }, options: capture.Op
  */
 export async function capture(node: Element, options: capture.Options): Promise<Blob> {
   const { scale, type } = options
+  const { snapdom } = await import('@zumer/snapdom')
   // Snapdom forwards the nullable result from `canvas.toBlob` despite its type,
   // and a canvas past the browser's limit gives it a null.
   const blob: Blob | null = await snapdom.toBlob(node, {
