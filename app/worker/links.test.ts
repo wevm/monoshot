@@ -39,7 +39,7 @@ describe('page', () => {
       title: 'const a = 1',
     })
     expect(html).toContain(
-      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png?v=2">',
+      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png?v=3">',
     )
     expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
     // Redirect to the editor with the encoded state in the URL fragment.
@@ -66,7 +66,7 @@ describe('card', () => {
         "height": 420,
         "padding": 80,
         "scale": 1.5,
-        "version": 2,
+        "version": 3,
         "width": 800,
       }
     `)
@@ -93,6 +93,20 @@ describe('excerpt', () => {
       code: 'const a = 1',
       overflow: { horizontal: false, vertical: false },
     })
+  })
+})
+
+describe('withoutTypes', () => {
+  test('removes query rows without changing surrounding source', () => {
+    expect(Links.withoutTypes('const value = run()\n//    ^?\nvalue\n // ^?  ')).toBe(
+      'const value = run()\nvalue',
+    )
+  })
+
+  test('preserves comments that are not type queries', () => {
+    expect(Links.withoutTypes('// explain ^? here\nconst value = 1')).toBe(
+      '// explain ^? here\nconst value = 1',
+    )
   })
 })
 

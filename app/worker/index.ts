@@ -310,7 +310,7 @@ async function card(
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
   // Limit source to a fixed viewport so dense snippets remain readable.
-  const shown = Links.excerpt(settings.code)
+  const shown = Links.excerpt(Links.withoutTypes(settings.code))
   const drawn = await api.request(
     '/document',
     {
@@ -327,6 +327,8 @@ async function card(
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
         theme: settings.theme,
         titleBar: false,
+        // Preview crawlers cannot wait for package acquisition during Twoslash.
+        twoslash: false,
         width: Links.card.width,
       }),
       headers: { 'content-type': 'application/json' },

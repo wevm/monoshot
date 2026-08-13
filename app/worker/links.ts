@@ -11,7 +11,7 @@ export const card = {
   height: 420,
   padding: 80,
   scale: 1.5,
-  version: 2,
+  version: 3,
   width: 800,
 } as const
 
@@ -109,6 +109,14 @@ export declare namespace excerpt {
     code: string
     overflow: fade.Overflow
   }
+}
+
+/** Removes Twoslash query rows from a preview that does not resolve types. */
+export function withoutTypes(code: string): string {
+  return code
+    .split('\n')
+    .filter((line) => !/^\s*\/\/\s*\^\?\s*$/.test(line))
+    .join('\n')
 }
 
 /** Adds edge fades to a standalone document for each clipped code axis. */
