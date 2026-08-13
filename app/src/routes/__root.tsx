@@ -12,7 +12,7 @@ import { motion } from '../theme/tokens.stylex.js'
 const title = 'monoshot'
 const description = 'Render code images with type-aware annotations.'
 /** Drawn by `gen:og`, which records what it rendered at. */
-const card = { height: '651', path: '/og.png', width: '1200' } as const
+const card = { height: '630', path: '/og.png', width: '1200' } as const
 
 export const Route = createRootRoute({
   head: () => ({
@@ -34,7 +34,7 @@ export const Route = createRootRoute({
       { property: 'og:image:height', content: card.height },
       {
         property: 'og:image:alt',
-        content: 'A code frame with a resolved type drawn under a query',
+        content: 'The monoshot wordmark, beside a code frame with a resolved type in it',
       },
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: title },
