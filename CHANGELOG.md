@@ -1,5 +1,11 @@
 # monoshot
 
+## 0.0.6
+### Patch Changes
+
+- 430fe1d: Fixed local rendering to include the artwork for every composed theme.
+- 1b13474: Fixed package type acquisition with ordered metadata fallbacks for transient registry failures.
+
 ## 0.0.5
 
 ### Patch Changes
