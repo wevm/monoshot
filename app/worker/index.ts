@@ -1,5 +1,6 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono } from 'hono'
+import { accepts } from 'hono/accepts'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
@@ -149,10 +150,73 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
       }),
     )
   })
+  .get('/', async (c) => {
+    const type = accepts(c, {
+      default: 'text/html',
+      header: 'Accept',
+      supports: ['text/markdown', 'text/html'],
+    })
+    const response =
+      type === 'text/markdown'
+        ? await agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8')
+        : await handler.fetch(c.req.raw)
+    return varied(response)
+  })
+  .on(['GET', 'HEAD'], '/SKILL.md', (c) =>
+    agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
+  )
+  .on(['GET', 'HEAD'], '/llms.txt', (c) =>
+    agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
+  )
+  .on(['GET', 'HEAD'], ['/skills', '/.well-known/agent-skills'], (c) =>
+    agentAsset(c.env, c.req.url, skillIndexPath, 'application/json; charset=utf-8'),
+  )
+  .on(
+    ['GET', 'HEAD'],
+    ['/.well-known/agent-skills/monoshot', '/.well-known/skills/monoshot'],
+    (c) => agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
+  )
+  // Keep the earlier discovery path available for clients that still use it.
+  .on(['GET', 'HEAD'], '/.well-known/skills', (c) =>
+    agentAsset(c.env, c.req.url, skillIndexPath, 'application/json; charset=utf-8'),
+  )
   // Unmatched requests fall through to TanStack Start (SSR shell + assets).
   .all('*', (c) => handler.fetch(c.req.raw))
 
 export default app
+
+const skillPath = '/.well-known/agent-skills/monoshot/SKILL.md'
+const skillIndexPath = '/.well-known/agent-skills/index.json'
+
+/** Reads an agent resource from the deployed static assets. */
+async function agentAsset(
+  env: Cloudflare.Env,
+  url: string,
+  path: string,
+  contentType: string,
+): Promise<Response> {
+  const response = await env.ASSETS.fetch(new URL(path, url))
+  const headers = new Headers(response.headers)
+  headers.set('access-control-allow-origin', '*')
+  headers.set('cache-control', 'public, max-age=300')
+  headers.set('content-type', contentType)
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  })
+}
+
+/** Marks the root response as dependent on content negotiation. */
+function varied(response: Response): Response {
+  const headers = new Headers(response.headers)
+  headers.append('vary', 'Accept')
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  })
+}
 
 /**
  * Renders a shared-link card from encoded editor state.
