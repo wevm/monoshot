@@ -18,6 +18,7 @@ import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
+import { ButtonLink } from '#/ui/Button.js'
 import { font, motion } from '../theme/tokens.stylex.js'
 import { ExportMenu } from './-components/ExportMenu.js'
 import { Editor } from './-components/Editor.js'
@@ -922,6 +923,9 @@ function Page() {
               {notice}
             </span>
           )}
+          <ButtonLink href="/skill" variant="tertiary">
+            For Agents
+          </ButtonLink>
           <ExportMenu onCopyImage={copyImage} onCopyUrl={copyUrl} onSave={save} />
         </div>
       </header>

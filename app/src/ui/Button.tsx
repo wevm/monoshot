@@ -62,6 +62,7 @@ const styles = stylex.create({
   squareSmall: { paddingInline: 0, width: 32 },
   squareMedium: { paddingInline: 0, width: 40 },
   squareLarge: { paddingInline: 0, width: 48 },
+  link: { textDecoration: 'none' },
 })
 
 const sizes = { small: styles.small, medium: styles.medium, large: styles.large }
@@ -109,6 +110,26 @@ export function Button(props: Button.Props) {
   )
 }
 
+/** Link with the same visual treatment as {@link Button}. */
+export function ButtonLink(props: ButtonLink.Props) {
+  const { children, size = 'medium', style, variant = 'secondary', ...rest } = props
+  return (
+    <a
+      {...rest}
+      {...stylex.props(
+        styles.root,
+        styles.link,
+        typography[size],
+        variants[variant],
+        sizes[size],
+        style,
+      )}
+    >
+      {children}
+    </a>
+  )
+}
+
 export declare namespace Button {
   /** Props for {@link Button}. Extends the native button element. */
   type Props = Omit<ComponentPropsWithoutRef<'button'>, 'className' | 'style'> & {
@@ -120,6 +141,19 @@ export declare namespace Button {
     /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | readonly stylex.StyleXStyles[] | undefined
     /** Visual weight. One primary action per surface. @default 'secondary' */
+    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | undefined
+  }
+}
+
+export declare namespace ButtonLink {
+  /** Props for {@link ButtonLink}. Extends the native anchor element. */
+  type Props = Omit<ComponentPropsWithoutRef<'a'>, 'className' | 'style'> & {
+    children?: ReactNode | undefined
+    /** Control height: 32, 40, or 48 pixels. @default 'medium' */
+    size?: 'small' | 'medium' | 'large' | undefined
+    /** Styles merged onto the root. */
+    style?: stylex.StyleXStyles | readonly stylex.StyleXStyles[] | undefined
+    /** Visual weight. @default 'secondary' */
     variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | undefined
   }
 }
