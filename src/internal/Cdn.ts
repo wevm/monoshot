@@ -39,6 +39,10 @@ export function create(): create.ReturnType {
   const files = new Map<string, string>()
   const load = cached(read)
   let started: Promise<Cdn> | undefined
+  let storage: Promise<Storage> | undefined
+
+  /** Storage owned by this resolver for compiler libraries in browser runtimes. */
+  const cache = () => (storage ??= import('unstorage').then((module) => module.createStorage()))
 
   /** Compiler and Twoslash options shared by local and CDN-backed resolvers. */
   const overrides = {
@@ -155,12 +159,6 @@ export declare namespace create {
 
   /** Resolves a snippet against the types already acquired. */
   type Twoslasher = (code: string, lang?: string) => TwoslashReturn
-}
-
-/** Shared storage for compiler libraries fetched by filesystem-free runtimes. */
-let storage: Promise<Storage> | undefined
-function cache() {
-  return (storage ??= import('unstorage').then((module) => module.createStorage()))
 }
 
 /** Initialized compiler and Twoslash runner. */
