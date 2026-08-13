@@ -176,10 +176,8 @@ export function create() {
             ...(options.executable === undefined ? {} : { executable: options.executable }),
           })
           try {
-            const picture = await themedPicture(resolved.state)
             const parameters = {
               ...resolved.state,
-              ...(picture === undefined ? {} : { picture }),
               twoslash: options.twoslash ?? typed.has(resolved.state.lang),
               ...(options.scale === undefined ? {} : { scale: options.scale }),
             }
@@ -327,13 +325,6 @@ function frame(
       radius: options.radius === undefined && state.theme === 'tempo' ? 0 : state.radius,
     },
   }
-}
-
-/** Returns the picture owned by a theme when its default backdrop is selected. */
-async function themedPicture(state: Codec.State): Promise<string | undefined> {
-  if (state.theme !== 'tempo' || state.background !== 'default') return undefined
-  const bytes = await fs.readFile(new URL('../app/public/wallpapers/tempo.webp', import.meta.url))
-  return `data:image/webp;base64,${bytes.toString('base64')}`
 }
 
 /**

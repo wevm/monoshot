@@ -255,7 +255,7 @@ describe('create', () => {
   })
 
   describe('render', () => {
-    test('renders Tempo on its artwork with square corners by default', async () => {
+    test('renders Tempo with square corners by default', async () => {
       const source = await file('demo.ts')
       const render = vi.fn((_options: Headless.render.Options) =>
         Promise.resolve(new Uint8Array([1, 2, 3])),
@@ -269,13 +269,13 @@ describe('create', () => {
         const options = render.mock.calls[0]?.[0]
         expect({
           background: options?.background,
-          picture: options?.picture?.startsWith('data:image/webp;base64,'),
+          picture: options?.picture,
           radius: options?.radius,
           width: options?.width,
         }).toMatchInlineSnapshot(`
           {
             "background": "default",
-            "picture": true,
+            "picture": undefined,
             "radius": 0,
             "width": undefined,
           }
@@ -307,7 +307,7 @@ describe('create', () => {
           },
           radius: {
             background: radius?.background,
-            picture: radius?.picture?.startsWith('data:image/webp;base64,'),
+            picture: radius?.picture,
             radius: radius?.radius,
           },
         }).toMatchInlineSnapshot(`
@@ -319,7 +319,7 @@ describe('create', () => {
             },
             "radius": {
               "background": "default",
-              "picture": true,
+              "picture": undefined,
               "radius": 8,
             },
           }
