@@ -34,13 +34,13 @@ Use monoshot.dev/md and create a code snippet of simple viem usage. Use the gold
 Add Monoshot as an agent skill:
 
 ```text
-Run `npx monoshot skills add`, then use Monoshot to create a code image for the selected code.
+npx monoshot skills add
 ```
 
 Or register the MCP server:
 
 ```text
-Run `npx monoshot mcp add`, then use the Monoshot MCP tools to create a code image for the selected code.
+npx monoshot mcp add
 ```
 
 ## API
