@@ -43,6 +43,7 @@ export const Route = createRootRoute({
     scripts: [{ children: schemeScript }],
     links: [
       { rel: 'canonical', href: Site.origin },
+      { rel: 'alternate', href: '/SKILL.md', type: 'text/markdown' },
       {
         rel: 'icon',
         href: '/icon-light.svg',

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "monoshot",
+      "type": "skill-md",
+      "description": "Create code images, editor links, and standalone code documents with Monoshot.",
+      "url": "/.well-known/agent-skills/monoshot/SKILL.md",
+      "digest": "sha256:d2f713296082d20eb9337923128e50b88763472e0cd2bb4ee45e571f41815220"
+    }
+  ]
+}
