@@ -7,7 +7,7 @@ declare module 'virtual:stylex:css-only' {}
 
 interface ImportMetaEnv {
   readonly DEV: boolean
-  /** Origin this deployment answers at, for the absolute URLs a crawler reads. */
+  /** Absolute deployment origin used in link-preview metadata. */
   readonly VITE_SITE_URL?: string
 }
 

@@ -1,12 +1,8 @@
 /**
- * Trades a snippet's fragment for a link that carries it.
+ * Stores encoded snippet state and returns its short URL.
  *
- * The fragment holds everything already, so this is not what makes a link
- * work: it is what lets one preview itself. A fragment never reaches a server,
- * so nothing else can draw the snippet a link points at.
- *
- * Rejects rather than falling back, so a caller decides whether a long link
- * will do.
+ * Server-side storage enables per-snippet previews because URL fragments are
+ * not included in HTTP requests. Rejects when the request fails.
  */
 export async function shorten(state: string): Promise<string> {
   const response = await fetch('/api/share', {

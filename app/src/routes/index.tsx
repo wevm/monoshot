@@ -268,10 +268,7 @@ function restore(hash: string) {
   }
 }
 
-/**
- * Settings after a change, with the frame a theme asks for applied when the
- * theme is what changed. A reader's own frame is left alone otherwise.
- */
+/** Merges settings and applies frame overrides when the theme changes. */
 function merged(current: Settings, next: Partial<Settings>): Settings {
   const settings = { ...current, ...next }
   if (!next.theme || next.theme === current.theme) return settings
@@ -637,29 +634,21 @@ function Page() {
     const state = share({ code, settings, title })
     const long = new URL(window.location.href)
     long.hash = state
-    // The one moment the snippet leaves the browser, and only because a link
-    // that previews itself has to be one a server can read. A deployment
-    // without the store, or a request that fails, still copies a link.
+    // Store the snippet for preview generation, with the fragment URL as fallback.
     const text = Links.shorten(state).catch(() => long.toString())
-    // Handed over as a promise where that is available: Safari only honors a
-    // clipboard write that starts in the gesture that asked for it, and the
-    // short link is a round trip away. A browser without `ClipboardItem`
-    // throws on the constructor rather than rejecting, so the shape is checked
-    // rather than caught.
+    // Start the clipboard write during the user gesture. Safari may reject a
+    // write that begins after the short-link request completes.
     const rich =
       typeof ClipboardItem === 'function' && typeof navigator.clipboard.write === 'function'
     const written = rich
       ? navigator.clipboard
           .write([
             new ClipboardItem({
-              // Typed, and typed as what it is filed under: a blob built
-              // without one carries an empty type, which the clipboard reads as
-              // a different kind to the one it was promised, and refuses.
+              // Match the Blob type to the ClipboardItem entry type.
               'text/plain': text.then((value) => new Blob([value], { type: 'text/plain' })),
             }),
           ])
-          // The gesture is spent by the time this settles, which some browsers
-          // refuse a promise for. Writing the text plainly needs no gesture.
+          // Fall back when the browser rejects a deferred ClipboardItem value.
           .catch(async () => navigator.clipboard.writeText(await text))
       : text.then((value) => navigator.clipboard.writeText(value))
     void written.catch(() => setNotice('The link could not be copied.'))

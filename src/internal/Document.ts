@@ -16,9 +16,8 @@ export type Font = {
 export type Options = {
   /**
    * `default` paints the theme's gradient, `none` leaves it transparent, a
-   * `wallpaper:<id>` names a picture the caller carries and passes as
-   * {@link picture}, and any other value is used as the canvas's CSS
-   * `background`.
+   * `wallpaper:<id>` uses {@link picture} when provided and otherwise uses the
+   * theme gradient. Any other value becomes the canvas CSS background.
    */
   background: string
   /** The code, already highlighted. */
@@ -28,18 +27,11 @@ export type Options = {
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
   /**
-   * A fixed canvas height in pixels. The canvas otherwise follows the window,
-   * which follows the code: a one-line snippet makes a sliver and a long one a
-   * tower, where a link preview is cropped to one shape. The window is centred
-   * and whatever passes the edges is cut. Defaults to following the window.
+   * Fixed canvas height in pixels. Centers the window and clips overflow.
+   * Defaults to following the window's own height.
    */
   height?: number | undefined
-  /**
-   * A picture to stand the frame on, as a `data:` URL, drawn over whatever
-   * {@link background} would otherwise paint. Carried as data because the
-   * document makes no requests: a URL would be a fetch the capture never waits
-   * for. Defaults to none.
-   */
+  /** Embedded backdrop image as a data URL. Overrides {@link background}. */
   picture?: string | undefined
   /** Frame colors, derived from the theme the code was highlighted with. */
   palette: Theme.derive.Result
@@ -70,9 +62,7 @@ export function build(options: Options): string {
   const { background, html, padding, palette, radius, title, titleBar, width } = options
   const styles = options.annotated === true ? annotations(palette) : ''
   const fonts = options.fonts ?? []
-  // A wallpaper is a picture the drawing surface holds. Given one, it is what
-  // the frame stands on; a link naming one without carrying it still opens, on
-  // the theme's own backdrop.
+  // Use the theme gradient when a wallpaper identifier has no embedded image.
   const named = background.startsWith('wallpaper:')
   const backdrop = options.picture
     ? `url("${source(options.picture, 'picture')}") center / cover`
@@ -447,11 +437,7 @@ function css(value: string, field: string) {
   return value
 }
 
-/**
- * Data is embedded, never fetched, so only a `data:` URL is a source here. The
- * characters left out are the ones that would end the `url()` or the attribute
- * carrying it.
- */
+/** Validates an embedded data URL for use in CSS or HTML attributes. */
 function source(value: string, field: string) {
   if (!/^data:[^\s<>'"()\\]+$/.test(value)) throw new UnsafeValueError({ field, value })
   return value

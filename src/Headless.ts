@@ -174,13 +174,9 @@ async function capture(
 }
 
 /**
- * Serializes the rendered frame as SVG, wrapping its markup in a
- * `foreignObject`.
+ * Serializes the rendered frame as SVG with embedded HTML and styles.
  *
- * Serialized in the page rather than assembled from the document's HTML: an
- * SVG file is parsed as XML, where Shiki's markup and a stray entity are both
- * fatal, and `XMLSerializer` guarantees well-formed output. Runs through the
- * debugger, so page scripts stay disabled.
+ * `XMLSerializer` produces well-formed XML while page scripts remain disabled.
  */
 function vector(page: Page, scale: number): Promise<string> {
   return page.evaluate((factor: number) => {
@@ -190,13 +186,11 @@ function vector(page: Page, scale: number): Promise<string> {
     const styles = [...document.styleSheets]
       .flatMap((sheet) => [...sheet.cssRules].map((rule) => rule.cssText))
       .join('\n')
-    // Writes the XHTML namespace on its root, which tells a reader the markup
-    // inside a `foreignObject` is HTML rather than SVG.
+    // Preserve the XHTML namespace required for HTML inside `foreignObject`.
     const body = new XMLSerializer().serializeToString(canvas)
     return [
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width * factor}" height="${height * factor}" viewBox="0 0 ${width} ${height}">`,
-      // The document's rules travel with it. A `foreignObject` is styled by
-      // what the file carries, and this file links no stylesheet.
+      // Embed document styles because the SVG references no external stylesheet.
       `<style>${styles}</style>`,
       `<foreignObject x="0" y="0" width="${width}" height="${height}">${body}</foreignObject>`,
       '</svg>',
@@ -209,11 +203,7 @@ type Options_render = Omit<Frame.toDocument.Options, keyof render.Defaults> &
   Partial<render.Defaults> & {
     /** Frame scale multiplier. Defaults to 3. */
     scale?: number | undefined
-    /**
-     * Image format. A PNG is rasterized and bound by what the browser can
-     * draw; an SVG carries the frame's markup and scales without loss.
-     * Defaults to `png`.
-     */
+    /** Image format. SVG output preserves vector scaling. Defaults to `png`. */
     type?: 'png' | 'svg' | undefined
   }
 

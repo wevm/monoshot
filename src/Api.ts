@@ -49,10 +49,7 @@ namespace schema {
       /** Fixed canvas height. The frame otherwise grows with the code. */
       height: z.number().int().min(120).max(2160).optional(),
       padding: z.number().int().min(0).max(256).optional(),
-      /**
-       * A backdrop to stand the frame on, as a `data:` URL. Carried rather
-       * than named, because the renderer fetches nothing.
-       */
+      /** Embedded backdrop image for the request-free renderer. */
       picture: z
         .string()
         .max(limit.picture)

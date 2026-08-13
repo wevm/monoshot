@@ -111,16 +111,13 @@ describe('render', () => {
       }),
     )
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(true)
-    // The frame's own markup rather than a raster of it, and the type the
-    // query asked for drawn into it.
+    // Preserve rendered HTML and type annotations inside the SVG.
     expect(svg).toContain('<foreignObject')
-    // Read as text: the type is highlighted, so it arrives split across spans.
+    // Remove markup because syntax highlighting splits text across elements.
     const text = svg.replace(/<[^>]+>/g, '').replace(/&#(\d+);/g, '')
     expect(text).toContain('const a: number')
 
-    // An SVG file is read as XML, where the markup shiki writes and a stray
-    // entity are both fatal. Opened in a browser rather than checked by hand:
-    // the reader that has to accept this file is the one asked.
+    // Load the output as SVG to verify that a browser accepts the generated XML.
     const puppeteer = await import('puppeteer-core')
     const browser = await puppeteer.launch({ channel: 'chrome', headless: true })
     try {

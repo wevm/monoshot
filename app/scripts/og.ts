@@ -6,37 +6,23 @@ import puppeteer from 'puppeteer-core'
 
 import { sample } from '../src/lib/sample.js'
 
-/**
- * What a card is cropped to, and what it is drawn at.
- *
- * JPEG rather than PNG: a backdrop of smooth gradients costs a lossless format
- * near a megabyte, and at this quality the code's edges survive a compression
- * a reader never sees.
- */
+/** Social card dimensions and rendering settings. */
 const card = { height: 630, quality: 92, scale: 2, width: 1200 } as const
 
-/** Where the frame starts, and how far it runs past the right edge. */
+/** Horizontal frame position and overflow beyond the card boundary. */
 const frameAt = { bleed: 560, left: 628 } as const
 
 /**
- * Draws the link preview: the wordmark, and the snippet the app opens on.
+ * Generates the default social card with the wordmark and sample code.
  *
- * The frame is cut off by the right edge rather than fitted inside it. A frame
- * small enough to sit in the space left over shows four lines at a size nobody
- * reads; running it off the edge buys the height back, and a window that
- * carries on past the crop reads as a view onto something larger.
- *
- * Written to `public` at build time rather than served from a route: a crawler
- * fetching this must not wait on a browser, and a Worker with none to launch
- * would answer nothing at all. Regenerate with `pnpm -C app gen:og` after
- * changing the snippet, the theme, or the wordmark.
+ * The frame extends beyond the right boundary to preserve readable code size.
+ * Run `pnpm -C app gen:og` after changing the content or layout.
  */
 const require = createRequire(import.meta.url)
 const font = await fs.readFile(
   require.resolve('@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2'),
 )
-// The wordmark paints its own black canvas, which would cover the backdrop
-// drawn under it. Only the lettering is wanted here.
+// Remove the wordmark background so the card backdrop remains visible.
 const wordmark = (
   await fs.readFile(path.join(import.meta.dirname, 'og-wordmark.svg'), 'utf8')
 ).replace(/<rect[^>]*fill="black"[^>]*\/>/, '')
@@ -72,10 +58,8 @@ body {
   width: ${card.width}px;
 }
 /*
- * The backdrop this theme draws for a frame, drawn for the card instead:
- * the gradient it derives, with light gathered where the wordmark sits and
- * again behind the frame. Composed from the palette rather than sampled from
- * a picture, so the card is this package's own work.
+ * Derive the card background from the theme palette, with highlights behind
+ * the wordmark and code frame.
  */
 .backdrop {
   background:
@@ -86,7 +70,7 @@ body {
   inset: 0;
   position: absolute;
 }
-/* A slow sweep across the corner, blurred past any edge of its own. */
+/* Add a broad highlight across the upper-right corner. */
 .sweep {
   background: linear-gradient(
     118deg,
@@ -111,8 +95,7 @@ body {
 }
 .wordmark svg { width: 68%; }
 .window {
-  /* Translucent, so the backdrop carries under the code rather than stopping
-     at the window's edge. */
+  /* Preserve the backdrop beneath the translucent code window. */
   background: color-mix(in oklab, ${palette.window.background} 40%, transparent);
   border-radius: 12px;
   box-shadow: 0 0 0 1px ${palette.window.border}, 0 24px 48px -12px #00000059;
@@ -120,8 +103,7 @@ body {
   overflow: hidden;
   padding: 8px 16px;
   position: absolute;
-  /* Centred on the card rather than hung from the top, so the frame sits with
-     the wordmark rather than above it. */
+  /* Vertically align the code frame with the wordmark. */
   top: 50%;
   transform: translateY(-50%);
   width: ${card.width - frameAt.left + frameAt.bleed}px;
@@ -153,9 +135,7 @@ const browser = await puppeteer.launch({ channel: 'chrome', headless: true })
 const tab = await browser.newPage()
 await tab.setViewport({ deviceScaleFactor: card.scale, height: card.height, width: card.width })
 await tab.setContent(page, { waitUntil: 'load' })
-// Cropped to the lettering by the browser rather than by hand: the wordmark is
-// drawn on a canvas of its own, and centring that canvas leaves the text off
-// centre by however much padding it carries.
+// Crop the SVG view box to the wordmark lettering before centering it.
 await tab.evaluate(() => {
   const svg = document.querySelector('.wordmark svg')
   if (!(svg instanceof SVGSVGElement)) return

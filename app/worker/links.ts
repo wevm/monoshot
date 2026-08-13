@@ -1,24 +1,13 @@
 /**
- * What a shared link may carry, and how long it is kept.
- *
- * The size cap is the codec's own fragment limit: a state larger than that is
- * one the reader could not have opened anyway. Ninety days because a link
- * pasted into a chat is read within days, and a store that never expires only
- * grows. Nine lines is what the card's fixed canvas holds before the window's
- * own edges are cut.
+ * Size, retention, and preview limits for shared links. Nine lines is what the
+ * card's fixed canvas holds before the window's own edges are cut.
  */
 export const limits = { lines: 9, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /**
- * A short, unguessable name for a snippet.
+ * Generates a 12-character identifier with 60 bits of entropy.
  *
- * Twelve characters of a 32-symbol alphabet, which is exactly 60 bits: a link
- * is not found by trying, and two are not drawn alike before the store is
- * larger than this will ever hold. Nothing checks for a name already taken,
- * so the space is what keeps one share from landing on another.
- *
- * A byte is taken only when it lands in a whole number of alphabet lengths, so
- * every symbol is as likely as the rest; `%` alone would favour the first few.
+ * Rejection sampling avoids modulo bias. Callers do not check for collisions.
  */
 export function id(): string {
   const alphabet = 'abcdefghijkmnopqrstuvwxyz2345678'
@@ -35,12 +24,9 @@ export function id(): string {
 }
 
 /**
- * The page a crawler reads and a reader is sent on from.
+ * Generates link-preview metadata and redirects to the editor.
  *
- * Served rather than handed to the app: the app renders its head in the
- * browser, and a crawler runs no JavaScript, so a link's own preview has to be
- * in the first response. A reader lands on the editor with the state in the
- * fragment, which is where every other link carries it.
+ * Metadata is included in the initial response for clients that do not execute JavaScript.
  */
 export function page(options: page.Options): string {
   const { description, id, origin, state, title } = options
@@ -79,36 +65,26 @@ export function page(options: page.Options): string {
 
 export declare namespace page {
   type Options = {
-    /** What the snippet is, in a sentence a preview can show. */
+    /** Preview description of the snippet. */
     description: string
-    /** The link's own name, which the image route is hung off. */
+    /** Shared-link identifier used by the image route. */
     id: string
-    /** Absolute origin, because a crawler resolves nothing relative. */
+    /** Absolute deployment origin. */
     origin: string
-    /** The fragment the editor reads the snippet back out of. */
+    /** Encoded editor state. */
     state: string
-    /** The link's title, shown as the preview's heading. */
+    /** Preview title of the snippet. */
     title: string
   }
 }
 
-/**
- * As much of a snippet as a card can hold.
- *
- * A frame is as tall as its code is long, and a preview is cropped to roughly
- * 1.91:1, so a hundred lines arrive as an unreadable sliver of their own
- * middle. Cut at a line rather than scaled down, which leaves what is shown
- * legible.
- */
+/** Truncates code by line count to keep social-card text legible. */
 export function excerpt(code: string): string {
   const lines = code.split('\n')
   return lines.length <= limits.lines ? code : `${lines.slice(0, limits.lines).join('\n')}\n`
 }
 
-/**
- * A line of the snippet worth showing as the preview's title, which is the
- * first that carries anything. Trimmed to what a card shows before it cuts.
- */
+/** Returns the first non-empty line, truncated for use as a preview title. */
 export function summarize(code: string, fallback: string): string {
   const line = code.split('\n').find((entry) => entry.trim().length > 0)
   if (!line) return fallback
@@ -116,11 +92,7 @@ export function summarize(code: string, fallback: string): string {
   return trimmed.length > 72 ? `${trimmed.slice(0, 71)}…` : trimmed
 }
 
-/**
- * A string for an inline script, with the one sequence that would end the
- * element early written as an escape. `JSON.stringify` leaves `</script>`
- * alone, and a state carrying one would otherwise run as markup.
- */
+/** Serializes a value for an inline script and escapes HTML-opening characters. */
 function script(value: string) {
   return JSON.stringify(value).replace(/</g, '\\u003c')
 }
@@ -132,4 +104,137 @@ function escape(value: string) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/** Workers AI model used to generate snippet metadata. */
+const model = '@cf/meta/llama-3.2-3b-instruct'
+
+/** Input, output, and timeout limits for metadata generation. */
+const reading = { code: 4_000, description: 180, timeout: 5_000, title: 60 } as const
+
+/**
+ * Generates preview metadata from source code.
+ *
+ * Source code is untrusted prompt content. Escaped model output is used only
+ * as metadata, and failures return `undefined` for deterministic fallback.
+ */
+export async function describe(
+  ai: describe.Model,
+  code: string,
+): Promise<describe.Result | undefined> {
+  try {
+    const answer = await Promise.race([
+      ai.run(
+        model,
+        {
+          max_tokens: 120,
+          messages: [
+            {
+              content:
+                'You label a code snippet for a link preview. Answer with exactly two lines and nothing else. First line: a name for the snippet, at most 5 words, no quotes and no full stop. Second line: what the code does, as one short phrase completing "A code snippet of ...". Describe the behaviour, never the language or library on its own.',
+              role: 'system',
+            },
+            { content: code.slice(0, reading.code), role: 'user' },
+          ],
+          temperature: 0.2,
+        },
+        // Request cancellation when supported; the Promise race enforces the timeout.
+        { signal: AbortSignal.timeout(reading.timeout) },
+      ),
+      elapsed(reading.timeout),
+    ])
+    const [title, subject] = lines(answer)
+    if (!title || !subject) return undefined
+    return { description: `A code snippet of ${subject}`, title }
+  } catch {
+    // Preserve link creation when metadata generation fails.
+    return undefined
+  }
+}
+
+/** Resolves after the metadata-generation timeout. */
+function elapsed(ms: number): Promise<undefined> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Extracts title and description lines from supported Workers AI responses.
+ *
+ * Accepts OpenAI-compatible and bare response envelopes, then removes optional labels and sentence prefixes.
+ */
+function lines(answer: unknown): readonly (string | undefined)[] {
+  const held = (answer ?? {}) as Record<string, unknown>
+  const choice = Array.isArray(held['choices']) ? held['choices'][0] : undefined
+  const message = (choice as { message?: { content?: unknown } } | undefined)?.message?.content
+  const said = typeof message === 'string' ? message : held['response']
+  if (typeof said !== 'string') return []
+  return said
+    .split('\n')
+    .map((entry) =>
+      entry
+        .replace(/^\s*(?:title|subject|summary)\s*:\s*/i, '')
+        .replace(/^\s*(?:a\s+)?code snippet (?:of|that|which)\s+/i, '')
+        .replace(/^[-*\s]+/, '')
+        .replace(/^["\'`]|["\'`.]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    )
+    .filter((entry) => entry.length > 0)
+    .slice(0, 2)
+    .map((entry, at) => {
+      const limit = at === 0 ? reading.title : reading.description
+      return entry.length > limit ? `${entry.slice(0, limit - 1)}…` : entry
+    })
+}
+
+export declare namespace describe {
+  /** Minimal Workers AI binding interface required for metadata generation. */
+  type Model = {
+    run(
+      model: string,
+      inputs: {
+        max_tokens?: number | undefined
+        messages: { content: string; role: string }[]
+        temperature?: number | undefined
+      },
+      options?: { signal?: AbortSignal | undefined } | undefined,
+    ): Promise<unknown>
+  }
+
+  /** Generated preview metadata. */
+  type Result = {
+    /** Preview description of the code behavior. */
+    description: string
+    /** A name for the snippet, at most five words. */
+    title: string
+  }
+}
+
+/** Parses current and legacy shared-link records. */
+export function read(kept: string): read.Link {
+  try {
+    const parsed: unknown = JSON.parse(kept)
+    if (typeof parsed !== 'object' || parsed === null) return { state: kept }
+    const { description, state, title } = parsed as Record<string, unknown>
+    if (typeof state !== 'string') return { state: kept }
+    return {
+      ...(typeof description === 'string' ? { description } : {}),
+      ...(typeof title === 'string' ? { title } : {}),
+      state,
+    }
+  } catch {
+    return { state: kept }
+  }
+}
+
+export declare namespace read {
+  /** Stored editor state and optional generated metadata. */
+  type Link = {
+    /** Generated description, absent from legacy records. */
+    description?: string | undefined
+    /** The encoded state the editor opens. */
+    state: string
+    /** Generated title, absent from legacy records. */
+    title?: string | undefined
+  }
 }

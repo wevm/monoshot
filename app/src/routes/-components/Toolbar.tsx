@@ -710,7 +710,7 @@ export const backgrounds = [
   '#d6478f',
 ] as const
 
-/** Where a background sits in the color row, for measuring the ring's travel. */
+/** Returns a background's position in the picker for indicator placement. */
 function backgroundIndex(background: string) {
   const picture = Wallpapers.offered.findIndex(
     (wallpaper) => Wallpapers.background(wallpaper.id) === background,

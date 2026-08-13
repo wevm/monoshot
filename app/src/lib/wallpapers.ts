@@ -1,40 +1,37 @@
 import { converter, formatCss } from 'culori'
 
 /**
- * The backdrops on offer. Tempo's own artwork, and the default macOS
- * wallpapers: Apple's, taken from 512pixels.net's archive and resized to WebP
- * here, which neither Apple nor that archive licenses for redistribution.
+ * Available backdrops include Tempo artwork and macOS wallpapers sourced from
+ * the 512 Pixels archive. Neither source grants redistribution rights here.
  *
  * @see https://512pixels.net/projects/default-mac-wallpapers-in-5k/
  */
 
-/** What a background carries when it names a wallpaper rather than a color. */
+/** Prefix for wallpaper background identifiers. */
 const prefix = 'wallpaper:'
 
-/** A wallpaper a theme stands on, named for the release it shipped with. */
+/** Wallpaper metadata. */
 export type Wallpaper = {
   id: string
   name: string
   /**
-   * Whether the picture belongs to its theme rather than standing on its own.
-   * Such a picture backs the theme named after it and is not offered as a
-   * backdrop for any other.
+   * Whether the wallpaper is exclusive to its associated theme.
    */
   themed?: boolean
 }
 
-/** A loaded wallpaper: the image itself, and the color it reads as. */
+/** Loaded wallpaper data and its dominant color. */
 export type Picture = {
   /**
    * Dominant image color used to tint related UI.
-   * Absent until it has been read, which the picture does not wait for.
+   * Available after color analysis completes.
    */
   color?: string | undefined
   /** The image as a `data:` URL. */
   source: string
 }
 
-/** Every wallpaper, newest release first. */
+/** Available wallpapers, ordered from newest to oldest release. */
 export const list: readonly Wallpaper[] = [
   { id: 'tempo', name: 'Tempo', themed: true },
   { id: 'golden-gate-light', name: 'Golden Gate' },
@@ -48,7 +45,7 @@ export const list: readonly Wallpaper[] = [
   { id: 'panther', name: 'Panther' },
 ]
 
-/** The wallpapers a reader can set as a backdrop, which is the rest of them. */
+/** Wallpapers available as user-selectable backdrops. */
 export const offered: readonly Wallpaper[] = list.filter((wallpaper) => !wallpaper.themed)
 
 /** The background a wallpaper is set as. */
@@ -73,7 +70,7 @@ export function byId(id: string): Wallpaper | undefined {
   return list.find((wallpaper) => wallpaper.id === id)
 }
 
-/** The small copy a swatch is drawn from. */
+/** Returns the thumbnail path used by a wallpaper swatch. */
 export function thumbnail(id: string) {
   return `/wallpapers/${id}-thumb.webp`
 }
@@ -82,9 +79,7 @@ const embedded = new Map<string, Promise<string>>()
 const cast = new Map<string, Promise<string>>()
 
 /**
- * The picture as data, which is how it reaches both the artwork on screen and
- * the copy an export captures: a capture reads the styles it finds, and a URL
- * there would leave the backdrop to a fetch the capture never waits for.
+ * Loads a wallpaper as a data URL for display and image export.
  */
 export function embed(id: string): Promise<string> {
   const held = embedded.get(id)
@@ -94,19 +89,16 @@ export function embed(id: string): Promise<string> {
     if (!response.ok) throw new Error(`Wallpaper ${id} is not here (${response.status}).`)
     return await read(await response.blob(), id)
   })()
-  // Held only while it stands: a failed load is worth trying again, and holding
-  // the rejection would fail every later attempt without asking.
+  // Remove failed loads from the cache so a later request can retry.
   loading.catch(() => embedded.delete(id))
   embedded.set(id, loading)
   return loading
 }
 
 /**
- * The strongest color in the picture, read once the picture is here.
+ * Returns the dominant wallpaper color after the image loads.
  *
- * Asked for apart from the picture rather than with it: reading the color means
- * decoding the image, and a backdrop that waited for that would be held back by
- * work that does not block visible content.
+ * Color analysis is separate from image loading so it does not delay display.
  */
 export function color(id: string): Promise<string> {
   const held = cast.get(id)

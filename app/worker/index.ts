@@ -8,33 +8,23 @@ import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
 import * as Links from './links.js'
 
-// Registered rather than left to the default: the bundler drops the locale
-// Preserve field-specific errors instead of Zod's generic `Invalid input` message.
+// Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))
-  // Renders a frame to the standalone document a browser screenshots. The
-  // library owns the routes, so the CLI, this app, and any other consumer
-  // draw from one description of a frame.
-  // The binding reaches a Worker through its environment, so the routes read
-  // it off each request rather than holding it.
+  // Use the shared API routes so every consumer applies the same frame validation.
+  // Resolve the browser binding per request from the Worker environment.
   .route('/', Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER }))
-  // Keeps a snippet so a link can carry it. Sharing is the one moment code
-  // leaves the browser: every other link holds it in the fragment, which a
-  // server never sees.
+  // Store snippet state so the server can generate link-preview metadata.
   .post('/share', async (c) => {
     if (!c.env.LINKS)
       return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
-    // Refused before it is read: a body past the cap is one this would reject
-    // anyway, and parsing it first is what an unauthenticated caller would use
-    // to spend the isolate's memory.
+    // Reject oversized bodies before parsing to limit memory use by unauthenticated requests.
     const declared = Number(c.req.header('content-length') ?? 0)
     if (declared > Links.limits.size * 2)
       return c.json({ error: 'That snippet is too large to share.' }, 413)
-    // Nothing here asks who is calling, and every call writes a key kept for
-    // ninety days and draws an image on request. Held per address, high enough
-    // that nobody sharing snippets meets it.
+    // Limit writes per client address because each share persists for 90 days.
     const caller = c.req.header('cf-connecting-ip') ?? 'anonymous'
     if (!(await c.env.SHARE_RATE.limit({ key: caller })).success)
       return c.json({ error: 'Too many links from here. Try again shortly.' }, 429)
@@ -42,19 +32,20 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     const state = typeof body.state === 'string' ? body.state : ''
     if (state.length > Links.limits.size)
       return c.json({ error: 'That snippet is too large to share.' }, 413)
-    // Read back before it is kept: a fragment the decoder rejects opens an
-    // empty editor, and a link to nothing is worth refusing at the source.
+    // Validate encoded state before storage to prevent links that open an empty editor.
     if (!state || !Codec.readable(state))
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
 
     const id = Links.id()
-    // Written back out rather than kept as it arrived. The decoder stops at
-    // the end of what it can read and ignores whatever follows, so a valid
-    // fragment can carry a payload through `readable`; re-encoding leaves only
-    // the state itself.
-    const canonical = Codec.serialize(Codec.deserialize(state))
-    await c.env.LINKS.put(id, canonical, { expirationTtl: Links.limits.ttl })
-    // The card is drawn now, while the sharer still holds the link, and kept
+    // Generate metadata once during sharing instead of delaying every preview request.
+    const settings = Codec.deserialize(state)
+    const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
+    // Re-encode validated settings to remove trailing data ignored by the decoder.
+    const canonical = Codec.serialize(settings)
+    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: canonical }), {
+      expirationTtl: Links.limits.ttl,
+    })
+    // Draw the card now, while the sharer still holds the link, and keep it
     // where every colo reads it: a crawler follows within seconds of a paste,
     // and a browser launched on its clock is a preview it gave up on.
     if (c.env.BROWSER)
@@ -111,15 +102,12 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
 
 const app = new Hono<{ Bindings: Cloudflare.Env }>()
   .route('/api', api)
-  // The preview a link carries, drawn from the snippet it names. Rendered
-  // before the page is answered, because the crawler reading it runs no
-  // JavaScript. Registered ahead of the fall-through, which would otherwise
-  // hand both of these to the app.
+  // Render server-side preview images before the application fall-through routes.
   .get('/s/:id/og.png', async (c) => {
     const id = c.req.param('id')
-    const state = await c.env.LINKS?.get(id)
-    // A link that expired still has a card, which is the app's own.
-    if (!state) return c.redirect('/og.jpg', 302)
+    const kept = await c.env.LINKS?.get(id)
+    // Use the default application card when the shared state has expired.
+    if (!kept) return c.redirect('/og.jpg', 302)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
     const cache = await caches.open('og')
@@ -128,14 +116,15 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
     // The copy the share drew, kept where every colo can read it: this cache
     // is colo-local, and a crawler rarely lands where the sharer did.
-    const kept = await c.env.LINKS?.get(`og:${id}`, 'arrayBuffer')
-    if (kept) {
-      const response = pictured(kept)
+    const held = await c.env.LINKS?.get(`og:${id}`, 'arrayBuffer')
+    if (held) {
+      const response = pictured(held)
       c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
       return response
     }
 
     if (!c.env.BROWSER) return c.redirect('/og.jpg', 302)
+    const { state } = Links.read(kept)
     const drawn = await card(c.env, c.executionCtx, new URL(c.req.url).origin, state)
     if (!drawn) return c.redirect('/og.jpg', 302)
     const response = pictured(drawn)
@@ -145,18 +134,20 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   })
   .get('/s/:id', async (c) => {
     const id = c.req.param('id')
-    const state = await c.env.LINKS?.get(id)
-    // Nothing to open, so the reader lands on an empty editor rather than on
-    // an error page for a link that merely expired.
-    if (!state) return c.redirect('/', 302)
-    const settings = Codec.deserialize(state)
+    const kept = await c.env.LINKS?.get(id)
+    // Redirect expired links to an empty editor instead of returning an error page.
+    if (!kept) return c.redirect('/', 302)
+    const link = Links.read(kept)
+    const settings = Codec.deserialize(link.state)
+    const language = settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang
     return c.html(
       Links.page({
-        description: `A ${settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang} snippet, rendered by monoshot.`,
+        // Fall back to deterministic metadata when model-generated metadata is absent.
+        description: link.description ?? `A ${language} snippet, rendered by monoshot.`,
         id,
         origin: new URL(c.req.url).origin,
-        state,
-        title: Links.summarize(settings.code, 'A snippet on monoshot'),
+        state: link.state,
+        title: link.title ?? Links.summarize(settings.code, 'A snippet on monoshot'),
       }),
     )
   })
@@ -241,12 +232,11 @@ function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void
 }
 
 /**
- * A wallpaper as a `data:` URL, read from the assets this Worker serves.
+ * Loads a Worker-served wallpaper as a data URL.
  *
- * Through the assets binding rather than this Worker's own URL, which is a
- * request back into this Worker: the platform refuses the recursion, and the
- * card silently loses its backdrop. Inlined because the page a capture loads
- * makes no requests of its own.
+ * The standalone renderer performs no external requests, so wallpaper data
+ * must be embedded in the document. Read through the assets binding: a fetch
+ * of this Worker's own URL is refused by the platform as recursion.
  */
 async function inlined(
   env: Cloudflare.Env,
@@ -263,7 +253,7 @@ async function inlined(
     for (const byte of bytes) binary += String.fromCharCode(byte)
     return `data:image/webp;base64,${btoa(binary)}`
   } catch {
-    // A backdrop that cannot be read leaves the frame on the theme's own.
+    // Omit the picture when the wallpaper cannot be loaded.
     return undefined
   }
 }

@@ -144,8 +144,7 @@ export function create() {
         if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
         const resolved = frame(args.file, code, options)
         if ('message' in resolved) return error(resolved)
-        // An `--out` extension names a format too. Writing one format under
-        // the other's name produces a file nothing opens.
+        // Reject an explicit format that conflicts with the output extension.
         const named_out = named(options.out)
         if (options.type && named_out && options.type !== named_out)
           return error({
@@ -337,7 +336,7 @@ function destination(file: string | undefined, type: 'png' | 'svg'): string {
   return `${file.slice(0, file.length - path.extname(file).length)}.${type}`
 }
 
-/** The image format a path names, when its extension names one. */
+/** Returns the image format identified by a supported file extension. */
 function named(out: string | undefined): 'png' | 'svg' | undefined {
   const extension = out === undefined ? '' : path.extname(out).slice(1).toLowerCase()
   return extension === 'png' || extension === 'svg' ? extension : undefined
