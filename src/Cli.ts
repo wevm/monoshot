@@ -248,7 +248,10 @@ export function create() {
           cause instanceof Error ? cause : new Error(String(cause)),
         )
         if (opened instanceof Error)
-          return error({ code: 'open_failed', message: `Could not open the link: ${opened.message}` })
+          return error({
+            code: 'open_failed',
+            message: `Could not open the link: ${opened.message}`,
+          })
         return { url: result.url }
       },
     })

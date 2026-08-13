@@ -121,8 +121,9 @@ export function create<const themes extends Themes = []>(
         : instance.loadTheme(
             // Shiki declares registrations mutable, although loading only reads
             // them. The package-owned registrations stay deeply frozen.
-            (Theme.composed.find((one) => one.name === theme) ??
-              (theme as BundledTheme)) as ThemeRegistrationRaw | BundledTheme,
+            (Theme.composed.find((one) => one.name === theme) ?? (theme as BundledTheme)) as
+              | ThemeRegistrationRaw
+              | BundledTheme,
           ),
       instance.getLoadedLanguages().includes(lang) ? undefined : instance.loadLanguage(lang),
     ])
