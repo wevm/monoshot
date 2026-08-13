@@ -48,11 +48,16 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
 
     const id = Links.id()
+    // Read once, here, rather than on every visit: a crawler fetching a
+    // preview waits on whatever this route does, and a model is seconds. The
+    // reader sharing the link is the one who can afford them.
+    const settings = Codec.deserialize(state)
+    const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
     // Written back out rather than kept as it arrived. The decoder stops at
     // the end of what it can read and ignores whatever follows, so a valid
     // fragment can carry a payload through `readable`; re-encoding leaves only
     // the state itself.
-    await c.env.LINKS.put(id, Codec.serialize(Codec.deserialize(state)), {
+    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: Codec.serialize(settings) }), {
       expirationTtl: Links.limits.ttl,
     })
     return c.json({ id, url: `${new URL(c.req.url).origin}/s/${id}` }, 201)
@@ -108,9 +113,10 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   // JavaScript. Registered ahead of the fall-through, which would otherwise
   // hand both of these to the app.
   .get('/s/:id/og.png', async (c) => {
-    const state = await c.env.LINKS?.get(c.req.param('id'))
+    const kept = await c.env.LINKS?.get(c.req.param('id'))
     // A link that expired still has a card, which is the app's own.
-    if (!state) return c.redirect('/og.jpg', 302)
+    if (!kept) return c.redirect('/og.jpg', 302)
+    const { state } = Links.read(kept)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
     const cache = await caches.open('og')
@@ -173,18 +179,22 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   })
   .get('/s/:id', async (c) => {
     const id = c.req.param('id')
-    const state = await c.env.LINKS?.get(id)
+    const kept = await c.env.LINKS?.get(id)
     // Nothing to open, so the reader lands on an empty editor rather than on
     // an error page for a link that merely expired.
-    if (!state) return c.redirect('/', 302)
-    const settings = Codec.deserialize(state)
+    if (!kept) return c.redirect('/', 302)
+    const link = Links.read(kept)
+    const settings = Codec.deserialize(link.state)
+    const language = settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang
     return c.html(
       Links.page({
-        description: `A ${settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang} snippet, rendered by monoshot.`,
+        // What the model made of the snippet when it was shared, or what its
+        // own first line says about it.
+        description: link.description ?? `A ${language} snippet, rendered by monoshot.`,
         id,
         origin: new URL(c.req.url).origin,
-        state,
-        title: Links.summarize(settings.code, 'A snippet on monoshot'),
+        state: link.state,
+        title: link.title ?? Links.summarize(settings.code, 'A snippet on monoshot'),
       }),
     )
   })
