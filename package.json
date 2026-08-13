@@ -23,7 +23,7 @@
   "[!start-pkg]": "",
   "name": "monoshot",
   "type": "module",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "license": "MIT",
   "description": "Create code images with syntax highlighting, customizable themes, and type-aware annotations.",
   "repository": {
