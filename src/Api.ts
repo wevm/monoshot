@@ -440,17 +440,3 @@ namespace OpenApi {
 
 /** Read inside the namespace, which cannot reach the other one by name. */
 const schema_failure = schema.failure
-
-/**
- * The routes, ready to mount. Holds a renderer of its own; reach for
- * {@link create} to share one or to choose the engine.
- *
- * @example
- * ```ts twoslash
- * import { Hono } from 'hono'
- * import { Api } from 'monoshot'
- *
- * const app = new Hono().route('/v1', Api.route)
- * ```
- */
-export const route = create()
