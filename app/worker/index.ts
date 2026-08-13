@@ -153,9 +153,6 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
 export default app
 
-/** Fixed dimensions and rendering settings for shared-link cards. */
-const shape = { height: 420, padding: 88, scale: 1.5, width: 800 } as const
-
 /**
  * Renders a shared-link card from encoded editor state.
  *
@@ -175,19 +172,23 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
+  // Bounded rather than whole: past what the widest canvas holds, the rest of
+  // a snippet is cut.
+  const shown = Links.excerpt(settings.code)
+  // The canvas grows with the snippet and the screenshot scales it back, so
+  // every line is on the card and every card is one shape.
+  const shape = Links.geometry(shown)
   const drawn = await api.request(
     '/image',
     {
       body: JSON.stringify({
         // Pass wallpaper content through `picture`, not the application identifier.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        // Limit source lines to the number visible within the fixed canvas.
-        code: Links.excerpt(settings.code),
-        // Use a fixed height so short snippets retain standard card dimensions.
+        code: shown,
         height: shape.height,
         // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-        padding: shape.padding,
+        padding: 88,
         ...(picture ? { picture } : {}),
         // Apply the selected theme's frame radius override.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
