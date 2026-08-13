@@ -3,6 +3,7 @@
 import lzString from 'lz-string'
 import * as z from 'zod'
 
+import * as Lz from './internal/Lz.js'
 import * as Theme from './Theme.js'
 
 /**
@@ -84,11 +85,7 @@ export declare namespace serialize {
   type Options = Partial<State>
 }
 
-/**
- * Limits for expanding untrusted fragments. Because lz-string has no bounded
- * decompression, the fragment limit constrains worst-case memory use before the
- * decoded-size limit applies.
- */
+/** Limits for expanding untrusted fragments. */
 const limit = { decoded: 512_000, fragment: 20_000 } as const
 
 /**
@@ -138,8 +135,8 @@ function read(hash: string): Record<string, unknown> | undefined {
     try {
       const fragment = hash.replace(/^#/, '')
       if (!fragment || fragment.length > limit.fragment) return undefined
-      const json = lzString.decompressFromEncodedURIComponent(fragment)
-      if (!json || json.length > limit.decoded) return undefined
+      const json = Lz.decompress({ input: fragment, limit: limit.decoded })
+      if (!json) return undefined
       const value: unknown = JSON.parse(json)
       return typeof value === 'object' && value !== null
         ? (value as Record<string, unknown>)
