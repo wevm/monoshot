@@ -166,10 +166,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
         : await handler.fetch(c.req.raw)
     return varied(response)
   })
-  .on(['GET', 'HEAD'], '/SKILL.md', (c) =>
-    agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
-  )
-  .on(['GET', 'HEAD'], '/llms.txt', (c) =>
+  .on(['GET', 'HEAD'], ['/SKILL.md', '/md', '/skill', '/llms.txt'], (c) =>
     agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
   )
   .on(['GET', 'HEAD'], ['/skills', '/.well-known/agent-skills'], (c) =>

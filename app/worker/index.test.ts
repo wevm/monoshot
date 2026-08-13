@@ -44,6 +44,12 @@ describe('api rendering', () => {
 })
 
 describe('agent skill', () => {
+  test.each(['/SKILL.md', '/md', '/skill', '/llms.txt'])('serves the skill at %s', async (path) => {
+    const response = await app.request(path, {}, env)
+    expect(await response.text()).toBe('skill')
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
+  })
+
   test('serves the skill when Markdown is accepted', async () => {
     const response = await app.request('/', { headers: { accept: 'text/markdown' } }, env)
     expect(await response.text()).toBe('skill')
