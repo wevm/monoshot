@@ -163,4 +163,30 @@ describe('acquire', () => {
     })
     expect(highest).toBe(8)
   })
+
+  test('uses dependency ranges from package manifests', async () => {
+    const asked: [string, string][] = []
+    await acquire({
+      code: "import 'parent'",
+      compiler: ts,
+      files: new Map(),
+      load(name, version) {
+        asked.push([name, version])
+        if (name === 'parent')
+          return Promise.resolve({
+            files: {
+              '/index.d.ts': "export * from 'child'",
+              '/package.json': JSON.stringify({ dependencies: { child: '^2.1.0' } }),
+            },
+            name,
+            version: '1.0.0',
+          })
+        return Promise.resolve({ files: { '/index.d.ts': 'export {}' }, name, version: '2.1.3' })
+      },
+    })
+    expect(asked).toEqual([
+      ['parent', 'latest'],
+      ['child', '^2.1.0'],
+    ])
+  })
 })

@@ -37,6 +37,7 @@ export const compilerOptions = {
 export function create(): create.ReturnType {
   /** The compiler's file system, written to directly by both stages. */
   const files = new Map<string, string>()
+  const load = cached(read)
   let started: Promise<Cdn> | undefined
 
   /** Compiler and Twoslash options shared by local and CDN-backed resolvers. */
@@ -89,10 +90,33 @@ export function create(): create.ReturnType {
         code,
         compiler: cdn.compiler,
         files,
-        load: (name) => read(name),
+        load,
       })
       return (source, lang) => cdn.run(source, lang, acquired.types)
     },
+  }
+}
+
+/** Deduplicates bounded package reads by package and requested version. */
+export function cached(
+  load: (name: string, version: string) => Promise<acquire.Package | undefined>,
+  limit = 128,
+): (name: string, version: string) => Promise<acquire.Package | undefined> {
+  const held = new Map<string, Promise<acquire.Package | undefined>>()
+  return (name, version) => {
+    const key = `${name}@${version}`
+    const found = held.get(key)
+    if (found) {
+      held.delete(key)
+      held.set(key, found)
+      return found
+    }
+    const loading = load(name, version)
+    held.set(key, loading)
+    const oldest = held.size > limit ? held.keys().next().value : undefined
+    if (oldest !== undefined) held.delete(oldest)
+    void loading.catch(() => held.delete(key))
+    return loading
   }
 }
 
@@ -176,10 +200,10 @@ async function bundled(compiler: typeof import('typescript')) {
 }
 
 /** Loads one package's declarations from the registry. */
-async function read(name: string) {
+async function read(name: string, version: string): Promise<acquire.Package | undefined> {
   try {
-    const result = await Registry.types({ name, version: 'latest' })
-    return { files: result.files, name: result.name }
+    const result = await Registry.types({ name, version })
+    return { files: result.files, name: result.name, version: result.version }
   } catch (cause) {
     // Missing declaration packages resolve as `any`. Registry failures remain
     // errors because treating them as absent would produce incorrect annotations.
