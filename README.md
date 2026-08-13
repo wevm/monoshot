@@ -26,7 +26,7 @@ Try it: [monoshot.dev](https://monoshot.dev)
 Prompt your agent:
 
 ```text
-Use monoshot.dev to create a code image for a TypeScript snippet that validates an API response. Use the Tempo theme and include type annotations.
+Use monoshot.dev/md and create a code snippet of simple viem usage. Use the golden gate dark theme.
 ```
 
 ## Skills & MCP
