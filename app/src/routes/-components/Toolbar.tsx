@@ -6,7 +6,7 @@ import type { BundledLanguage } from 'shiki'
 import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 
-import * as detect from '#/lib/detect.js'
+import * as Language from '#/lib/language.js'
 import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
@@ -488,7 +488,7 @@ export function Toolbar(props: Toolbar.Props) {
                         >
                           Auto
                         </button>
-                        {detect.languages.map((entry) => (
+                        {Language.list.map((entry) => (
                           <button
                             aria-checked={entry.id === language}
                             data-option={entry.id === language ? 'selected' : ''}
@@ -642,7 +642,7 @@ export function Toolbar(props: Toolbar.Props) {
                 shortcut={shortcuts.language}
                 title="Language"
                 up
-                value={detect.title(resolved)}
+                value={Language.title(resolved)}
               />
             }
           />

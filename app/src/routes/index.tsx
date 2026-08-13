@@ -5,7 +5,7 @@ import type { BundledLanguage } from 'shiki'
 import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { detect, languages } from '#/lib/detect.js'
+import * as Language from '#/lib/language.js'
 import * as Export from '#/lib/export.js'
 import * as Links from '#/lib/links.js'
 import * as Opening from '#/lib/opening.js'
@@ -305,7 +305,7 @@ function restore(hash: string) {
   const language =
     state.lang === 'auto'
       ? 'auto'
-      : (languages.find((entry) => entry.id === state.lang)?.id ?? 'auto')
+      : (Language.list.find((entry) => entry.id === state.lang)?.id ?? 'auto')
   return {
     // Use the sample when a fragment is unreadable or contains an empty document.
     code: state.code || sample,
@@ -459,8 +459,16 @@ function Page() {
   // guess that cannot be made leaves the language where it is.
   useEffect(() => {
     if (settings.language !== 'auto') return
-    const timer = setTimeout(() => setDetected((current) => detect(code) ?? current), 400)
-    return () => clearTimeout(timer)
+    let active = true
+    const timer = setTimeout(() => {
+      void import('#/lib/detect.js').then(({ detect }) => {
+        if (active) setDetected((current) => detect(code) ?? current)
+      })
+    }, 400)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
   }, [code, settings.language])
 
   // The sample was resolved as one language at build time, and reads as that
