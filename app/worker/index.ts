@@ -48,12 +48,10 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
 
     const id = Links.id()
-    // Generate metadata once during sharing instead of delaying every preview request.
     const settings = Codec.deserialize(state)
-    const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
     // Re-encode validated settings to remove trailing data ignored by the decoder.
     const canonical = Codec.serialize(settings)
-    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: canonical }), {
+    await c.env.LINKS.put(id, JSON.stringify({ state: canonical }), {
       expirationTtl: Links.limits.ttl,
     })
     // Render and store the card during sharing to reduce latency for preview clients.

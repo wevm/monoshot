@@ -1,3 +1,5 @@
+import { Codec } from 'monoshot'
+
 import app from './index.js'
 
 vi.mock('@tanstack/react-start/server-entry', () => ({
@@ -72,6 +74,28 @@ describe('sharing', () => {
     )
     expect(response.status).toBe(413)
     expect(await response.json()).toEqual({ error: 'That snippet is too large to share.' })
+  })
+
+  test('stores canonical state without waiting for metadata generation', async () => {
+    const put = vi.fn((_key: string, _value: string) => Promise.resolve())
+    const sharing = {
+      ASSETS: { fetch: () => Promise.resolve(new Response('skill')) },
+      LINKS: { put },
+      SHARE_RATE: { limit: () => Promise.resolve({ success: true }) },
+    }
+    const state = Codec.serialize({ code: 'const a = 1' })
+    const response = await app.request(
+      '/api/share',
+      {
+        body: JSON.stringify({ state }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      sharing as never,
+      executionCtx,
+    )
+    expect(response.status).toBe(201)
+    expect(JSON.parse(put.mock.calls[0]?.[1] ?? '')).toEqual({ state })
   })
 })
 
