@@ -156,8 +156,9 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
       header: 'Accept',
       supports: ['text/html', 'text/markdown'],
     })
+    const userAgent = c.req.header('user-agent') ?? ''
     const response =
-      type === 'text/markdown' || agentUserAgent.test(c.req.header('user-agent') ?? '')
+      type === 'text/markdown' || markdownUserAgents.some((agent) => userAgent.includes(agent))
         ? await agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8')
         : await handler.fetch(c.req.raw)
     return varied(response)
@@ -187,8 +188,37 @@ export default app
 
 const skillPath = '/.well-known/agent-skills/monoshot/SKILL.md'
 const skillIndexPath = '/.well-known/agent-skills/index.json'
-const agentUserAgent =
-  /(?:ChatGPT-User|Claude-User|Perplexity-User|MistralAI-User|DuckAssistBot|meta-externalfetcher)/i
+const markdownUserAgents = [
+  'GPTBot',
+  'OAI-SearchBot',
+  'ChatGPT-User',
+  'ChatGPT-User/2.0',
+  'Claude-User',
+  'anthropic-ai',
+  'ClaudeBot',
+  'claude-web',
+  'PerplexityBot',
+  'Perplexity-User',
+  'Google-Extended',
+  'FacebookBot',
+  'meta-externalagent',
+  'meta-externalfetcher',
+  'Bytespider',
+  'cohere-ai',
+  'AI2Bot',
+  'CCBot',
+  'Diffbot',
+  'DuckAssistBot',
+  'omgili',
+  'Timpibot',
+  'MistralAI-User',
+  'GoogleAgent-Mariner',
+  'curl/',
+  'Wget/',
+  'HTTPie/',
+  'httpie-go/',
+  'xh/',
+]
 
 /** Reads an agent resource from the deployed static assets. */
 async function agentAsset(
