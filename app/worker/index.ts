@@ -1,6 +1,7 @@
 import handler from '@tanstack/react-start/server-entry'
 import { Hono, type Context } from 'hono'
 import { accepts } from 'hono/accepts'
+import { bodyLimit } from 'hono/body-limit'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
@@ -15,21 +16,25 @@ import * as Packages from './Packages.js'
 z.config(z.locales.en())
 
 const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
+const renderLimit = bodyLimit({
+  maxSize: 5 * 1024 * 1024,
+  onError: (c) => c.json({ error: 'The request body is too large.' }, 413),
+})
+const shareLimit = bodyLimit({
+  maxSize: Links.limits.size * 2,
+  onError: (c) => c.json({ error: 'That snippet is too large to share.' }, 413),
+})
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))
-  .post('/document', (c) => apiRender(c, '/document'))
-  .post('/image', (c) => apiRender(c, '/image'))
+  .post('/document', renderLimit, (c) => apiRender(c, '/document'))
+  .post('/image', renderLimit, (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.
   .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
-  .post('/share', async (c) => {
+  .post('/share', shareLimit, async (c) => {
     if (!c.env.LINKS)
       return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
-    // Reject oversized bodies before parsing to limit memory use by unauthenticated requests.
-    const declared = Number(c.req.header('content-length') ?? 0)
-    if (declared > Links.limits.size * 2)
-      return c.json({ error: 'That snippet is too large to share.' }, 413)
     // Limit writes per client address because each share persists for 90 days.
     const caller = c.req.header('cf-connecting-ip') ?? 'anonymous'
     if (!(await c.env.SHARE_RATE.limit({ key: caller })).success)

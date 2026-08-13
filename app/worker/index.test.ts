@@ -41,6 +41,38 @@ describe('api rendering', () => {
     expect(html).toContain('background: transparent;')
     expect(html).toContain('border-radius: 8px;')
   })
+
+  test('rejects oversized bodies before preprocessing them', async () => {
+    const response = await app.request(
+      '/api/document',
+      {
+        body: 'x'.repeat(5 * 1024 * 1024 + 1),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      env,
+      executionCtx,
+    )
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({ error: 'The request body is too large.' })
+  })
+})
+
+describe('sharing', () => {
+  test('rejects oversized bodies without relying on Content-Length', async () => {
+    const response = await app.request(
+      '/api/share',
+      {
+        body: 'x'.repeat(40_001),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      env,
+      executionCtx,
+    )
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({ error: 'That snippet is too large to share.' })
+  })
 })
 
 describe('agent skill', () => {
