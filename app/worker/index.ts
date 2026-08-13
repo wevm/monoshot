@@ -154,7 +154,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     const type = accepts(c, {
       default: 'text/html',
       header: 'Accept',
-      supports: ['text/markdown', 'text/html'],
+      supports: ['text/html', 'text/markdown'],
     })
     const response =
       type === 'text/markdown' || agentUserAgent.test(c.req.header('user-agent') ?? '')

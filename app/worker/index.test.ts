@@ -15,6 +15,12 @@ describe('agent skill', () => {
     expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
   })
 
+  test('serves the application when every content type is accepted', async () => {
+    const response = await app.request('/', { headers: { accept: '*/*' } }, env)
+    expect(await response.text()).toBe('html')
+    expect(response.headers.get('content-type')).toBe('text/html')
+  })
+
   test.each([
     'ChatGPT-User',
     'Claude-User',
