@@ -21,6 +21,9 @@ jobs:
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
 
+      - name: Build
+        run: pnpm build
+
       # Fails when `wrangler.json` changed without regenerating the committed
       # Worker types.
       - name: Check generated Worker types
@@ -37,9 +40,6 @@ jobs:
 
       - name: Check agent skill discovery
         run: pnpm check:skill
-
-      - name: Build
-        run: pnpm build
 
       - name: Check package contents
         run: pnpm check:pack
