@@ -118,6 +118,18 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   })
 
 const app = new Hono<{ Bindings: Cloudflare.Env }>()
+  .use('*', async (c, next) => {
+    await next()
+    c.header(
+      'content-security-policy',
+      "default-src 'self'; base-uri 'self'; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:",
+    )
+    c.header('permissions-policy', 'camera=(), geolocation=(), microphone=()')
+    c.header('referrer-policy', 'strict-origin-when-cross-origin')
+    c.header('strict-transport-security', 'max-age=31536000; includeSubDomains')
+    c.header('x-content-type-options', 'nosniff')
+    c.header('x-frame-options', 'DENY')
+  })
   .route('/api', api)
   // Render server-side preview images before the application fall-through routes.
   .get('/s/:id/og.png', async (c) => {

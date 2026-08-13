@@ -152,3 +152,21 @@ describe('agent skill', () => {
     expect(response.headers.get('content-type')).toBe('text/html')
   })
 })
+
+describe('security headers', () => {
+  test('protects browser responses', async () => {
+    const response = await app.request(
+      '/',
+      { headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0' } },
+      env,
+    )
+    expect(Object.fromEntries(response.headers)).toMatchObject({
+      'content-security-policy': expect.stringContaining("frame-ancestors 'none'"),
+      'permissions-policy': 'camera=(), geolocation=(), microphone=()',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+      'strict-transport-security': 'max-age=31536000; includeSubDomains',
+      'x-content-type-options': 'nosniff',
+      'x-frame-options': 'DENY',
+    })
+  })
+})

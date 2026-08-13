@@ -68,7 +68,6 @@ export function page(options: page.Options): string {
 </head>
 <body>
 <p>Opening <a href="${escape(target)}">this snippet</a>.</p>
-<script>location.replace(${script(target)})</script>
 </body>
 </html>
 `
@@ -183,11 +182,6 @@ export function summarize(code: string, fallback: string): string {
   if (!line) return fallback
   const trimmed = line.trim()
   return trimmed.length > 72 ? `${trimmed.slice(0, 71)}…` : trimmed
-}
-
-/** Serializes a value for an inline script and escapes HTML-opening characters. */
-function script(value: string) {
-  return JSON.stringify(value).replace(/</g, '\\u003c')
 }
 
 /** Escapes a value for an attribute or a text node. */
