@@ -2,6 +2,7 @@ import handler from '@tanstack/react-start/server-entry'
 import { Hono, type Context } from 'hono'
 import { accepts } from 'hono/accepts'
 import { Api, Codec, Twoslash } from 'monoshot'
+import { Handler } from 'vocs/server'
 import * as z from 'zod'
 
 import * as Browser from '../../src/internal/Browser.js'
@@ -103,8 +104,23 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     return response
   })
 
-const app = new Hono<{ Bindings: Cloudflare.Env }>()
-  .route('/api', api)
+const app = new Hono<{ Bindings: Cloudflare.Env }>().route('/api', api)
+
+// Mount documentation after the API so concrete routes retain precedence.
+app
+  .route(
+    '/api',
+    Handler.openApi(
+      {
+        spec: async () => {
+          // Request through the mount so the schema contains `/api` paths.
+          const response = await app.request('/api/openapi.json')
+          return (await response.json()) as Record<string, unknown>
+        },
+      },
+      { fallback: 'next' },
+    ),
+  )
   // Render server-side preview images before the application fall-through routes.
   .get('/s/:id/og.png', async (c) => {
     const id = c.req.param('id')

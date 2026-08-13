@@ -13,3 +13,9 @@
 /.well-known/agent-skills/*
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=300
+
+/api/_vocs/openapi/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/api/_vocs/openapi/chunks/*
+  Cache-Control: public, max-age=31536000, immutable

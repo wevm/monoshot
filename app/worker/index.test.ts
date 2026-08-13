@@ -24,6 +24,30 @@ async function document(body: unknown) {
 }
 
 describe('api rendering', () => {
+  test('serves the generated API reference from the mounted schema', async () => {
+    const response = await app.request(
+      '/api',
+      { headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0' } },
+      env,
+    )
+    const html = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('text/html')
+    expect(html).toContain('id="vocs-openapi-data"')
+    expect(html).toContain('/api/_vocs/openapi/')
+    expect(html).toContain('/api/document')
+  })
+
+  test('keeps the mounted OpenAPI schema available', async () => {
+    const response = await app.request('/api/openapi.json', {}, env)
+    const spec = (await response.json()) as { paths: Record<string, unknown> }
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('application/json')
+    expect(Object.keys(spec.paths)).toEqual(['/api/document', '/api/image', '/api/themes'])
+  })
+
   test('applies curated theme framing when frame options are omitted', async () => {
     const html = await document({ code: 'const a = 1', lang: 'typescript', theme: 'tempo' })
     expect(html).toContain('background: url("data:image/webp;base64,c2tpbGw=") center / cover;')

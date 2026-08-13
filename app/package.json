@@ -41,6 +41,7 @@
     "twoslash-cdn": "catalog:",
     "typescript": "catalog:",
     "unstorage": "catalog:",
+    "vocs": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

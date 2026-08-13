@@ -48,12 +48,15 @@ catalog:
   unplugin: ^2.3.11
   unstorage: ^1.17.5
   vite-plus: ^0.2.8
+  vocs: ^2.8.5
   wrangler: ^4.119.0
   zile: ^0.0.30
   zod: ^4.4.3
 
 allowBuilds:
+  es5-ext: false
   esbuild: true
+  vue-demi: false
   workerd: true
 
 overrides:
