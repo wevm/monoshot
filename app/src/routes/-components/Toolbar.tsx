@@ -443,6 +443,7 @@ export function Toolbar(props: Toolbar.Props) {
                                       aria-checked={entry.name === theme}
                                       data-option={entry.name === theme ? 'selected' : ''}
                                       onClick={() => onChange({ theme: entry.name })}
+                                      onFocus={() => onChange({ theme: entry.name })}
                                       ref={entry.name === theme ? reveal : null}
                                       role="radio"
                                       tabIndex={entry.name === theme ? 0 : -1}
@@ -477,6 +478,7 @@ export function Toolbar(props: Toolbar.Props) {
                           aria-checked={language === 'auto'}
                           data-option={language === 'auto' ? 'selected' : ''}
                           onClick={() => onChange({ language: 'auto' })}
+                          onFocus={() => onChange({ language: 'auto' })}
                           role="radio"
                           tabIndex={language === 'auto' ? 0 : -1}
                           type="button"
@@ -494,6 +496,7 @@ export function Toolbar(props: Toolbar.Props) {
                             data-option={entry.id === language ? 'selected' : ''}
                             key={entry.id}
                             onClick={() => onChange({ language: entry.id })}
+                            onFocus={() => onChange({ language: entry.id })}
                             ref={entry.id === language ? reveal : null}
                             role="radio"
                             tabIndex={entry.id === language ? 0 : -1}
@@ -523,6 +526,7 @@ export function Toolbar(props: Toolbar.Props) {
                                     aria-checked={background === value}
                                     data-option={background === value ? 'selected' : ''}
                                     onClick={() => onChange({ background: value })}
+                                    onFocus={() => onChange({ background: value })}
                                     role="radio"
                                     tabIndex={background === value ? 0 : -1}
                                     type="button"
@@ -548,6 +552,7 @@ export function Toolbar(props: Toolbar.Props) {
                               aria-checked={background === 'default'}
                               data-option={background === 'default' ? 'selected' : ''}
                               onClick={() => onChange({ background: 'default' })}
+                              onFocus={() => onChange({ background: 'default' })}
                               role="radio"
                               tabIndex={background === 'default' ? 0 : -1}
                               type="button"
@@ -564,6 +569,7 @@ export function Toolbar(props: Toolbar.Props) {
                               aria-checked={background === 'none'}
                               data-option={background === 'none' ? 'selected' : ''}
                               onClick={() => onChange({ background: 'none' })}
+                              onFocus={() => onChange({ background: 'none' })}
                               role="radio"
                               tabIndex={background === 'none' ? 0 : -1}
                               type="button"
@@ -580,6 +586,7 @@ export function Toolbar(props: Toolbar.Props) {
                                 aria-checked={background === value}
                                 data-option={background === value ? 'selected' : ''}
                                 onClick={() => onChange({ background: value })}
+                                onFocus={() => onChange({ background: value })}
                                 role="radio"
                                 tabIndex={background === value ? 0 : -1}
                                 type="button"
@@ -598,6 +605,7 @@ export function Toolbar(props: Toolbar.Props) {
                                 aria-checked={custom}
                                 data-option={custom ? 'selected' : ''}
                                 onChange={(event) => onChange({ background: event.target.value })}
+                                onFocus={(event) => onChange({ background: event.target.value })}
                                 role="radio"
                                 tabIndex={custom ? 0 : -1}
                                 type="color"
