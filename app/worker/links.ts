@@ -1,32 +1,32 @@
 /**
- * Size, retention, and preview limits for shared links. The line cap is what
- * {@link geometry} holds at its widest canvas before the window overflows.
+ * Size, retention, and preview limits for shared links. The line cap matches
+ * the largest canvas {@link geometry} produces.
  */
 export const limits = { lines: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
-/** The card's proportions, and what the canvas may grow to. */
+/** Card output dimensions and canvas layout constants. */
 const card = {
-  /** Output size every card lands on, whatever the canvas. */
+  /** Output size of every rendered card. */
   height: 630,
   width: 1200,
-  /** Canvas bounds. The floor keeps short snippets at the standard look. */
+  /** Canvas width bounds. The floor keeps short snippets at the standard layout. */
   narrowest: 800,
   widest: 1600,
   /** Space between the canvas edge and the window, in canvas pixels. */
   padding: 88,
-  /** One line of code, and the window chrome around all of them. */
+  /** Window chrome height and the height of one code line. */
   chrome: 26,
   line: 22,
 } as const
 
 /**
- * The canvas a snippet's card is drawn on, and the scale that lands it on
- * 1200x630.
+ * Computes the canvas size for a snippet's card and the scale that maps it to
+ * the 1200x630 output.
  *
- * The canvas grows with the snippet at the card's own ratio and the screenshot
- * scales it back down, so every line is shown and every card is one shape: a
- * longer snippet is a smaller typeface, not a cut. Width rounds to multiples
- * of 40, which is what keeps the height a whole number of pixels at 21:40.
+ * The canvas grows with the snippet at the card's aspect ratio and the
+ * screenshot scales it back down, so every line renders and all cards share
+ * one shape. Widths round to multiples of 40, which keeps heights whole at
+ * the 21:40 ratio.
  */
 export function geometry(code: string): geometry.Result {
   const lines = Math.max(1, code.replace(/\n$/, '').split('\n').length)
@@ -42,9 +42,9 @@ export function geometry(code: string): geometry.Result {
 
 export declare namespace geometry {
   type Result = {
-    /** Canvas height in pixels, always `width` at the card's ratio. */
+    /** Canvas height in pixels, derived from `width` at the card ratio. */
     height: number
-    /** What the screenshot multiplies by to land on the card's size. */
+    /** Device scale factor that maps the canvas to the output size. */
     scale: number
     /** Canvas width in pixels. */
     width: number

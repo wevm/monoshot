@@ -80,7 +80,7 @@ describe('geometry', () => {
         "width": 1040,
       }
     `)
-    // Whatever the canvas, the screenshot lands on the card's size.
+    // Every canvas maps to the same output size.
     expect(Math.round(grown.width * grown.scale)).toBe(1200)
     expect(Math.round(grown.height * grown.scale)).toBe(630)
   })
@@ -89,7 +89,7 @@ describe('geometry', () => {
     const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
     const grown = Links.geometry(most)
     expect(grown.width).toBe(1600)
-    // The window still fits: lines and chrome inside the padded canvas.
+    // The window fits: lines and chrome inside the padded canvas.
     expect(29 * 22 + 26).toBeLessThanOrEqual(grown.height - 2 * 88)
   })
 })

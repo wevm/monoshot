@@ -172,11 +172,9 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Bounded rather than whole: past what the widest canvas holds, the rest of
-  // a snippet is cut.
+  // Cut snippets past what the widest canvas holds.
   const shown = Links.excerpt(settings.code)
-  // The canvas grows with the snippet and the screenshot scales it back, so
-  // every line is on the card and every card is one shape.
+  // Size the canvas to the snippet so every line renders on one card shape.
   const shape = Links.geometry(shown)
   const drawn = await api.request(
     '/image',
