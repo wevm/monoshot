@@ -157,7 +157,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
       supports: ['text/markdown', 'text/html'],
     })
     const response =
-      type === 'text/markdown'
+      type === 'text/markdown' || agentUserAgent.test(c.req.header('user-agent') ?? '')
         ? await agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8')
         : await handler.fetch(c.req.raw)
     return varied(response)
@@ -187,6 +187,8 @@ export default app
 
 const skillPath = '/.well-known/agent-skills/monoshot/SKILL.md'
 const skillIndexPath = '/.well-known/agent-skills/index.json'
+const agentUserAgent =
+  /(?:ChatGPT-User|Claude-User|Perplexity-User|MistralAI-User|DuckAssistBot|meta-externalfetcher)/i
 
 /** Reads an agent resource from the deployed static assets. */
 async function agentAsset(
@@ -207,10 +209,10 @@ async function agentAsset(
   })
 }
 
-/** Marks the root response as dependent on content negotiation. */
+/** Marks the root response as dependent on request negotiation. */
 function varied(response: Response): Response {
   const headers = new Headers(response.headers)
-  headers.append('vary', 'Accept')
+  headers.append('vary', 'Accept, User-Agent')
   return new Response(response.body, {
     headers,
     status: response.status,
