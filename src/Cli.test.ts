@@ -91,6 +91,13 @@ describe('create', () => {
       expect((output as { code: string }).code).toMatchInlineSnapshot(`"invalid_base"`)
     })
 
+    test('refuses a base that is not HTTP', async () => {
+      const source = await file('demo.ts')
+      const { exit, output } = await run(['share', source, '--base', 'file:///tmp/monoshot'])
+      expect(exit).toBe(1)
+      expect((output as { code: string }).code).toMatchInlineSnapshot(`"invalid_base"`)
+    })
+
     test('reads the language from the file name, as shiki names it', async () => {
       const source = await file('demo.py', 'greeting = "hello"\n')
       const { output } = await run(['share', source])
