@@ -14,7 +14,7 @@ import * as Theme from './Theme.js'
 import { version } from './version.js'
 
 /** Default deployment for generated share links. */
-const site = 'https://monoshot.broken-thunder-fb8b.workers.dev'
+const site = 'https://monoshot.dev'
 
 /**
  * Default language when neither an option nor a file extension specifies one.

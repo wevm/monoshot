@@ -69,7 +69,16 @@ const styles = stylex.create({
     justifyContent: 'space-between',
     paddingInline: 20,
   },
-  wordmark: { fontFamily: font.mono },
+  wordmark: {
+    backgroundColor: 'currentColor',
+    blockSize: 26,
+    display: 'block',
+    inlineSize: 101,
+    maskImage: 'url("/logo-light.svg")',
+    maskPosition: 'center',
+    maskRepeat: 'no-repeat',
+    maskSize: 'contain',
+  },
   actions: { alignItems: 'center', display: 'flex', gap: 12 },
   // Beside the menu that started the export, quiet enough to read as a note on
   // the action rather than a failure of the page.
@@ -880,7 +889,7 @@ function Page() {
       )}
 
       <header {...stylex.props(styles.header)}>
-        <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
+        <span aria-label="Monoshot" role="img" {...stylex.props(styles.wordmark)} />
         {/* Inert rather than `aria-hidden`: the copy carries a title field and
             the frame's handles, which stay tabbable while a capture runs. */}
         <div inert ref={stage} {...stylex.props(styles.offscreen)}>

@@ -10,7 +10,8 @@ import { Tooltip } from '#/ui/Tooltip.js'
 import { motion } from '../theme/tokens.stylex.js'
 
 const title = 'monoshot'
-const description = 'Render code images with type-aware annotations.'
+const description =
+  'Create code images with syntax highlighting, customizable themes, and type-aware annotations.'
 /** Dimensions and path of the generated social card. */
 const card = { height: '630', path: '/og.jpg', width: '1200' } as const
 
@@ -42,6 +43,18 @@ export const Route = createRootRoute({
     scripts: [{ children: schemeScript }],
     links: [
       { rel: 'canonical', href: Site.origin },
+      {
+        rel: 'icon',
+        href: '/icon-light.svg',
+        media: '(prefers-color-scheme: light)',
+        type: 'image/svg+xml',
+      },
+      {
+        rel: 'icon',
+        href: '/icon-dark.svg',
+        media: '(prefers-color-scheme: dark)',
+        type: 'image/svg+xml',
+      },
       { rel: 'stylesheet', href: appCss },
       // StyleX dev CSS is served by the unplugin's dev middleware; the built
       // CSS is appended to the styles.css asset, so prod needs no extra link.

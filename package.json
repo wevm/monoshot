@@ -25,7 +25,7 @@
   "type": "module",
   "version": "0.0.3",
   "license": "MIT",
-  "description": "Render code images with type-aware Twoslash annotations.",
+  "description": "Create code images with syntax highlighting, customizable themes, and type-aware annotations.",
   "repository": {
     "type": "git",
     "url": "https://github.com/wevm/monoshot"
