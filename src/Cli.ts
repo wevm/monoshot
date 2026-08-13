@@ -146,7 +146,7 @@ export function create() {
         bytes: z.number().describe('Size of the image written.'),
         path: z.string().describe('Where the image was written.'),
       }),
-      async run({ args, error, formatExplicit, options }) {
+      async run({ args, error, formatExplicit, ok, options }) {
         const code = await read(args.file, options.code)
         if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
         const resolved = frame(args.file, code, options)
@@ -199,7 +199,22 @@ export function create() {
           return error({ code: 'render_failed', message: rendered.message })
         await fs.writeFile(out, rendered.image)
         if (rendered.preview) await Terminal.preview(rendered.preview)
-        return { bytes: rendered.image.length, path: out }
+        return ok(
+          { bytes: rendered.image.length, path: out },
+          {
+            cta: {
+              commands: [
+                {
+                  ...(args.file === undefined ? {} : { args: { file: args.file } }),
+                  command: options.titleBar === true ? 'share --title-bar' : 'share',
+                  description: 'Create a matching editor link.',
+                  options: shareOptions(options),
+                },
+              ],
+              description: 'Next, create an editor link:',
+            },
+          },
+        )
       },
     })
     .command('share', {
@@ -245,6 +260,22 @@ export function create() {
         return Theme.list().map((theme) => ({ ...theme }))
       },
     })
+}
+
+/** Keeps the snippet and frame options accepted by `share`. */
+function shareOptions(options: z.output<typeof linked>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries({
+      background: options.background,
+      code: options.code,
+      lang: options.lang,
+      padding: options.padding,
+      radius: options.radius,
+      theme: options.theme,
+      title: options.title,
+      width: options.width,
+    }).filter((entry) => entry[1] !== undefined),
+  )
 }
 
 /** Command failure returned through the CLI error handler. */
