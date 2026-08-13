@@ -217,6 +217,7 @@ describe('create', () => {
         "code",
         "lang",
         "padding",
+        "picture",
         "radius",
         "theme",
         "title",
