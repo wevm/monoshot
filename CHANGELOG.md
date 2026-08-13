@@ -1,5 +1,13 @@
 # monoshot
 
+## 0.0.4
+
+### Patch Changes
+
+- 841cb31: Updated Monoshot branding, documentation, and the default shared-link domain.
+- 8aa51d1: Added optional inline terminal previews to the `render` command.
+- 5d36293: Prevented large dependency graphs from clearing resolved types after acquisition.
+
 ## 0.0.3
 
 ### Patch Changes
@@ -10,14 +18,14 @@
 - eeefa6a: Added SVG output to the renderer and the command, written as vector markup rather than a raster.
 
   ```ts
-  import * as Headless from 'monoshot/headless'
+  import * as Headless from "monoshot/headless";
 
   const svg = await Headless.render({
-    code: 'const a = 1',
-    lang: 'ts',
-    theme: 'vitesse-dark',
-    type: 'svg',
-  })
+    code: "const a = 1",
+    lang: "ts",
+    theme: "vitesse-dark",
+    type: "svg",
+  });
   ```
 
 - f37fd5d: Added a Tempo theme, composed from Tempo's own artwork.

@@ -63,6 +63,8 @@ npx monoshot render src/example.ts --type svg --out example.svg
 
 PNG is the default. The output extension also selects PNG or SVG. JavaScript and TypeScript enable Twoslash automatically; add `^?` queries where type annotations should appear.
 
+After creating an image, run `share` with the same code and frame settings. Return the resulting `monoshot.dev` editor URL alongside the image.
+
 ### Return an editor link
 
 Use `share` when another person or process needs the configured snippet URL without launching a browser:
@@ -82,6 +84,8 @@ npx monoshot themes
 ```
 
 The `open`, `render`, and `share` commands accept common frame options such as `--background`, `--lang`, `--padding`, `--radius`, `--theme`, `--title`, `--title-bar`, and `--width`.
+
+Omit `--width` for CLI calls and `width` for API calls by default. Reformat long lines before increasing the width, and keep it at or below 800 px unless the user requests otherwise. Use `scale` to increase PNG resolution without widening the layout.
 
 Inspect the current command contract when an option is uncertain:
 

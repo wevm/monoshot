@@ -1,5 +1,5 @@
 import handler from '@tanstack/react-start/server-entry'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { accepts } from 'hono/accepts'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
@@ -13,11 +13,14 @@ import * as Links from './links.js'
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
+const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
+
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))
+  .post('/document', (c) => apiRender(c, '/document'))
+  .post('/image', (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.
-  // Resolve the browser binding per request from the Worker environment.
-  .route('/', Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER }))
+  .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
   .post('/share', async (c) => {
     if (!c.env.LINKS)
@@ -156,8 +159,9 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
       header: 'Accept',
       supports: ['text/html', 'text/markdown'],
     })
+    const userAgent = c.req.header('user-agent') ?? ''
     const response =
-      type === 'text/markdown' || agentUserAgent.test(c.req.header('user-agent') ?? '')
+      type === 'text/markdown' || markdownUserAgents.some((agent) => userAgent.includes(agent))
         ? await agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8')
         : await handler.fetch(c.req.raw)
     return varied(response)
@@ -187,8 +191,77 @@ export default app
 
 const skillPath = '/.well-known/agent-skills/monoshot/SKILL.md'
 const skillIndexPath = '/.well-known/agent-skills/index.json'
-const agentUserAgent =
-  /(?:ChatGPT-User|Claude-User|Perplexity-User|MistralAI-User|DuckAssistBot|meta-externalfetcher)/i
+const markdownUserAgents = [
+  'GPTBot',
+  'OAI-SearchBot',
+  'ChatGPT-User',
+  'ChatGPT-User/2.0',
+  'Claude-User',
+  'anthropic-ai',
+  'ClaudeBot',
+  'claude-web',
+  'PerplexityBot',
+  'Perplexity-User',
+  'Google-Extended',
+  'FacebookBot',
+  'meta-externalagent',
+  'meta-externalfetcher',
+  'Bytespider',
+  'cohere-ai',
+  'AI2Bot',
+  'CCBot',
+  'Diffbot',
+  'DuckAssistBot',
+  'omgili',
+  'Timpibot',
+  'MistralAI-User',
+  'GoogleAgent-Mariner',
+  'curl/',
+  'Wget/',
+  'HTTPie/',
+  'httpie-go/',
+  'xh/',
+]
+
+async function apiRender(
+  c: Context<{ Bindings: Cloudflare.Env }>,
+  path: '/document' | '/image',
+): Promise<Response> {
+  const text = await c.req.text()
+  const headers = new Headers(c.req.raw.headers)
+  headers.delete('content-length')
+  const send = (body: string) =>
+    renderer.request(path, { body, headers, method: 'POST' }, c.env, c.executionCtx)
+
+  let request: unknown
+  try {
+    request = JSON.parse(text)
+  } catch {
+    return send(text)
+  }
+  if (!request || typeof request !== 'object' || Array.isArray(request)) return send(text)
+
+  const input = request as Record<string, unknown>
+  const theme = typeof input['theme'] === 'string' ? input['theme'] : ''
+  const frame = Themes.frame(theme)
+  const wallpaper =
+    input['background'] === undefined || input['background'] === 'default'
+      ? Wallpapers.byId(theme)
+      : undefined
+  const picture =
+    wallpaper && input['picture'] === undefined
+      ? await inlined(c.env, new URL(c.req.url).origin, wallpaper.id)
+      : undefined
+  return send(
+    JSON.stringify({
+      ...input,
+      ...(picture ? { picture } : {}),
+      ...(input['radius'] === undefined && frame.radius !== undefined
+        ? { radius: frame.radius }
+        : {}),
+    }),
+  )
+}
 
 /** Reads an agent resource from the deployed static assets. */
 async function agentAsset(

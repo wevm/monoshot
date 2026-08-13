@@ -155,9 +155,8 @@ export const hover: Extension = [
     {
       // Close the hover when pinning inserts the corresponding inline type block.
       hideOnChange: true,
-      // Type data is already available. Use one millisecond because CodeMirror
-      // replaces a zero value with its 300ms default.
-      hoverTime: 1,
+      // Match the opening delay used by control tooltips.
+      hoverTime: 100,
     },
   ),
   // The pin is a pointer affordance on a surface only a pointer opens, so

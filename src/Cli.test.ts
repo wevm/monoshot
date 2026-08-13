@@ -5,6 +5,7 @@ import { bundledLanguages, bundledLanguagesInfo } from 'shiki'
 
 import * as Cli from './Cli.js'
 import * as Codec from './Codec.js'
+import * as Headless from './Headless.js'
 import * as Theme from './Theme.js'
 
 const code = 'export const greeting = "hello"\n'
@@ -232,6 +233,37 @@ describe('create', () => {
   })
 
   describe('render', () => {
+    test('suggests creating a matching editor link', async () => {
+      const source = await file('demo.ts')
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+      } as never)
+      try {
+        const { output } = await run([
+          'render',
+          source,
+          '--theme',
+          'tempo',
+          '--title-bar',
+          '--width',
+          '720',
+          '--full-output',
+        ])
+        expect((output as { meta: { cta: unknown } }).meta.cta).toEqual({
+          commands: [
+            {
+              command: `monoshot share --title-bar ${source} --theme tempo --width 720`,
+              description: 'Create a matching editor link.',
+            },
+          ],
+          description: 'Next, create an editor link:',
+        })
+      } finally {
+        create.mockRestore()
+      }
+    })
+
     test('refuses a theme it does not have, before starting a browser', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['render', source, '--theme', 'nope'])
