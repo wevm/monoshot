@@ -104,24 +104,52 @@ export function create(): create.ReturnType {
 /** Deduplicates bounded package reads by package and requested version. */
 export function cached(
   load: (name: string, version: string) => Promise<acquire.Package | undefined>,
-  limit = 128,
+  options: cached.Options = {},
 ): (name: string, version: string) => Promise<acquire.Package | undefined> {
-  const held = new Map<string, Promise<acquire.Package | undefined>>()
+  const limit = options.limit ?? 128
+  const now = options.now ?? Date.now
+  const ttl = options.ttl ?? 5 * 60_000
+  const held = new Map<string, { expires: number; loading: Promise<acquire.Package | undefined> }>()
   return (name, version) => {
     const key = `${name}@${version}`
     const found = held.get(key)
-    if (found) {
+    if (found && found.expires > now()) {
       held.delete(key)
       held.set(key, found)
-      return found
+      return found.loading
     }
+    held.delete(key)
     const loading = load(name, version)
-    held.set(key, loading)
+    const entry = { expires: exact(version) ? Number.POSITIVE_INFINITY : now() + ttl, loading }
+    held.set(key, entry)
     const oldest = held.size > limit ? held.keys().next().value : undefined
     if (oldest !== undefined) held.delete(oldest)
-    void loading.catch(() => held.delete(key))
+    void loading.then(
+      (result) => {
+        if (result === undefined && held.get(key) === entry) entry.expires = now() + ttl
+      },
+      () => {
+        if (held.get(key) === entry) held.delete(key)
+      },
+    )
     return loading
   }
+}
+
+export declare namespace cached {
+  type Options = {
+    /** Maximum retained package reads. */
+    limit?: number | undefined
+    /** Clock used to expire mutable specifications and misses. */
+    now?: (() => number) | undefined
+    /** Milliseconds before a mutable specification or miss is revalidated. */
+    ttl?: number | undefined
+  }
+}
+
+/** Whether a package version can never resolve to different contents. */
+function exact(version: string) {
+  return /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)
 }
 
 /**
