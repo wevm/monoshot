@@ -6,6 +6,7 @@ import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { detect, languages } from '#/lib/detect.js'
+import { bare } from '#/lib/editor/notations.js'
 import * as Export from '#/lib/export.js'
 import * as Links from '#/lib/links.js'
 import * as Opening from '#/lib/opening.js'
@@ -29,6 +30,8 @@ import { Toolbar } from './-components/Toolbar.js'
 export const Route = createFileRoute('/')({
   component: Page,
 })
+
+const bareSample = bare(sample)
 
 const loadingReveal = stylex.keyframes({
   from: { clipPath: 'inset(0 100% 0 0)', opacity: 0.7 },
@@ -456,22 +459,26 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
   const attempt = useRef(0)
-  const [detected, setDetected] = useState<BundledLanguage>('tsx')
+  const [detected, setDetected] = useState<BundledLanguage>(() => {
+    const source = bare(code)
+    return source === bareSample ? Sample.language : (detect(source) ?? 'tsx')
+  })
 
   // Under `auto` the language is read from the code, debounced: reading the
   // whole document on every keystroke would recolor the frame mid-word, and a
   // guess that cannot be made leaves the language where it is.
   useEffect(() => {
     if (settings.language !== 'auto') return
-    const timer = setTimeout(() => setDetected((current) => detect(code) ?? current), 400)
+    const source = bare(code)
+    if (source === bareSample) {
+      setDetected(Sample.language)
+      return
+    }
+    const timer = setTimeout(() => setDetected((current) => detect(source) ?? current), 400)
     return () => clearTimeout(timer)
   }, [code, settings.language])
 
-  // The sample was resolved as one language at build time, and reads as that
-  // one regardless of detection. Detection still controls every other
-  // document, including one it cannot place, which stays TypeScript.
-  const language =
-    settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
+  const language = settings.language !== 'auto' ? settings.language : detected
 
   // The fragment is the only place state is kept, so it is written on every
   // change, debounced: a keystroke should not push a history entry, and the
