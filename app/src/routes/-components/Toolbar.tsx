@@ -1,9 +1,10 @@
+import { Popover } from '@base-ui/react/popover'
 import * as stylex from '@stylexjs/stylex'
-import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
+import { MotionConfig, motion as m } from 'motion/react'
 import { Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 
 import * as detect from '#/lib/detect.js'
 import * as Themes from '#/lib/themes.js'
@@ -35,17 +36,14 @@ const styles = stylex.create({
     position: 'relative',
     width: 'max-content',
   },
-  panel: { bottom: 'calc(100% + 8px)', insetInline: 0, position: 'absolute' },
+  panel: { maxWidth: 'calc(100vw - 40px)' },
   // The color row is a fixed set of chips, so it sizes to them and centers on
   // the bar. Matching the bar would stretch or squeeze it every time the theme
   // name changes length.
   // Use a fixed panel width so selection-label changes do not reflow the grid.
   panelThemes: { width: 520 },
   panelFit: {
-    insetInline: 'auto auto',
-    left: '50%',
     maxWidth: 'calc(100vw - 40px)',
-    transform: 'translateX(-50%)',
     width: 'max-content',
   },
   surface: {
@@ -326,6 +324,7 @@ export function Toolbar(props: Toolbar.Props) {
   // meaning for.
   const checkable = resolved in dialects
   const [panel, setPanel] = useState<Panel>()
+  const popup = useMemo(() => Popover.createHandle<Exclude<Panel, undefined>>(), [])
   // A hex the palette does not carry belongs to the custom picker.
   const custom = background.startsWith('#') && !backgrounds.includes(background as never)
   const swatchIndex = backgroundIndex(background)
@@ -342,55 +341,16 @@ export function Toolbar(props: Toolbar.Props) {
     { entries: themes.filter((entry) => !Themes.curated(entry.name)), title: 'Other' },
   ]
 
-  // Clicking the open control closes it, so the bar is its own dismiss target.
-  const toggle = (next: Panel) => setPanel((current) => (current === next ? undefined : next))
+  // Detached triggers share one popup while Base UI owns dismissal and focus.
+  const toggle = (next: Exclude<Panel, undefined>) =>
+    panel === next ? popup.close() : popup.open(`toolbar-${next}`)
 
   const surface = useRef<HTMLDivElement>(null)
-  const bar = useRef<HTMLDivElement>(null)
   const root = useRef<HTMLDivElement>(null)
-
-  // Standard dismissal for a panel that is not a Base UI popup: Escape from
-  // anywhere, and a press that lands outside the toolbar.
-  useEffect(() => {
-    if (!panel) return
-    function dismiss(event: Event) {
-      if (event.target instanceof Node && root.current?.contains(event.target)) return
-      setPanel(undefined)
-    }
-    function escape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setPanel(undefined)
-    }
-    window.addEventListener('keydown', escape)
-    window.addEventListener('pointerdown', dismiss)
-    return () => {
-      window.removeEventListener('keydown', escape)
-      window.removeEventListener('pointerdown', dismiss)
-    }
-  }, [panel])
-
-  // Reaching a control by key should leave the keyboard where the work is, so
-  // opening a panel moves focus onto the option already in effect.
-  useEffect(() => {
-    if (!panel) return
-    const options = surface.current?.querySelectorAll<HTMLElement>('[data-option]')
-    if (!options?.length) return
-    const current = [...options].find((option) => option.dataset['option'] === 'selected')
-    ;(current ?? options[0])?.focus()
-  }, [panel])
 
   // The panel owns the arrow keys while it is open, so the page's own theme
   // stepping never fires underneath it.
   function navigate(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      event.stopPropagation()
-      setPanel(undefined)
-      // Hand the keyboard back to the control that opened the panel.
-      if (panel)
-        bar.current
-          ?.querySelector<HTMLElement>(`[aria-keyshortcuts="${shortcuts[panel]}"]`)
-          ?.focus()
-      return
-    }
     const along = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
     const down = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
     const options = [...(surface.current?.querySelectorAll<HTMLElement>('[data-option]') ?? [])]
@@ -427,219 +387,279 @@ export function Toolbar(props: Toolbar.Props) {
   return (
     <MotionConfig reducedMotion="user">
       <div ref={root} {...stylex.props(styles.root)}>
-        <AnimatePresence initial={false}>
-          {panel && (
-            <m.div
-              animate={{ filter: 'blur(0px)', height: 'auto', opacity: 1 }}
-              exit={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
-              initial={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
-              key={panel}
-              onKeyDown={navigate}
-              ref={surface}
-              // Height keeps the spring so the bar is pushed rather than
-              // revealed; the blur and fade resolve faster than the movement.
-              transition={{ ...spring, filter: fade, opacity: fade }}
-              {...stylex.props(
-                styles.panel,
-                (panel === 'background' || panel === 'theme') && styles.panelFit,
-                panel === 'theme' && styles.panelThemes,
-                styles.surface,
-              )}
-            >
-              {panel === 'theme' ? (
-                <div {...stylex.props(styles.rows)}>
-                  {sections.map((section) => (
-                    <div key={section.title}>
-                      <span {...stylex.props(styles.rowTitle(6), text.label12)}>
-                        {section.title}
-                      </span>
-                      <div {...stylex.props(styles.themeGrid)}>
-                        {section.entries.map((entry) => {
-                          const shown = Themes.swatch(entry.name)
-                          return (
-                            <Tooltip key={entry.name} label={entry.displayName}>
-                              <button
-                                aria-pressed={entry.name === theme}
-                                data-option={entry.name === theme ? 'selected' : ''}
-                                onClick={() => onChange({ theme: entry.name })}
-                                onFocus={() => onChange({ theme: entry.name })}
-                                ref={entry.name === theme ? reveal : null}
-                                type="button"
-                                {...stylex.props(styles.themeBox(shown.backdrop))}
-                              >
-                                <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
-                                <span {...stylex.props(styles.themeStripes)}>
-                                  {shown.colors.map((paint) => (
-                                    <span
-                                      key={paint}
-                                      {...stylex.props(styles.themeStroke(paint))}
-                                    />
-                                  ))}
-                                </span>
-                                {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
-                              </button>
-                            </Tooltip>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : panel === 'language' ? (
-                <div {...stylex.props(styles.list)}>
-                  <button
-                    aria-pressed={language === 'auto'}
-                    data-option={language === 'auto' ? 'selected' : ''}
-                    onClick={() => onChange({ language: 'auto' })}
-                    onFocus={() => onChange({ language: 'auto' })}
-                    type="button"
-                    {...stylex.props(
-                      styles.option,
-                      text.copy13,
-                      language === 'auto' && styles.optionSelected,
-                    )}
+        <Popover.Root
+          handle={popup}
+          onOpenChange={(open, details) => {
+            if (!open) {
+              setPanel(undefined)
+              return
+            }
+            const next = details.trigger?.id.replace('toolbar-', '')
+            if (next === 'background' || next === 'language' || next === 'theme') setPanel(next)
+          }}
+          open={panel !== undefined}
+        >
+          {({ payload }) =>
+            panel && payload ? (
+              <Popover.Portal>
+                <Popover.Positioner align="center" side="top" sideOffset={8}>
+                  <Popover.Popup
+                    initialFocus={() =>
+                      surface.current?.querySelector<HTMLElement>('[data-option="selected"]') ??
+                      true
+                    }
+                    render={
+                      <m.div
+                        animate={{ filter: 'blur(0px)', height: 'auto', opacity: 1 }}
+                        initial={{ filter: 'blur(6px)', height: 0, opacity: 0 }}
+                        key={payload}
+                        onKeyDown={navigate}
+                        ref={surface}
+                        // Height keeps the spring so the bar is pushed rather than
+                        // revealed; the blur and fade resolve faster than the movement.
+                        transition={{ ...spring, filter: fade, opacity: fade }}
+                        {...stylex.props(
+                          styles.panel,
+                          (panel === 'background' || panel === 'theme') && styles.panelFit,
+                          panel === 'theme' && styles.panelThemes,
+                          styles.surface,
+                        )}
+                      />
+                    }
                   >
-                    Auto
-                  </button>
-                  {detect.languages.map((entry) => (
-                    <button
-                      aria-pressed={entry.id === language}
-                      data-option={entry.id === language ? 'selected' : ''}
-                      key={entry.id}
-                      onClick={() => onChange({ language: entry.id })}
-                      onFocus={() => onChange({ language: entry.id })}
-                      ref={entry.id === language ? reveal : null}
-                      type="button"
-                      {...stylex.props(
-                        styles.option,
-                        text.copy13,
-                        entry.id === language && styles.optionSelected,
-                      )}
-                    >
-                      {entry.title}
-                    </button>
-                  ))}
-                </div>
-              ) : panel === 'background' ? (
-                <div {...stylex.props(styles.rows)}>
-                  <div>
-                    <span {...stylex.props(styles.rowTitle(10), text.label12)}>Wallpapers</span>
-                    <div {...stylex.props(styles.pictureRow)}>
-                      {Wallpapers.offered.map((wallpaper) => {
-                        const value = Wallpapers.background(wallpaper.id)
-                        return (
-                          <Tooltip key={wallpaper.id} label={wallpaper.name}>
+                    {panel === 'theme' ? (
+                      <div aria-label="Theme" role="radiogroup" {...stylex.props(styles.rows)}>
+                        {sections.map((section) => (
+                          <div key={section.title}>
+                            <span {...stylex.props(styles.rowTitle(6), text.label12)}>
+                              {section.title}
+                            </span>
+                            <div {...stylex.props(styles.themeGrid)}>
+                              {section.entries.map((entry) => {
+                                const shown = Themes.swatch(entry.name)
+                                return (
+                                  <Tooltip key={entry.name} label={entry.displayName}>
+                                    <button
+                                      aria-checked={entry.name === theme}
+                                      data-option={entry.name === theme ? 'selected' : ''}
+                                      onClick={() => onChange({ theme: entry.name })}
+                                      ref={entry.name === theme ? reveal : null}
+                                      role="radio"
+                                      tabIndex={entry.name === theme ? 0 : -1}
+                                      type="button"
+                                      {...stylex.props(styles.themeBox(shown.backdrop))}
+                                    >
+                                      <span {...stylex.props(styles.srOnly)}>
+                                        {entry.displayName}
+                                      </span>
+                                      <span {...stylex.props(styles.themeStripes)}>
+                                        {shown.colors.map((paint) => (
+                                          <span
+                                            key={paint}
+                                            {...stylex.props(styles.themeStroke(paint))}
+                                          />
+                                        ))}
+                                      </span>
+                                      {entry.name === theme && (
+                                        <Ring row="themes" travel={themeTravel} />
+                                      )}
+                                    </button>
+                                  </Tooltip>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : panel === 'language' ? (
+                      <div aria-label="Language" role="radiogroup" {...stylex.props(styles.list)}>
+                        <button
+                          aria-checked={language === 'auto'}
+                          data-option={language === 'auto' ? 'selected' : ''}
+                          onClick={() => onChange({ language: 'auto' })}
+                          role="radio"
+                          tabIndex={language === 'auto' ? 0 : -1}
+                          type="button"
+                          {...stylex.props(
+                            styles.option,
+                            text.copy13,
+                            language === 'auto' && styles.optionSelected,
+                          )}
+                        >
+                          Auto
+                        </button>
+                        {detect.languages.map((entry) => (
+                          <button
+                            aria-checked={entry.id === language}
+                            data-option={entry.id === language ? 'selected' : ''}
+                            key={entry.id}
+                            onClick={() => onChange({ language: entry.id })}
+                            ref={entry.id === language ? reveal : null}
+                            role="radio"
+                            tabIndex={entry.id === language ? 0 : -1}
+                            type="button"
+                            {...stylex.props(
+                              styles.option,
+                              text.copy13,
+                              entry.id === language && styles.optionSelected,
+                            )}
+                          >
+                            {entry.title}
+                          </button>
+                        ))}
+                      </div>
+                    ) : panel === 'background' ? (
+                      <div aria-label="Background" role="radiogroup" {...stylex.props(styles.rows)}>
+                        <div>
+                          <span {...stylex.props(styles.rowTitle(10), text.label12)}>
+                            Wallpapers
+                          </span>
+                          <div {...stylex.props(styles.pictureRow)}>
+                            {Wallpapers.offered.map((wallpaper) => {
+                              const value = Wallpapers.background(wallpaper.id)
+                              return (
+                                <Tooltip key={wallpaper.id} label={wallpaper.name}>
+                                  <button
+                                    aria-checked={background === value}
+                                    data-option={background === value ? 'selected' : ''}
+                                    onClick={() => onChange({ background: value })}
+                                    role="radio"
+                                    tabIndex={background === value ? 0 : -1}
+                                    type="button"
+                                    {...stylex.props(
+                                      styles.swatchButton,
+                                      styles.swatchPicture(Wallpapers.thumbnail(wallpaper.id)),
+                                    )}
+                                  >
+                                    <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
+                                    {background === value && (
+                                      <Ring row="backgrounds" travel={travel} />
+                                    )}
+                                  </button>
+                                </Tooltip>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        <span {...stylex.props(styles.rowTitle(10), text.label12)}>Colors</span>
+                        <div {...stylex.props(styles.colorRow)}>
+                          <Tooltip label="Default">
                             <button
-                              aria-pressed={background === value}
-                              data-option={background === value ? 'selected' : ''}
-                              onClick={() => onChange({ background: value })}
-                              onFocus={() => onChange({ background: value })}
+                              aria-checked={background === 'default'}
+                              data-option={background === 'default' ? 'selected' : ''}
+                              onClick={() => onChange({ background: 'default' })}
+                              role="radio"
+                              tabIndex={background === 'default' ? 0 : -1}
                               type="button"
-                              {...stylex.props(
-                                styles.swatchButton,
-                                styles.swatchPicture(Wallpapers.thumbnail(wallpaper.id)),
-                              )}
+                              {...stylex.props(styles.swatchButton, styles.swatchDefault)}
                             >
-                              <span {...stylex.props(styles.srOnly)}>{wallpaper.name}</span>
-                              {background === value && <Ring row="backgrounds" travel={travel} />}
+                              <span {...stylex.props(styles.srOnly)}>Default</span>
+                              {background === 'default' && (
+                                <Ring row="backgrounds" travel={travel} />
+                              )}
                             </button>
                           </Tooltip>
-                        )
-                      })}
-                    </div>
-                  </div>
-                  <span {...stylex.props(styles.rowTitle(10), text.label12)}>Colors</span>
-                  <div {...stylex.props(styles.colorRow)}>
-                    <Tooltip label="Default">
-                      <button
-                        aria-pressed={background === 'default'}
-                        data-option={background === 'default' ? 'selected' : ''}
-                        onClick={() => onChange({ background: 'default' })}
-                        onFocus={() => onChange({ background: 'default' })}
-                        type="button"
-                        {...stylex.props(styles.swatchButton, styles.swatchDefault)}
-                      >
-                        <span {...stylex.props(styles.srOnly)}>Default</span>
-                        {background === 'default' && <Ring row="backgrounds" travel={travel} />}
-                      </button>
-                    </Tooltip>
-                    <Tooltip label="None">
-                      <button
-                        aria-pressed={background === 'none'}
-                        data-option={background === 'none' ? 'selected' : ''}
-                        onClick={() => onChange({ background: 'none' })}
-                        onFocus={() => onChange({ background: 'none' })}
-                        type="button"
-                        {...stylex.props(styles.swatchButton, styles.swatchNone)}
-                      >
-                        <span {...stylex.props(styles.srOnly)}>None</span>
-                        {background === 'none' && <Ring row="backgrounds" travel={travel} />}
-                      </button>
-                    </Tooltip>
-                    <div {...stylex.props(styles.divider)} />
-                    {backgrounds.map((value) => (
-                      <Tooltip key={value} label={value}>
-                        <button
-                          aria-pressed={background === value}
-                          data-option={background === value ? 'selected' : ''}
-                          onClick={() => onChange({ background: value })}
-                          onFocus={() => onChange({ background: value })}
-                          type="button"
-                          {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
-                        >
-                          <span {...stylex.props(styles.srOnly)}>{value}</span>
-                          {background === value && <Ring row="backgrounds" travel={travel} />}
-                        </button>
-                      </Tooltip>
-                    ))}
-                    <div {...stylex.props(styles.divider)} />
-                    <Tooltip label="Custom color">
-                      <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
-                        <span {...stylex.props(styles.srOnly)}>Custom color</span>
-                        <input
-                          aria-pressed={custom}
-                          data-option={custom ? 'selected' : ''}
-                          onChange={(event) => onChange({ background: event.target.value })}
-                          onFocus={(event) => onChange({ background: event.target.value })}
-                          type="color"
-                          value={background.startsWith('#') ? background : '#3b82d6'}
-                          {...stylex.props(styles.colorInput)}
-                        />
-                        {custom && <Ring row="backgrounds" travel={travel} />}
-                      </label>
-                    </Tooltip>
-                  </div>
-                </div>
-              ) : null}
-            </m.div>
-          )}
-        </AnimatePresence>
+                          <Tooltip label="None">
+                            <button
+                              aria-checked={background === 'none'}
+                              data-option={background === 'none' ? 'selected' : ''}
+                              onClick={() => onChange({ background: 'none' })}
+                              role="radio"
+                              tabIndex={background === 'none' ? 0 : -1}
+                              type="button"
+                              {...stylex.props(styles.swatchButton, styles.swatchNone)}
+                            >
+                              <span {...stylex.props(styles.srOnly)}>None</span>
+                              {background === 'none' && <Ring row="backgrounds" travel={travel} />}
+                            </button>
+                          </Tooltip>
+                          <div {...stylex.props(styles.divider)} />
+                          {backgrounds.map((value) => (
+                            <Tooltip key={value} label={value}>
+                              <button
+                                aria-checked={background === value}
+                                data-option={background === value ? 'selected' : ''}
+                                onClick={() => onChange({ background: value })}
+                                role="radio"
+                                tabIndex={background === value ? 0 : -1}
+                                type="button"
+                                {...stylex.props(styles.swatchButton, styles.swatchColor(value))}
+                              >
+                                <span {...stylex.props(styles.srOnly)}>{value}</span>
+                                {background === value && <Ring row="backgrounds" travel={travel} />}
+                              </button>
+                            </Tooltip>
+                          ))}
+                          <div {...stylex.props(styles.divider)} />
+                          <Tooltip label="Custom color">
+                            <label {...stylex.props(styles.swatchButton, styles.swatchCustom)}>
+                              <span {...stylex.props(styles.srOnly)}>Custom color</span>
+                              <input
+                                aria-checked={custom}
+                                data-option={custom ? 'selected' : ''}
+                                onChange={(event) => onChange({ background: event.target.value })}
+                                role="radio"
+                                tabIndex={custom ? 0 : -1}
+                                type="color"
+                                value={background.startsWith('#') ? background : '#3b82d6'}
+                                {...stylex.props(styles.colorInput)}
+                              />
+                              {custom && <Ring row="backgrounds" travel={travel} />}
+                            </label>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    ) : null}
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            ) : null
+          }
+        </Popover.Root>
 
-        <m.div layout ref={bar} transition={morph} {...stylex.props(styles.surface, styles.bar)}>
-          <Item
-            onClick={() => toggle('theme')}
-            open={panel === 'theme'}
-            shortcut={shortcuts.theme}
-            title="Theme"
-            up={themeIndex <= previousThemeIndex}
-            value={selected?.displayName ?? theme}
+        <m.div layout transition={morph} {...stylex.props(styles.surface, styles.bar)}>
+          <Popover.Trigger
+            handle={popup}
+            id="toolbar-theme"
+            payload="theme"
+            render={
+              <Item
+                open={panel === 'theme'}
+                shortcut={shortcuts.theme}
+                title="Theme"
+                up={themeIndex <= previousThemeIndex}
+                value={selected?.displayName ?? theme}
+              />
+            }
           />
-          <Item
-            onClick={() => toggle('language')}
-            open={panel === 'language'}
-            shortcut={shortcuts.language}
-            title="Language"
-            up
-            value={detect.title(resolved)}
+          <Popover.Trigger
+            handle={popup}
+            id="toolbar-language"
+            payload="language"
+            render={
+              <Item
+                open={panel === 'language'}
+                shortcut={shortcuts.language}
+                title="Language"
+                up
+                value={detect.title(resolved)}
+              />
+            }
           />
           <div {...stylex.props(styles.divider)} />
-          <Item
-            onClick={() => toggle('background')}
-            open={panel === 'background'}
-            shortcut={shortcuts.background}
-            title="Background"
-            up
-            value={backgroundLabel(background)}
+          <Popover.Trigger
+            handle={popup}
+            id="toolbar-background"
+            payload="background"
+            render={
+              <Item
+                open={panel === 'background'}
+                shortcut={shortcuts.background}
+                title="Background"
+                up
+                value={backgroundLabel(background)}
+              />
+            }
           />
           <Item
             onClick={() => onChange({ titleBar: !titleBar })}
@@ -842,12 +862,11 @@ function reveal(node: HTMLButtonElement | null) {
 
 const swatches = { dark: '#1c1c1c', light: '#f5f5f5' }
 
-function Item(props: {
+type ItemProps = Omit<ComponentPropsWithoutRef<typeof m.button>, 'children' | 'title'> & {
   /** Rolls each character on its own, for values that read as a number. */
   digits?: boolean | undefined
   /** Set when the setting has no meaning for what is on screen. */
   disabled?: boolean | undefined
-  onClick: () => void
   open?: boolean
   pressed?: boolean
   /** Key that reaches this control while focus is in the toolbar. */
@@ -856,10 +875,13 @@ function Item(props: {
   /** Direction the value rolls: up for a larger or enabled value. */
   up: boolean
   value: string
-}) {
-  const { digits, disabled, onClick, open, pressed, shortcut, title, up, value } = props
+}
+
+const Item = forwardRef<HTMLButtonElement, ItemProps>(function Item(props, ref) {
+  const { digits, disabled, open, pressed, shortcut, title, up, value, ...button } = props
   return (
     <m.button
+      {...button}
       // Two stacked spans would otherwise read as one run-together name.
       aria-expanded={open}
       aria-keyshortcuts={shortcut}
@@ -867,7 +889,7 @@ function Item(props: {
       aria-pressed={pressed}
       disabled={disabled}
       layout
-      onClick={onClick}
+      ref={ref}
       transition={morph}
       type="button"
       {...stylex.props(styles.item, open && styles.itemOpen, disabled && styles.itemDisabled)}
@@ -879,4 +901,4 @@ function Item(props: {
       <Roll digits={digits} style={[styles.itemValue, text.button14]} up={up} value={value} />
     </m.button>
   )
-}
+})
