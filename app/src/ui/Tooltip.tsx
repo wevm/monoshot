@@ -38,6 +38,7 @@ type Aim = { at: Element; label: string }
 
 let aim: Aim | undefined
 let pending: Aim | undefined
+let frozen: DOMRect | undefined
 let resting = true
 let hiding: ReturnType<typeof setTimeout> | undefined
 let stood: number | undefined
@@ -54,6 +55,7 @@ function watch(watcher: () => void) {
 
 function aimAt(at: Aim | undefined) {
   aim = at
+  if (at) frozen = undefined
   stood = undefined
   for (const watcher of watching) watcher()
 }
@@ -74,9 +76,10 @@ function keep() {
 }
 
 /** Closes the tooltip and clears its pending target. */
-function dismiss() {
+function dismissNow() {
   keep()
   pending = undefined
+  frozen = aim?.at.getBoundingClientRect()
   aimAt(undefined)
 }
 
@@ -156,6 +159,11 @@ export namespace Tooltip {
     if (resting || aim) aimAt(at)
   }
 
+  /** Closes the imperative tooltip without the delay used between adjacent controls. */
+  export function dismiss() {
+    dismissNow()
+  }
+
   /** Props for {@link Tooltip}. */
   export type Props = {
     /** The focusable control the tooltip describes. */
@@ -186,15 +194,17 @@ function Aimed() {
   const anchor = useMemo(() => {
     const at = shown?.at
     if (!at) return undefined
-    const stood = at.getBoundingClientRect()
-    return { getBoundingClientRect: () => (at.isConnected ? at.getBoundingClientRect() : stood) }
-  }, [shown])
+    const stood = frozen ?? at.getBoundingClientRect()
+    return {
+      getBoundingClientRect: () => (aimed && at.isConnected ? at.getBoundingClientRect() : stood),
+    }
+  }, [aimed, shown])
   return (
     <Base.Root
       open={aimed !== undefined}
       // Synchronize dismissals initiated by Base UI, including Escape.
       onOpenChange={(open) => {
-        if (!open) dismiss()
+        if (!open) dismissNow()
       }}
     >
       <Pill anchor={anchor} label={shown?.label ?? ''} />

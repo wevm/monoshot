@@ -147,6 +147,8 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   // On the window: a press carrying a mark down the rows can be let go
   // anywhere, and the rows are not where the pointer has to be by then.
   window.addEventListener('mouseup', drop)
+  window.addEventListener('pointerup', drop)
+  window.addEventListener('pointercancel', drop)
   render()
 
   return { destroy, update }
@@ -166,7 +168,10 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     container.removeEventListener('mouseleave', clear)
     container.removeEventListener('mousemove', follow)
     window.removeEventListener('mouseup', drop)
+    window.removeEventListener('pointerup', drop)
+    window.removeEventListener('pointercancel', drop)
     window.removeEventListener('mousemove', carry)
+    window.removeEventListener('pointermove', carry)
     // Handed back before the layer is emptied: the surfaces outlive this, and a
     // successor takes them out again from where they were written.
     for (const [surface, controls] of hung) {
@@ -224,6 +229,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     if (!painting) return
     painting = undefined
     window.removeEventListener('mousemove', carry)
+    window.removeEventListener('pointermove', carry)
     // Refresh once replacing the pressed control can no longer interrupt its drag.
     showing = undefined
     show(view.state.field(reached, false))
@@ -234,7 +240,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
    * from what it is over: writing a notation moves the rows, and what covers
    * them says where they were when it was last measured.
    */
-  function carry(event: MouseEvent) {
+  function carry(event: MouseEvent | PointerEvent) {
     if (!painting) return
     // Let go outside the window, the release never reached the page: the first
     // move back without the primary button indicates that the press ended.
@@ -439,7 +445,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
       const button = control({
         active: row.takes === true && row.carried?.includes(kind) === true,
         disabled: row.takes !== true,
-        hold: () => {
+        hold: (stream) => {
           // What the press decides for the row it started on is what it carries
           // to every row it reaches, rather than flipping each in turn.
           painting = {
@@ -448,7 +454,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
             origin: view.state.doc.line(line).from,
             set: row.carried?.includes(kind) !== true,
           }
-          window.addEventListener('mousemove', carry)
+          window.addEventListener(stream === 'mouse' ? 'mousemove' : 'pointermove', carry)
           spread(line)
         },
         icon: icons[kind],
@@ -467,7 +473,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     /** Whether this action is unavailable for the row. */
     disabled?: boolean | undefined
     /** What a press by pointer does, when it does more than a press by key. */
-    hold?: (() => void) | undefined
+    hold?: ((stream: 'mouse' | 'pointer') => void) | undefined
     icon: string
     label: string
     select: () => void
@@ -496,13 +502,18 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
     // Ahead of the click: the editor would otherwise take focus and drop the
     // caret on the underlying editor position.
-    button.addEventListener('mousedown', (event) => {
+    const begin = (event: MouseEvent | PointerEvent, stream: 'mouse' | 'pointer') => {
       // A right or middle press opens a menu or pastes; a modified one is the
       // platform's. Only a plain left press writes to the snippet.
       if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
         return
       event.preventDefault()
-      options.hold?.()
+      Tooltip.dismiss()
+      options.hold?.(stream)
+    }
+    button.addEventListener('mousedown', (event) => begin(event, 'mouse'))
+    button.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'mouse') begin(event, 'pointer')
     })
     // A press by key reports no click count, and has no drag to carry.
     button.addEventListener('click', (event) => {
