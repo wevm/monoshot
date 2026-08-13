@@ -137,6 +137,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   strip.className = 'rail'
   strip.style.setProperty('--rail-gap', `${gap}px`)
   container.appendChild(strip)
+  strip.addEventListener('pointerleave', unpoint)
   view.dom.addEventListener('mousemove', track)
   view.dom.addEventListener('mouseover', track)
   view.dom.addEventListener('mouseleave', clear)
@@ -160,6 +161,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   function destroy() {
     gone = true
     Tooltip.point()
+    strip.removeEventListener('pointerleave', unpoint)
     view.dom.removeEventListener('mousemove', track)
     view.dom.removeEventListener('mouseover', track)
     view.dom.removeEventListener('mouseleave', clear)
@@ -177,6 +179,11 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     hung.clear()
     container.replaceChildren()
     reaches.clear()
+  }
+
+  /** Dismisses the shared tooltip after the pointer leaves the whole strip. */
+  function unpoint() {
+    Tooltip.point()
   }
 
   /** Where the pointer is out beside the code, which the strip sits at. */
@@ -490,7 +497,6 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
       const done = () => Tooltip.point()
       button.addEventListener('pointerenter', named)
       button.addEventListener('focus', named)
-      button.addEventListener('pointerleave', done)
       button.addEventListener('blur', done)
     }
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
