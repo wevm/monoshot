@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
 import { flushSync } from 'react-dom'
@@ -402,7 +402,6 @@ function resolvedSample(): Twoslash.Resolved {
 }
 
 function Page() {
-  const navigate = useNavigate()
   const [settings, setSettings] = useState<Settings>(fallback)
   const [title, setTitle] = useState('')
   const [code, setCode] = useState(sample)
@@ -470,15 +469,13 @@ function Page() {
   const language =
     settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
 
-  // The fragment is the only place state is kept, so it is written on every
-  // change, debounced: a keystroke should not push a history entry, and the
-  // router owns the address bar rather than `history.replaceState`.
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void navigate({ hash: share({ code, settings, title }), replace: true, resetScroll: false })
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [code, navigate, settings, title])
+  // The fragment is the only place state is kept. Write it before paint so a
+  // reload or close cannot discard the latest edit.
+  useLayoutEffect(() => {
+    const url = new URL(window.location.href)
+    url.hash = share({ code, settings, title })
+    window.history.replaceState(window.history.state, '', url)
+  }, [code, settings, title])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
