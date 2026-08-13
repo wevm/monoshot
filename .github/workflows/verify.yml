@@ -38,6 +38,9 @@ jobs:
       - name: Check agent skill discovery
         run: pnpm check:skill
 
+      - name: Check package contents
+        run: pnpm check:pack
+
       - name: Check types
         run: pnpm check:types
 
