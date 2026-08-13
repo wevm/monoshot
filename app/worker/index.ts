@@ -172,9 +172,9 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Truncate source to the maximum line count supported by the largest canvas.
+  // Truncate source to the maximum row count supported by the largest canvas.
   const shown = Links.excerpt(settings.code)
-  // Derive canvas dimensions from the rendered line count.
+  // Derive canvas dimensions from the rendered row count.
   const shape = Links.geometry(shown)
   const drawn = await api.request(
     '/image',
@@ -186,7 +186,7 @@ async function card(
         height: shape.height,
         // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-        padding: 88,
+        padding: shape.padding,
         ...(picture ? { picture } : {}),
         // Apply the selected theme's frame radius override.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,

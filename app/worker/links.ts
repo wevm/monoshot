@@ -1,8 +1,8 @@
 /**
- * Size, retention, and preview limits for shared links. The line limit fits
+ * Size, retention, and preview limits for shared links. The row limit fits
  * within the maximum canvas dimensions returned by {@link geometry}.
  */
-export const limits = { lines: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+export const limits = { rows: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /** Card output dimensions and canvas layout constants. */
 const card = {
@@ -12,26 +12,35 @@ const card = {
   /** Canvas width limits in pixels. */
   narrowest: 800,
   widest: 1600,
-  /** Canvas space around the code window in pixels. */
-  padding: 88,
-  /** Window chrome and code-line heights in pixels. */
-  chrome: 26,
+  /** Approximate width of one code column in pixels. */
+  column: 8.4,
+  /** Code-window horizontal inset in pixels. */
+  inset: 16,
+  /** Code-line height in pixels. */
   line: 22,
+  /** Canvas space around the code window in pixels. */
+  padding: 80,
+  /** Code-window vertical padding in pixels. */
+  window: 40,
 } as const
 
 /**
- * Computes canvas dimensions and scale from the rendered line count.
+ * Computes canvas dimensions and scale from the rendered row count.
  *
  * Width grows at the 40:21 aspect ratio in 40-pixel increments, then scales to
  * the fixed 1200x630 output.
  */
 export function geometry(code: string): geometry.Result {
-  const lines = Math.max(1, code.replace(/\n$/, '').split('\n').length)
-  const window = lines * card.line + card.chrome
-  const needed = ((window + card.padding * 2) * card.width) / card.height
-  const width = Math.min(card.widest, Math.max(card.narrowest, Math.ceil(needed / 40) * 40))
+  for (let width = card.narrowest; width <= card.widest; width += 40) {
+    const height = (width * card.height) / card.width
+    const window = rows(code, width) * card.line + card.window
+    if (window > height - card.padding * 2) continue
+    return { height, padding: card.padding, scale: card.width / width, width }
+  }
+  const width = card.widest
   return {
     height: (width * card.height) / card.width,
+    padding: card.padding,
     scale: card.width / width,
     width,
   }
@@ -41,6 +50,8 @@ export declare namespace geometry {
   type Result = {
     /** Canvas height in pixels, derived from `width` at the card ratio. */
     height: number
+    /** Canvas space around the code window in pixels. */
+    padding: number
     /** Device scale factor that maps the canvas to the output size. */
     scale: number
     /** Canvas width in pixels. */
@@ -122,10 +133,60 @@ export declare namespace page {
   }
 }
 
-/** Truncates code by line count to keep social-card text legible. */
+/** Truncates code by rendered row count to keep social-card text legible. */
 export function excerpt(code: string): string {
-  const lines = code.split('\n')
-  return lines.length <= limits.lines ? code : `${lines.slice(0, limits.lines).join('\n')}\n`
+  if (rows(code, card.widest) <= limits.rows) return code
+  const capacity = columns(card.widest)
+  const lines = code.replace(/\n$/, '').split('\n')
+  const output: string[] = []
+  let remaining = limits.rows
+  for (const line of lines) {
+    const needed = Math.max(1, Math.ceil(columnCount(line) / capacity))
+    if (needed <= remaining) {
+      output.push(line)
+      remaining -= needed
+      continue
+    }
+    if (remaining > 0) output.push(takeColumns(line, remaining * capacity))
+    return `${output.join('\n')}\n`
+  }
+  return code
+}
+
+/** Returns the number of code columns available at a canvas width. */
+function columns(width: number): number {
+  return Math.max(1, Math.floor((width - card.padding * 2 - card.inset * 2) / card.column))
+}
+
+/** Counts rendered rows after code wraps at a canvas width. */
+function rows(code: string, width: number): number {
+  const capacity = columns(width)
+  return code
+    .replace(/\n$/, '')
+    .split('\n')
+    .reduce((count, line) => count + Math.max(1, Math.ceil(columnCount(line) / capacity)), 0)
+}
+
+/** Counts display columns, including two-column tabs and non-ASCII characters. */
+function columnCount(value: string): number {
+  let count = 0
+  for (const character of value)
+    count += character === '\t' ? 2 - (count % 2) : character.codePointAt(0)! > 127 ? 2 : 1
+  return count
+}
+
+/** Returns the prefix that fits within the requested display columns. */
+function takeColumns(value: string, limit: number): string {
+  let count = 0
+  let result = ''
+  for (const character of value) {
+    const next =
+      count + (character === '\t' ? 2 - (count % 2) : character.codePointAt(0)! > 127 ? 2 : 1)
+    if (next > limit) break
+    count = next
+    result += character
+  }
+  return result
 }
 
 /** Returns the first non-empty line, truncated for use as a preview title. */

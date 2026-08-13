@@ -64,6 +64,7 @@ describe('geometry', () => {
     expect(Links.geometry('const a = 1\n')).toMatchInlineSnapshot(`
       {
         "height": 420,
+        "padding": 80,
         "scale": 1.5,
         "width": 800,
       }
@@ -76,6 +77,7 @@ describe('geometry', () => {
     expect(grown).toMatchInlineSnapshot(`
       {
         "height": 546,
+        "padding": 80,
         "scale": 1.1538461538461537,
         "width": 1040,
       }
@@ -89,8 +91,20 @@ describe('geometry', () => {
     const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
     const grown = Links.geometry(most)
     expect(grown.width).toBe(1600)
-    // Verify that code and window chrome fit within the padded canvas.
-    expect(29 * 22 + 26).toBeLessThanOrEqual(grown.height - 2 * 88)
+    // Verify that code and window padding fit within the padded canvas.
+    expect(29 * 22 + 40).toBeLessThanOrEqual(grown.height - 2 * grown.padding)
+  })
+
+  test('grows the canvas when a long line wraps', () => {
+    expect(Links.geometry('x'.repeat(721)).width).toBeGreaterThan(800)
+  })
+})
+
+describe('excerpt', () => {
+  test('limits wrapped code to the rows available at the widest canvas', () => {
+    const shown = Links.excerpt('x'.repeat(10_000))
+    expect(shown.length).toBeLessThan(10_000)
+    expect(Links.geometry(shown).width).toBe(1600)
   })
 })
 
