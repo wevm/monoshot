@@ -1,5 +1,5 @@
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$'
-const values = new Map([...alphabet].map((character, index) => [character, index] as const))
+const values = new Map(Array.from(alphabet, (character, index) => [character, index] as const))
 
 /** Decompresses an lz-string URI component without exceeding the output limit. */
 export function decompress(options: decompress.Options): string | undefined {
