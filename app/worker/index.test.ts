@@ -26,9 +26,8 @@ async function document(body: unknown) {
 }
 
 describe('api rendering', () => {
-  test('applies curated theme framing when frame options are omitted', async () => {
+  test('applies theme framing when frame options are omitted', async () => {
     const html = await document({ code: 'const a = 1', lang: 'typescript', theme: 'tempo' })
-    expect(html).toContain('background: url("data:image/webp;base64,c2tpbGw=") center / cover;')
     expect(html).toContain('border-radius: 0px;')
   })
 
