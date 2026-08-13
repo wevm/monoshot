@@ -17,7 +17,7 @@ const description =
 const card = { height: '630', path: '/og.jpg', width: '1200' } as const
 
 export const Route = createRootRoute({
-  head: () => ({
+  head: ({ matches }) => ({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
@@ -43,7 +43,13 @@ export const Route = createRootRoute({
     ],
     scripts: [{ children: schemeScript }],
     links: [
-      { rel: 'canonical', href: Site.origin },
+      {
+        rel: 'canonical',
+        href: (() => {
+          const shared = matches.find((match) => match.pathname.startsWith('/s/'))
+          return shared ? Site.url(shared.pathname) : Site.origin
+        })(),
+      },
       { rel: 'alternate', href: '/SKILL.md', type: 'text/markdown' },
       {
         rel: 'icon',

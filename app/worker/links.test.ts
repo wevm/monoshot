@@ -29,36 +29,6 @@ describe('summarize', () => {
   })
 })
 
-describe('page', () => {
-  test('carries the snippet as its own preview', () => {
-    const html = Links.page({
-      description: 'A typescript snippet, rendered by monoshot.',
-      id: 'abc123defg',
-      origin: 'https://example.com',
-      state: 'N4IgZg',
-      title: 'const a = 1',
-    })
-    expect(html).toContain(
-      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png?v=3">',
-    )
-    expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
-    // Redirect to the editor with the encoded state in the URL fragment.
-    expect(html).toContain('content="0; url=https://example.com/#N4IgZg"')
-  })
-
-  test('escapes a snippet that would otherwise close a tag', () => {
-    const html = Links.page({
-      description: 'd',
-      id: 'abc123defg',
-      origin: 'https://example.com',
-      state: 's',
-      title: '</title><script>alert(1)</script>',
-    })
-    expect(html).not.toContain('<script>alert(1)')
-    expect(html).toContain('&lt;/title&gt;&lt;script&gt;')
-  })
-})
-
 describe('card', () => {
   test('renders the readable canvas at social-card dimensions', () => {
     expect(Links.card).toMatchInlineSnapshot(`

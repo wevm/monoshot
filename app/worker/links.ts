@@ -1,3 +1,5 @@
+import * as Shared from '../src/lib/shared.js'
+
 /** Size, retention, and preview limits for shared links. */
 export const limits = {
   columns: 72,
@@ -7,13 +9,7 @@ export const limits = {
 } as const
 
 /** Fixed social-card canvas dimensions and cache version. */
-export const card = {
-  height: 420,
-  padding: 80,
-  scale: 1.5,
-  version: 3,
-  width: 800,
-} as const
+export const card = Shared.card
 
 /**
  * Generates a 12-character identifier with 60 bits of entropy.
@@ -32,61 +28,6 @@ export function id(): string {
     }
   }
   return name
-}
-
-/**
- * Generates link-preview metadata and redirects to the editor.
- *
- * Metadata is included in the initial response for clients that do not execute JavaScript.
- */
-export function page(options: page.Options): string {
-  const { description, id, origin, state, title } = options
-  const target = `${origin}/#${state}`
-  const image = `${origin}/s/${id}/og.png?v=${card.version}`
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escape(title)}</title>
-<meta name="description" content="${escape(description)}">
-<meta property="og:type" content="article">
-<meta property="og:site_name" content="monoshot">
-<meta property="og:title" content="${escape(title)}">
-<meta property="og:description" content="${escape(description)}">
-<meta property="og:url" content="${escape(`${origin}/s/${id}`)}">
-<meta property="og:image" content="${escape(image)}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="${escape(title)}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${escape(title)}">
-<meta name="twitter:description" content="${escape(description)}">
-<meta name="twitter:image" content="${escape(image)}">
-<link rel="canonical" href="${escape(target)}">
-<meta http-equiv="refresh" content="0; url=${escape(target)}">
-</head>
-<body>
-<p>Opening <a href="${escape(target)}">this snippet</a>.</p>
-<script>location.replace(${script(target)})</script>
-</body>
-</html>
-`
-}
-
-export declare namespace page {
-  type Options = {
-    /** Preview description of the snippet. */
-    description: string
-    /** Shared-link identifier used by the image route. */
-    id: string
-    /** Absolute deployment origin. */
-    origin: string
-    /** Encoded editor state. */
-    state: string
-    /** Preview title of the snippet. */
-    title: string
-  }
 }
 
 /** Limits code to the readable social-card viewport and reports clipped axes. */
@@ -186,26 +127,7 @@ function takeColumns(value: string, limit: number): string {
 }
 
 /** Returns the first non-empty line, truncated for use as a preview title. */
-export function summarize(code: string, fallback: string): string {
-  const line = code.split('\n').find((entry) => entry.trim().length > 0)
-  if (!line) return fallback
-  const trimmed = line.trim()
-  return trimmed.length > 72 ? `${trimmed.slice(0, 71)}…` : trimmed
-}
-
-/** Serializes a value for an inline script and escapes HTML-opening characters. */
-function script(value: string) {
-  return JSON.stringify(value).replace(/</g, '\\u003c')
-}
-
-/** Escapes a value for an attribute or a text node. */
-function escape(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
+export const summarize = Shared.summarize
 
 /** Workers AI model used to generate snippet metadata. */
 const model = '@cf/meta/llama-3.2-3b-instruct'
@@ -312,30 +234,4 @@ export declare namespace describe {
 }
 
 /** Parses current and legacy shared-link records. */
-export function read(kept: string): read.Link {
-  try {
-    const parsed: unknown = JSON.parse(kept)
-    if (typeof parsed !== 'object' || parsed === null) return { state: kept }
-    const { description, state, title } = parsed as Record<string, unknown>
-    if (typeof state !== 'string') return { state: kept }
-    return {
-      ...(typeof description === 'string' ? { description } : {}),
-      ...(typeof title === 'string' ? { title } : {}),
-      state,
-    }
-  } catch {
-    return { state: kept }
-  }
-}
-
-export declare namespace read {
-  /** Stored editor state and optional generated metadata. */
-  type Link = {
-    /** Generated description, absent from legacy records. */
-    description?: string | undefined
-    /** The encoded state the editor opens. */
-    state: string
-    /** Generated title, absent from legacy records. */
-    title?: string | undefined
-  }
-}
+export const read = Shared.read

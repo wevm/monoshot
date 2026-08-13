@@ -401,23 +401,26 @@ function resolvedSample(): Twoslash.Resolved {
   }
 }
 
-function Page() {
+/** Interactive editor initialized from an optional server-visible shared state. */
+export function Page({ state }: { state?: string | undefined } = {}) {
   const navigate = useNavigate()
-  const [settings, setSettings] = useState<Settings>(fallback)
-  const [title, setTitle] = useState('')
-  const [code, setCode] = useState(sample)
+  const initial = state ? restore(state) : { code: sample, settings: fallback, title: '' }
+  const [settings, setSettings] = useState<Settings>(initial.settings)
+  const [title, setTitle] = useState(initial.title)
+  const [code, setCode] = useState(initial.code)
 
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
+    if (state) return
     // Retain application defaults when the fragment is absent or unreadable.
     if (!Codec.readable(window.location.hash)) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
     setSettings(shared.settings)
     setTitle(shared.title)
-  }, [])
+  }, [state])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
@@ -475,10 +478,13 @@ function Page() {
   // router owns the address bar rather than `history.replaceState`.
   useEffect(() => {
     const timer = setTimeout(() => {
-      void navigate({ hash: share({ code, settings, title }), replace: true, resetScroll: false })
+      const hash = share({ code, settings, title })
+      // Preserve the immutable short URL until the editor diverges from it.
+      if (state === hash) return
+      void navigate({ to: '/', hash, replace: true, resetScroll: false })
     }, 500)
     return () => clearTimeout(timer)
-  }, [code, navigate, settings, title])
+  }, [code, navigate, settings, state, title])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
