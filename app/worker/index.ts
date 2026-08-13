@@ -41,9 +41,19 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     const settings = Codec.deserialize(state)
     const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
     // Re-encode validated settings to remove trailing data ignored by the decoder.
-    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: Codec.serialize(settings) }), {
+    const canonical = Codec.serialize(settings)
+    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: canonical }), {
       expirationTtl: Links.limits.ttl,
     })
+    // Draw the card now, while the sharer still holds the link, and keep it
+    // where every colo reads it: a crawler follows within seconds of a paste,
+    // and a browser launched on its clock is a preview it gave up on.
+    if (c.env.BROWSER)
+      c.executionCtx.waitUntil(
+        card(c.env, c.executionCtx, new URL(c.req.url).origin, canonical).then((drawn) =>
+          drawn ? keep(c.env, id, drawn) : undefined,
+        ),
+      )
     return c.json({ id, url: `${new URL(c.req.url).origin}/s/${id}` }, 201)
   })
   // A whole package's declarations in one response. The editor resolves types
@@ -94,62 +104,32 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   .route('/api', api)
   // Render server-side preview images before the application fall-through routes.
   .get('/s/:id/og.png', async (c) => {
-    const kept = await c.env.LINKS?.get(c.req.param('id'))
+    const id = c.req.param('id')
+    const kept = await c.env.LINKS?.get(id)
     // Use the default application card when the shared state has expired.
     if (!kept) return c.redirect('/og.jpg', 302)
-    const { state } = Links.read(kept)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
     const cache = await caches.open('og')
     const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
-    if (!c.env.BROWSER) return c.redirect('/og.jpg', 302)
-    const settings = Codec.deserialize(state)
-    // Inline wallpaper data because the standalone renderer performs no requests.
-    const named =
-      Wallpapers.at(settings.background) ??
-      (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
-    const picture = named ? await inlined(new URL(c.req.url).origin, named.id) : undefined
-    // Render through the public image route to reuse its validation and output behavior.
-    const drawn = await api.request(
-      '/image',
-      {
-        body: JSON.stringify({
-          // Replace wallpaper identifiers with the theme backdrop for standalone rendering.
-          background: settings.background.startsWith('wallpaper:')
-            ? 'default'
-            : settings.background,
-          // Limit code lines to keep text legible within the card dimensions.
-          code: Links.excerpt(settings.code),
-          // Resolve automatic language detection before invoking the renderer.
-          lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-          // Use card-specific padding to preserve content within the 1.91:1 crop.
-          padding: 88,
-          ...(picture ? { picture } : {}),
-          // Apply the selected theme's frame radius override.
-          radius: Themes.frame(settings.theme).radius ?? settings.radius,
-          scale: 1.5,
-          theme: settings.theme,
-          titleBar: false,
-          width: 800,
-        }),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      },
-      c.env,
-      c.executionCtx,
-    )
-    if (!drawn.ok) return c.redirect('/og.jpg', 302)
+    // The copy the share drew, kept where every colo can read it: this cache
+    // is colo-local, and a crawler rarely lands where the sharer did.
+    const held = await c.env.LINKS?.get(`og:${id}`, 'arrayBuffer')
+    if (held) {
+      const response = pictured(held)
+      c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
+      return response
+    }
 
-    const response = new Response(drawn.body, {
-      // Shared state is immutable, so cached images require no revalidation.
-      headers: {
-        'cache-control': 'public, max-age=31536000, immutable',
-        'content-type': 'image/png',
-      },
-    })
+    if (!c.env.BROWSER) return c.redirect('/og.jpg', 302)
+    const { state } = Links.read(kept)
+    const drawn = await card(c.env, c.executionCtx, new URL(c.req.url).origin, state)
+    if (!drawn) return c.redirect('/og.jpg', 302)
+    const response = pictured(drawn)
     c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
+    c.executionCtx.waitUntil(keep(c.env, id, drawn))
     return response
   })
   .get('/s/:id', async (c) => {
@@ -176,15 +156,97 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
 export default app
 
+/** How a link's card is drawn: the card's own shape, never the editor's. */
+const shape = { height: 420, padding: 88, scale: 1.5, width: 800 } as const
+
+/**
+ * A link's card, drawn from its state.
+ *
+ * Drawn through the image route rather than beside it, so a preview and a
+ * caller asking for the same frame get the same image from the same
+ * validation. Answers nothing rather than throwing: every caller has a
+ * fallback card to serve.
+ */
+async function card(
+  env: Cloudflare.Env,
+  // Hono's own idea of the context, which is what `api.request` accepts.
+  ctx: Parameters<typeof api.request>[3],
+  origin: string,
+  state: string,
+): Promise<ArrayBuffer | undefined> {
+  const settings = Codec.deserialize(state)
+  // The picture the frame stands on, carried rather than named: the renderer
+  // fetches nothing, so a backdrop reaches it as data or not at all.
+  const named =
+    Wallpapers.at(settings.background) ??
+    (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
+  const picture = named ? await inlined(env, origin, named.id) : undefined
+  const drawn = await api.request(
+    '/image',
+    {
+      body: JSON.stringify({
+        // A wallpaper reaches the renderer as `picture`; the name it goes by
+        // here means nothing there.
+        background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
+        // Bounded rather than whole: the canvas holds one card of lines, and
+        // a hundred more would only be cut.
+        code: Links.excerpt(settings.code),
+        // The card's own shape: a canvas following a one-line snippet is a
+        // sliver no preview shows well.
+        height: shape.height,
+        // `auto` is the editor asking to be told, which it answers in the
+        // browser. The renderer takes a language shiki bundles or nothing.
+        lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
+        padding: shape.padding,
+        ...(picture ? { picture } : {}),
+        // The frame a theme asks for, which is what the app draws it in.
+        radius: Themes.frame(settings.theme).radius ?? settings.radius,
+        scale: shape.scale,
+        theme: settings.theme,
+        titleBar: false,
+        width: shape.width,
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    },
+    env,
+    ctx,
+  )
+  if (!drawn.ok) return undefined
+  return drawn.arrayBuffer()
+}
+
+/** The card as a response. The state behind an id never changes. */
+function pictured(bytes: ArrayBuffer): Response {
+  return new Response(bytes, {
+    headers: {
+      'cache-control': 'public, max-age=31536000, immutable',
+      'content-type': 'image/png',
+    },
+  })
+}
+
+/** Keeps a drawn card beside its link, and gone with it. */
+function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void> {
+  return env.LINKS.put(`og:${id}`, bytes, { expirationTtl: Links.limits.ttl })
+}
+
 /**
  * Loads a Worker-served wallpaper as a data URL.
  *
  * The standalone renderer performs no external requests, so wallpaper data
- * must be embedded in the document.
+ * must be embedded in the document. Read through the assets binding: a fetch
+ * of this Worker's own URL is refused by the platform as recursion.
  */
-async function inlined(origin: string, id: string): Promise<string | undefined> {
+async function inlined(
+  env: Cloudflare.Env,
+  origin: string,
+  id: string,
+): Promise<string | undefined> {
   try {
-    const response = await fetch(`${origin}/wallpapers/${id}.webp`)
+    // The Worker's own URL, resolved by the binding rather than the network:
+    // the binding takes the path from it, and refuses a host that is not ours.
+    const response = await env.ASSETS.fetch(new URL(`/wallpapers/${id}.webp`, origin))
     if (!response.ok) return undefined
     const bytes = new Uint8Array(await response.arrayBuffer())
     let binary = ''

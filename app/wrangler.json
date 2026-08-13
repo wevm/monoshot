@@ -12,6 +12,9 @@
   "ai": {
     "binding": "AI"
   },
+  "assets": {
+    "binding": "ASSETS"
+  },
   "browser": {
     "binding": "BROWSER"
   },

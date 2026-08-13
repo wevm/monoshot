@@ -1,5 +1,8 @@
-/** Size, retention, and preview limits for shared links. */
-export const limits = { lines: 12, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+/**
+ * Size, retention, and preview limits for shared links. Nine lines is what the
+ * card's fixed canvas holds before the window's own edges are cut.
+ */
+export const limits = { lines: 9, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /**
  * Generates a 12-character identifier with 60 bits of entropy.
@@ -42,6 +45,9 @@ export function page(options: page.Options): string {
 <meta property="og:description" content="${escape(description)}">
 <meta property="og:url" content="${escape(`${origin}/s/${id}`)}">
 <meta property="og:image" content="${escape(image)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${escape(title)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escape(title)}">
 <meta name="twitter:description" content="${escape(description)}">

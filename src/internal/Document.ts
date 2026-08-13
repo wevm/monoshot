@@ -26,6 +26,11 @@ export type Options = {
   annotated?: boolean | undefined
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
+  /**
+   * Fixed canvas height in pixels. Centers the window and clips overflow.
+   * Defaults to following the window's own height.
+   */
+  height?: number | undefined
   /** Embedded backdrop image as a data URL. Overrides {@link background}. */
   picture?: string | undefined
   /** Frame colors, derived from the theme the code was highlighted with. */
@@ -88,8 +93,10 @@ ${fontFaces(fonts)}
 * { box-sizing: border-box; margin: 0; }
 body { -webkit-font-smoothing: antialiased; }
 .canvas {
+  align-items: center;
   background: ${backdrop};
   display: flex;
+  ${options.height === undefined ? '' : `height: ${options.height}px;\n  overflow: hidden;`}
   padding: ${padding}px;
   width: ${width}px;
 }
