@@ -118,6 +118,8 @@ curl --fail-with-body https://monoshot.dev/api/document \
 
 Both endpoints require `code` and `lang`. They accept frame settings including `background`, `padding`, `radius`, `theme`, `title`, `titleBar`, and `width`. The image endpoint also accepts `scale`.
 
+JavaScript and TypeScript resolve Twoslash annotations automatically. Add `^?` queries where type annotations should appear, or send `"twoslash": false` to render the notation as source.
+
 List hosted themes with:
 
 ```sh

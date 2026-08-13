@@ -49,7 +49,7 @@ export function create(): create.ReturnType {
   }
 
   async function start(): Promise<Cdn> {
-    const compiler = (await import('typescript')).default
+    const compiler = await loadCompiler()
     const lib = await bundled(compiler)
     // Read compiler libraries from disk in Node to avoid network-dependent type resolution.
     if (lib) {
@@ -87,6 +87,30 @@ export function create(): create.ReturnType {
       })
       return (source, lang) => cdn.run(source, lang)
     },
+  }
+}
+
+/**
+ * Loads TypeScript without its Node filesystem in workerd. Node compatibility
+ * exposes `process` and a bundler `require` stub, which otherwise makes the
+ * compiler select its Node path and call the unusable stub during import.
+ */
+async function loadCompiler(): Promise<typeof import('typescript')> {
+  const runtime =
+    typeof navigator !== 'undefined' &&
+    navigator.userAgent === 'Cloudflare-Workers' &&
+    typeof process !== 'undefined'
+      ? (process as typeof process & { browser?: boolean | undefined })
+      : undefined
+  if (!runtime) return (await import('typescript')).default
+
+  const previous = runtime.browser
+  runtime.browser = true
+  try {
+    return (await import('typescript')).default
+  } finally {
+    if (previous === undefined) delete runtime.browser
+    else runtime.browser = previous
   }
 }
 

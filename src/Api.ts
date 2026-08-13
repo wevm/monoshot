@@ -11,6 +11,9 @@ import * as Theme from './Theme.js'
 /** What a request may weigh, so one of them cannot occupy an isolate. */
 const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
 
+/** Shiki language IDs and aliases that Twoslash can compile. */
+const typed: ReadonlySet<string> = new Set(['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'])
+
 /** Every shape a request is read through, and the types they describe. */
 namespace schema {
   /**
@@ -63,7 +66,12 @@ namespace schema {
         .optional(),
       title: z.string().max(200).optional(),
       titleBar: z.boolean().optional(),
-      twoslash: run.optional(),
+      twoslash: z
+        .union([z.boolean(), run])
+        .optional()
+        .describe(
+          'Whether to resolve Twoslash annotations, or a pre-resolved run. Defaults to enabled for JavaScript and TypeScript.',
+        ),
       width: z.number().int().min(320).max(1600).optional(),
     })
     .strict()
@@ -78,7 +86,7 @@ namespace schema {
    * other code, and its offsets would land in the wrong places here.
    */
   function resolved(request: Document, context: z.RefinementCtx) {
-    if (!request.twoslash) return
+    if (!request.twoslash || typeof request.twoslash === 'boolean') return
     const cuts = [...request.twoslash.meta.removals].sort((a, b) => a[0] - b[0])
     let compiled = ''
     let at = 0
@@ -157,9 +165,10 @@ export function create(options: create.Options = {}) {
         // Asserted through `unknown`: the run is validated structurally here,
         // and the renderer's node union declares positions this neither reads
         // nor requires a caller to send.
-        ...(request.twoslash
-          ? { twoslash: request.twoslash as unknown as Frame.render.Types }
-          : {}),
+        twoslash:
+          typeof request.twoslash === 'object'
+            ? (request.twoslash as unknown as Frame.render.Types)
+            : (request.twoslash ?? typed.has(state.lang)),
         ...(request.height === undefined ? {} : { height: request.height }),
         ...(request.picture === undefined ? {} : { picture: request.picture }),
         lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],

@@ -54,6 +54,8 @@ curl https://monoshot.dev/api/image \
   --output code.png
 ```
 
+JavaScript and TypeScript resolve Twoslash annotations automatically. Add a `^?` query to render an inferred type, or send `"twoslash": false` to disable type resolution.
+
 ### Reference
 
 [OpenAPI schema](https://monoshot.dev/api/openapi.json)

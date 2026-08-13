@@ -29,6 +29,23 @@ describe('create', () => {
     expect(body).not.toContain('<script')
   })
 
+  test('resolves queried types by default', async () => {
+    const code = 'const greeting = "hello"\n//    ^?\n'
+    const { body, status } = await post({ code, lang: 'typescript' })
+    expect(status).toBe(200)
+    if (typeof body !== 'string') throw new Error('Expected a rendered document.')
+    expect(body).toContain('twoslash-query-line')
+    expect(body.slice(body.indexOf('<body>'))).not.toContain('^?')
+  })
+
+  test('leaves type resolution off when disabled', async () => {
+    const code = 'const greeting = "hello"\n//    ^?\n'
+    const { body, status } = await post({ code, lang: 'ts', twoslash: false })
+    expect(status).toBe(200)
+    expect(body).not.toContain('twoslash-query-line')
+    expect(body).toContain('^?')
+  })
+
   test('draws a run the caller resolved', async () => {
     const code = 'const greeting = "hello"\n//    ^?\n'
     const run = createTwoslasher({ handbookOptions: { noErrorValidation: true } })(code, 'ts')
