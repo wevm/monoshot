@@ -157,17 +157,26 @@ async function metadata(options: {
 }) {
   const { name, version } = options
   let failure: unknown
-  for (const [at, source] of metadataSources.entries()) {
+  const ranged = range(version)
+  const sources = ranged ? metadataSources.slice(1) : metadataSources
+  for (const [at, source] of sources.entries()) {
     try {
       return await json({ ...options, url: source(name, version) })
     } catch (cause) {
       // npm is authoritative when a package or version does not exist. Mirrors
       // are only fallbacks for a source that could not answer reliably.
-      if (at === 0 && cause instanceof RegistryError && cause.absent) throw cause
+      if (!ranged && at === 0 && cause instanceof RegistryError && cause.absent) throw cause
       failure = cause
     }
   }
   throw failure
+}
+
+/** Whether a dependency specification needs a source that resolves ranges. */
+function range(version: string) {
+  return (
+    /^[~^<>=*]/.test(version) || /\s|\|\||\bx\b/i.test(version) || /^v?\d+(?:\.\d+)?$/.test(version)
+  )
 }
 
 /** Tarballs name a scoped package by its final segment. */
