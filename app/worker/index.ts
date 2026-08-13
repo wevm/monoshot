@@ -156,6 +156,9 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
 export default app
 
+/** How a link's card is drawn: the card's own shape, never the editor's. */
+const shape = { height: 420, padding: 88, scale: 1.5, width: 800 } as const
+
 /**
  * A link's card, drawn from its state.
  *
@@ -178,12 +181,6 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Bounded rather than whole: past what the widest canvas holds, the rest of
-  // a snippet is cut.
-  const shown = Links.excerpt(settings.code)
-  // The canvas grows with the snippet and the screenshot scales it back, so
-  // every line is on the card and every card is one shape.
-  const shape = Links.geometry(shown)
   const drawn = await api.request(
     '/image',
     {
@@ -191,12 +188,16 @@ async function card(
         // A wallpaper reaches the renderer as `picture`; the name it goes by
         // here means nothing there.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        code: shown,
+        // Bounded rather than whole: the canvas holds one card of lines, and
+        // a hundred more would only be cut.
+        code: Links.excerpt(settings.code),
+        // The card's own shape: a canvas following a one-line snippet is a
+        // sliver no preview shows well.
         height: shape.height,
         // `auto` is the editor asking to be told, which it answers in the
         // browser. The renderer takes a language shiki bundles or nothing.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-        padding: 88,
+        padding: shape.padding,
         ...(picture ? { picture } : {}),
         // The frame a theme asks for, which is what the app draws it in.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,

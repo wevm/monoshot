@@ -1,55 +1,8 @@
 /**
- * Size, retention, and preview limits for shared links. The line cap is what
- * {@link geometry} holds at its widest canvas before the window overflows.
+ * Size, retention, and preview limits for shared links. Nine lines is what the
+ * card's fixed canvas holds before the window's own edges are cut.
  */
-export const limits = { lines: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
-
-/** The card's proportions, and what the canvas may grow to. */
-const card = {
-  /** Output size every card lands on, whatever the canvas. */
-  height: 630,
-  width: 1200,
-  /** Canvas bounds. The floor keeps short snippets at the standard look. */
-  narrowest: 800,
-  widest: 1600,
-  /** Space between the canvas edge and the window, in canvas pixels. */
-  padding: 88,
-  /** One line of code, and the window chrome around all of them. */
-  chrome: 26,
-  line: 22,
-} as const
-
-/**
- * The canvas a snippet's card is drawn on, and the scale that lands it on
- * 1200x630.
- *
- * The canvas grows with the snippet at the card's own ratio and the screenshot
- * scales it back down, so every line is shown and every card is one shape: a
- * longer snippet is a smaller typeface, not a cut. Width rounds to multiples
- * of 40, which is what keeps the height a whole number of pixels at 21:40.
- */
-export function geometry(code: string): geometry.Result {
-  const lines = Math.max(1, code.replace(/\n$/, '').split('\n').length)
-  const window = lines * card.line + card.chrome
-  const needed = ((window + card.padding * 2) * card.width) / card.height
-  const width = Math.min(card.widest, Math.max(card.narrowest, Math.ceil(needed / 40) * 40))
-  return {
-    height: (width * card.height) / card.width,
-    scale: card.width / width,
-    width,
-  }
-}
-
-export declare namespace geometry {
-  type Result = {
-    /** Canvas height in pixels, always `width` at the card's ratio. */
-    height: number
-    /** What the screenshot multiplies by to land on the card's size. */
-    scale: number
-    /** Canvas width in pixels. */
-    width: number
-  }
-}
+export const limits = { lines: 9, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
 /**
  * Generates a 12-character identifier with 60 bits of entropy.
