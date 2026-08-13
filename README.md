@@ -60,23 +60,16 @@ curl https://monoshot.dev/api/image \
 
 ## CLI
 
-### Install
-
-Install Monoshot globally:
-
-```sh
-npm i -g monoshot
-pnpm add -g monoshot
-bun add -g monoshot
-```
-
 ### Usage
 
 ```sh
-monoshot render -c 'console.log("Hello, world!")' -o hello.png
-monoshot render -c 'console.log("Hello, world!")' -o hello.svg
-monoshot share -c 'console.log("Hello, world!")' -t vitesse-light
+npx monoshot render -c 'console.log("Hello, world!")' -o hello.png
+npx monoshot render -c 'console.log("Hello, world!")' -o hello.svg
+npx monoshot share -c 'console.log("Hello, world!")' -t vitesse-light
 ```
+
+> [!NOTE]
+> Use `pnpx monoshot` with pnpm or `bunx monoshot` with Bun.
 
 ### Reference
 
@@ -98,7 +91,7 @@ Integrations:
   skills       Sync skill files to agents (add, list)
 ```
 
-Run `monoshot <command> --help` for command options and examples.
+Run `npx monoshot <command> --help` for command options and examples.
 
 ## License
 
