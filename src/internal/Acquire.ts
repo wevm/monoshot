@@ -25,10 +25,14 @@ export async function acquire(options: acquire.Options): Promise<acquire.Result>
     const wanted = [...new Set(queue)].filter((name) => !seen.has(name))
     for (const name of wanted) seen.add(name)
     if (!wanted.length) break
+    if (seen.size > limits.packages)
+      throw new Error(`A snippet may import at most ${limits.packages} packages.`)
 
-    const packages = (await Promise.all(wanted.map((name) => read(name)))).filter(
-      (value) => value !== undefined,
-    )
+    const packages = []
+    for (let at = 0; at < wanted.length; at += limits.concurrency) {
+      const batch = await Promise.all(wanted.slice(at, at + limits.concurrency).map(read))
+      for (const entry of batch) if (entry !== undefined) packages.push(entry)
+    }
     done += wanted.length
 
     // Package declarations can reference additional packages, which form the
@@ -68,6 +72,8 @@ export async function acquire(options: acquire.Options): Promise<acquire.Result>
     return types ? { files: types.files, name: `@types/${mangle(name)}` } : fetched
   }
 }
+
+const limits = { concurrency: 8, packages: 64 } as const
 
 export declare namespace acquire {
   type Options = {

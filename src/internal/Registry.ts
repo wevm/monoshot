@@ -29,11 +29,13 @@ export async function types(options: types.Options): Promise<types.Result> {
   const response = await fetch(tarball)
   if (!response.ok || !response.body)
     throw new RegistryError(`Could not download \`${name}@${resolved}\`.`)
-  const tar = await new Response(
-    response.body.pipeThrough(new DecompressionStream('gzip')),
-  ).arrayBuffer()
+  const compressed = await bytes(response.body, limits.compressed, name)
+  const packed = new ArrayBuffer(compressed.length)
+  new Uint8Array(packed).set(compressed)
+  const stream = new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))
+  const tar = await bytes(stream, limits.decompressed, name)
 
-  return { files: extract(new Uint8Array(tar)), name, version: resolved }
+  return { files: extract(tar), name, version: resolved }
 }
 
 /**
@@ -42,7 +44,7 @@ export async function types(options: types.Options): Promise<types.Result> {
  * The compiler reads declarations, and the manifest to find them; the rest of
  * a package is implementation it never opens.
  */
-export function extract(tar: Uint8Array): Types {
+export function extract(tar: Uint8Array, options: extract.Options = {}): Types {
   const decoder = new TextDecoder()
   const files: Types = {}
   const entries = [...untar(tar)]
@@ -55,12 +57,29 @@ export function extract(tar: Uint8Array): Types {
     }),
   )
   const wrapper = wrappers.size === 1 ? (wrappers.values().next().value ?? '') : ''
+  let count = 0
+  let size = 0
   for (const entry of entries) {
     const path = entry.name.startsWith(wrapper) ? entry.name.slice(wrapper.length) : entry.name
     if (!/\.d\.[cm]?ts$/.test(path) && path !== 'package.json') continue
+    if (count >= (options.files ?? limits.files))
+      throw new RegistryError('The package contains too many declaration files.')
+    count++
+    size += entry.body.length
+    if (size > (options.size ?? limits.declarations))
+      throw new RegistryError('The package declarations are too large.')
     files[`/${path}`] = decoder.decode(entry.body)
   }
   return files
+}
+
+export declare namespace extract {
+  type Options = {
+    /** Maximum declaration and manifest files. */
+    files?: number | undefined
+    /** Maximum declaration and manifest bytes. */
+    size?: number | undefined
+  }
 }
 
 export declare namespace types {
@@ -82,6 +101,43 @@ export declare namespace types {
 }
 
 const registry = 'https://registry.npmjs.org'
+const limits = {
+  compressed: 8 * 1024 * 1024,
+  declarations: 16 * 1024 * 1024,
+  decompressed: 32 * 1024 * 1024,
+  files: 4_096,
+} as const
+
+async function bytes(
+  stream: ReadableStream<Uint8Array>,
+  limit: number,
+  name: string,
+): Promise<Uint8Array> {
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    while (true) {
+      const result = await reader.read()
+      if (result.done) break
+      size += result.value.length
+      if (size > limit) {
+        await reader.cancel()
+        throw new RegistryError(`\`${name}\` is too large to read.`)
+      }
+      chunks.push(result.value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  const output = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    output.set(chunk, offset)
+    offset += chunk.length
+  }
+  return output
+}
 
 /** A scope's `/` is part of the name, so only the scope separator survives. */
 function encodeName(name: string) {

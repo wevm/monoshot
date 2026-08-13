@@ -137,4 +137,30 @@ describe('acquire', () => {
       ]
     `)
   })
+
+  test('limits the number of packages one snippet can acquire', async () => {
+    const code = Array.from({ length: 65 }, (_, index) => `import 'package-${index}'`).join('\n')
+    await expect(
+      acquire({ code, compiler: ts, files: new Map(), load: () => Promise.resolve(undefined) }),
+    ).rejects.toThrow('A snippet may import at most 64 packages.')
+  })
+
+  test('limits concurrent registry reads', async () => {
+    let active = 0
+    let highest = 0
+    const code = Array.from({ length: 16 }, (_, index) => `import 'package-${index}'`).join('\n')
+    await acquire({
+      code,
+      compiler: ts,
+      files: new Map(),
+      async load() {
+        active++
+        highest = Math.max(highest, active)
+        await Promise.resolve()
+        active--
+        return undefined
+      },
+    })
+    expect(highest).toBe(8)
+  })
 })

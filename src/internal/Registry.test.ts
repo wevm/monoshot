@@ -98,6 +98,23 @@ describe('extract', () => {
       ]
     `)
   })
+
+  test('limits declaration file count', () => {
+    const archive = tar([
+      { body: 'declare const a: 1', name: 'package/a.d.ts' },
+      { body: 'declare const b: 2', name: 'package/b.d.ts' },
+    ])
+    expect(() => Registry.extract(archive, { files: 1 })).toThrow(
+      'The package contains too many declaration files.',
+    )
+  })
+
+  test('limits total declaration bytes', () => {
+    const archive = tar([{ body: 'declare const value: 1', name: 'package/index.d.ts' }])
+    expect(() => Registry.extract(archive, { size: 10 })).toThrow(
+      'The package declarations are too large.',
+    )
+  })
 })
 
 describe('types', () => {
