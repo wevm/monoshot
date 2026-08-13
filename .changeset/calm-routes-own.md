@@ -1,10 +1,9 @@
 ---
-'monoshot': major
+'monoshot': patch
 ---
 
-Changed `Api.route` from a shared singleton to a factory that returns an independently owned route.
+Changed `Api.route` to return an independently owned route.
 
-```diff
--const app = new Hono().route('/v1', Api.route)
-+const app = new Hono().route('/v1', Api.route())
+```ts
+const app = new Hono().route('/v1', Api.route())
 ```
