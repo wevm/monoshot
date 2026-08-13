@@ -113,7 +113,7 @@ body {
 .window {
   /* Translucent, so the backdrop carries under the code rather than stopping
      at the window's edge. */
-  background: color-mix(in oklab, ${palette.window.background} 86%, transparent);
+  background: color-mix(in oklab, ${palette.window.background} 68%, transparent);
   border-radius: 12px;
   box-shadow: 0 0 0 1px ${palette.window.border}, 0 24px 48px -12px #00000059;
   left: ${frameAt.left}px;
