@@ -18,6 +18,11 @@ export type Framing = { radius: number }
 /** The frame the app draws for a theme that asks for nothing of its own. */
 const plain: Framing = { radius: 12 }
 
+/** What a theme asks of the frame, or nothing when it asks for nothing. */
+export function frame(name: string): Partial<Framing> {
+  return framing[name] ?? {}
+}
+
 /**
  * How the frame changes when the theme does.
  *

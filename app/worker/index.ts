@@ -4,6 +4,8 @@ import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
 import { detect } from '../src/lib/detect.js'
+import * as Themes from '../src/lib/themes.js'
+import * as Wallpapers from '../src/lib/wallpapers.js'
 import * as Links from './links.js'
 
 // Registered rather than left to the default: the bundler drops the locale
@@ -117,6 +119,12 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
     if (!c.env.BROWSER) return c.redirect('/og.png', 302)
     const settings = Codec.deserialize(state)
+    // The picture the frame stands on, carried rather than named: the renderer
+    // fetches nothing, so a backdrop reaches it as data or not at all.
+    const named =
+      Wallpapers.at(settings.background) ??
+      (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
+    const picture = named ? await inlined(new URL(c.req.url).origin, named.id) : undefined
     // Drawn through the route rather than beside it, so a preview and a caller
     // asking for the same frame get the same image from the same validation.
     const drawn = await api.request(
@@ -137,7 +145,9 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
           // The card's shape rather than the editor's: a preview is cropped to
           // 1.91:1, and a frame as tall as the editor draws loses its middle.
           padding: 88,
-          radius: settings.radius,
+          ...(picture ? { picture } : {}),
+          // The frame a theme asks for, which is what the app draws it in.
+          radius: Themes.frame(settings.theme).radius ?? settings.radius,
           scale: 1.5,
           theme: settings.theme,
           titleBar: false,
@@ -182,6 +192,27 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   .all('*', (c) => handler.fetch(c.req.raw))
 
 export default app
+
+/**
+ * A wallpaper as a `data:` URL, read from the assets this Worker serves.
+ *
+ * Fetched here rather than named in the render, because the page a capture
+ * loads makes no requests of its own: a URL there would be a fetch the
+ * screenshot never waits for.
+ */
+async function inlined(origin: string, id: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(`${origin}/wallpapers/${id}.webp`)
+    if (!response.ok) return undefined
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+    return `data:image/webp;base64,${btoa(binary)}`
+  } catch {
+    // A backdrop that cannot be read leaves the frame on the theme's own.
+    return undefined
+  }
+}
 
 /**
  * Splits `shiki@4.4.2` into package and version components while preserving

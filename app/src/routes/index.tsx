@@ -649,9 +649,18 @@ function Page() {
     const rich =
       typeof ClipboardItem === 'function' && typeof navigator.clipboard.write === 'function'
     const written = rich
-      ? navigator.clipboard.write([
-          new ClipboardItem({ 'text/plain': text.then((value) => new Blob([value])) }),
-        ])
+      ? navigator.clipboard
+          .write([
+            new ClipboardItem({
+              // Typed, and typed as what it is filed under: a blob built
+              // without one carries an empty type, which the clipboard reads as
+              // a different kind to the one it was promised, and refuses.
+              'text/plain': text.then((value) => new Blob([value], { type: 'text/plain' })),
+            }),
+          ])
+          // The gesture is spent by the time this settles, which some browsers
+          // refuse a promise for. Writing the text plainly needs no gesture.
+          .catch(async () => navigator.clipboard.writeText(await text))
       : text.then((value) => navigator.clipboard.writeText(value))
     void written.catch(() => setNotice('The link could not be copied.'))
   }

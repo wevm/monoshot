@@ -9,7 +9,7 @@ import * as Raster from './internal/Raster.js'
 import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
-const limit = { code: 100_000, nodes: 20_000, text: 10_000 }
+const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
 
 /** Every shape a request is read through, and the types they describe. */
 namespace schema {
@@ -47,6 +47,15 @@ namespace schema {
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
       padding: z.number().int().min(0).max(256).optional(),
+      /**
+       * A backdrop to stand the frame on, as a `data:` URL. Carried rather
+       * than named, because the renderer fetches nothing.
+       */
+      picture: z
+        .string()
+        .max(limit.picture)
+        .regex(/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/)
+        .optional(),
       radius: z.number().int().min(0).max(24).optional(),
       // Named rather than listed: the enum's own message spells out
       // two dozen names, and `/themes` is where they are read from.
@@ -152,6 +161,7 @@ export function create(options: create.Options = {}) {
         ...(request.twoslash
           ? { twoslash: request.twoslash as unknown as Frame.render.Types }
           : {}),
+        ...(request.picture === undefined ? {} : { picture: request.picture }),
         lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
       })
     } catch (cause) {

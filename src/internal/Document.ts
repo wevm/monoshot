@@ -16,8 +16,8 @@ export type Font = {
 export type Options = {
   /**
    * `default` paints the theme's gradient, `none` leaves it transparent, a
-   * `wallpaper:<id>` names a picture this surface does not carry and falls back
-   * to the gradient, and any other value is used as the canvas's CSS
+   * `wallpaper:<id>` names a picture the caller carries and passes as
+   * {@link picture}, and any other value is used as the canvas's CSS
    * `background`.
    */
   background: string
@@ -27,6 +27,13 @@ export type Options = {
   annotated?: boolean | undefined
   /** Space in pixels between the backdrop's edge and the window. */
   padding: number
+  /**
+   * A picture to stand the frame on, as a `data:` URL, drawn over whatever
+   * {@link background} would otherwise paint. Carried as data because the
+   * document makes no requests: a URL would be a fetch the capture never waits
+   * for. Defaults to none.
+   */
+  picture?: string | undefined
   /** Frame colors, derived from the theme the code was highlighted with. */
   palette: Theme.derive.Result
   /** Corner radius of the window, in pixels. */
@@ -56,11 +63,13 @@ export function build(options: Options): string {
   const { background, html, padding, palette, radius, title, titleBar, width } = options
   const styles = options.annotated === true ? annotations(palette) : ''
   const fonts = options.fonts ?? []
-  // A wallpaper is a picture the drawing surface holds, and this one holds
-  // none: a link naming one still opens, on the theme's own backdrop.
+  // A wallpaper is a picture the drawing surface holds. Given one, it is what
+  // the frame stands on; a link naming one without carrying it still opens, on
+  // the theme's own backdrop.
   const named = background.startsWith('wallpaper:')
-  const backdrop =
-    background === 'none'
+  const backdrop = options.picture
+    ? `url("${source(options.picture, 'picture')}") center / cover`
+    : background === 'none'
       ? 'transparent'
       : background === 'default' || named
         ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
@@ -396,7 +405,7 @@ function fontFaces(fonts: readonly Font[]) {
   font-family: '${css(font.family, 'fonts[].family')}';
   font-style: ${css(font.style ?? 'normal', 'fonts[].style')};
   font-weight: ${css(font.weight ?? 'normal', 'fonts[].weight')};
-  src: url(${source(font.source)});
+  src: url(${source(font.source, 'fonts[].source')});
 }`,
     )
     .join('\n')
@@ -429,10 +438,13 @@ function css(value: string, field: string) {
   return value
 }
 
-/** Font data is embedded, never fetched, so only a `data:` URL is a font here. */
-function source(value: string) {
-  if (!/^data:[^\s<>'"()\\]+$/.test(value))
-    throw new UnsafeValueError({ field: 'fonts[].source', value })
+/**
+ * Data is embedded, never fetched, so only a `data:` URL is a source here. The
+ * characters left out are the ones that would end the `url()` or the attribute
+ * carrying it.
+ */
+function source(value: string, field: string) {
+  if (!/^data:[^\s<>'"()\\]+$/.test(value)) throw new UnsafeValueError({ field, value })
   return value
 }
 
