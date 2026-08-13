@@ -1,4 +1,8 @@
+import { gzipSync } from 'node:zlib'
+
 import * as Registry from './Registry.js'
+
+afterEach(() => vi.restoreAllMocks())
 
 /**
  * Builds a tar archive in memory. The tests exercise real npm tarball structure
@@ -101,8 +105,39 @@ describe('extract', () => {
 })
 
 describe('types', () => {
+  test('falls back when npm rate-limits package metadata', async () => {
+    const archive = tar([
+      { body: '{"name":"wagmi","types":"dist/types/index.d.ts"}', name: 'package/package.json' },
+      { body: 'export declare const config: object', name: 'package/dist/types/index.d.ts' },
+    ])
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = requestUrl(input)
+      if (url === 'https://registry.npmjs.org/wagmi/latest')
+        return Promise.resolve(new Response('rate limited', { status: 429 }))
+      if (url === 'https://cdn.jsdelivr.net/npm/wagmi@latest/package.json')
+        return Promise.resolve(new Response('unavailable', { status: 503 }))
+      if (url === 'https://unpkg.com/wagmi@latest/package.json')
+        return Promise.resolve(Response.json({ name: 'wagmi', version: '3.7.6' }))
+      if (url === 'https://registry.npmjs.org/wagmi/-/wagmi-3.7.6.tgz')
+        return Promise.resolve(new Response(gzipSync(archive)))
+      return Promise.resolve(new Response('unexpected request', { status: 500 }))
+    })
+
+    await expect(Registry.types({ name: 'wagmi', version: 'latest' })).resolves.toEqual({
+      files: {
+        '/dist/types/index.d.ts': 'export declare const config: object',
+        '/package.json': '{"name":"wagmi","types":"dist/types/index.d.ts"}',
+      },
+      name: 'wagmi',
+      version: '3.7.6',
+    })
+    expect(fetch).toHaveBeenCalledTimes(4)
+  })
+
   test('marks a package that is not on npm as absent', async () => {
-    // Use an unpublished package name with a valid registry shape.
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('not found', { status: 404 }))
     const cause = await Registry.types({
       name: '@monoshot/not-a-package-000',
       version: 'latest',
@@ -111,5 +146,11 @@ describe('types', () => {
     // The caller reads this to tell a package with no types from a registry
     // that failed to say, and leaves only the first as `any`.
     expect((cause as Registry.RegistryError).absent).toBe(true)
+    expect(fetch).toHaveBeenCalledOnce()
   })
 })
+
+function requestUrl(input: RequestInfo | URL) {
+  if (typeof input === 'string') return input
+  return input instanceof URL ? input.href : input.url
+}
