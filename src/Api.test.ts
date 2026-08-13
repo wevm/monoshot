@@ -143,6 +143,16 @@ describe('create', () => {
     expect(status).toBe(400)
   })
 
+  test('refuses an oversized body before parsing it', async () => {
+    const response = await Api.route.request('/document', {
+      body: 'x'.repeat(5 * 1024 * 1024 + 1),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({ error: 'The request body is too large.' })
+  })
+
   test('refuses a run resolved against other code', async () => {
     // A client that resolved types, then edited, would otherwise have the
     // stale offsets drawn onto the new snippet.
@@ -209,6 +219,7 @@ describe('create', () => {
           "document": [
             "200",
             "400",
+            "413",
             "500",
           ],
           "themes": [

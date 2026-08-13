@@ -1,5 +1,6 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { bundledLanguages } from 'shiki'
 import * as z from 'zod'
 
@@ -10,6 +11,10 @@ import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
 const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
+const requestLimit = bodyLimit({
+  maxSize: 5 * 1024 * 1024,
+  onError: (c) => c.json({ error: 'The request body is too large.' }, 413),
+})
 
 /** Shiki language IDs and aliases that Twoslash can compile. */
 const typed: ReadonlySet<string> = new Set(['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'])
@@ -235,11 +240,13 @@ export function create(options: create.Options = {}) {
   const app = new Hono()
     .post(
       '/document',
+      requestLimit,
       OpenApi.validate('json', schema.body, {
         description:
           'Renders a snippet as a standalone document without scripts or external requests.',
         responses: {
           200: { description: 'The document.', media: 'text/html', schema: z.string() },
+          413: { description: 'The request body is too large.', schema: schema.failure },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
         },
         summary: 'Render a document',
@@ -253,11 +260,13 @@ export function create(options: create.Options = {}) {
     )
     .post(
       '/image',
+      requestLimit,
       OpenApi.validate('json', schema.picture, {
         description:
           'Renders a snippet as a PNG by capturing the document with a Browser Rendering binding.',
         responses: {
           200: { description: 'The image.', media: 'image/png', schema: z.string() },
+          413: { description: 'The request body is too large.', schema: schema.failure },
           500: { description: 'The frame could not be drawn.', schema: schema.failure },
           503: {
             description: 'Browser Rendering is not configured for this deployment.',
