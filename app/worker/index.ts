@@ -8,33 +8,23 @@ import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
 import * as Links from './links.js'
 
-// Registered rather than left to the default: the bundler drops the locale
-// Preserve field-specific errors instead of Zod's generic `Invalid input` message.
+// Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/health', (c) => c.json({ status: 'ok' }))
-  // Renders a frame to the standalone document a browser screenshots. The
-  // library owns the routes, so the CLI, this app, and any other consumer
-  // draw from one description of a frame.
-  // The binding reaches a Worker through its environment, so the routes read
-  // it off each request rather than holding it.
+  // Use the shared API routes so every consumer applies the same frame validation.
+  // Resolve the browser binding per request from the Worker environment.
   .route('/', Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER }))
-  // Keeps a snippet so a link can carry it. Sharing is the one moment code
-  // leaves the browser: every other link holds it in the fragment, which a
-  // server never sees.
+  // Store snippet state so the server can generate link-preview metadata.
   .post('/share', async (c) => {
     if (!c.env.LINKS)
       return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
-    // Refused before it is read: a body past the cap is one this would reject
-    // anyway, and parsing it first is what an unauthenticated caller would use
-    // to spend the isolate's memory.
+    // Reject oversized bodies before parsing to limit memory use by unauthenticated requests.
     const declared = Number(c.req.header('content-length') ?? 0)
     if (declared > Links.limits.size * 2)
       return c.json({ error: 'That snippet is too large to share.' }, 413)
-    // Nothing here asks who is calling, and every call writes a key kept for
-    // ninety days and draws an image on request. Held per address, high enough
-    // that nobody sharing snippets meets it.
+    // Limit writes per client address because each share persists for 90 days.
     const caller = c.req.header('cf-connecting-ip') ?? 'anonymous'
     if (!(await c.env.SHARE_RATE.limit({ key: caller })).success)
       return c.json({ error: 'Too many links from here. Try again shortly.' }, 429)
@@ -42,21 +32,15 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     const state = typeof body.state === 'string' ? body.state : ''
     if (state.length > Links.limits.size)
       return c.json({ error: 'That snippet is too large to share.' }, 413)
-    // Read back before it is kept: a fragment the decoder rejects opens an
-    // empty editor, and a link to nothing is worth refusing at the source.
+    // Validate encoded state before storage to prevent links that open an empty editor.
     if (!state || !Codec.readable(state))
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
 
     const id = Links.id()
-    // Read once, here, rather than on every visit: a crawler fetching a
-    // preview waits on whatever this route does, and a model is seconds. The
-    // reader sharing the link is the one who can afford them.
+    // Generate metadata once during sharing instead of delaying every preview request.
     const settings = Codec.deserialize(state)
     const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
-    // Written back out rather than kept as it arrived. The decoder stops at
-    // the end of what it can read and ignores whatever follows, so a valid
-    // fragment can carry a payload through `readable`; re-encoding leaves only
-    // the state itself.
+    // Re-encode validated settings to remove trailing data ignored by the decoder.
     await c.env.LINKS.put(id, JSON.stringify({ ...said, state: Codec.serialize(settings) }), {
       expirationTtl: Links.limits.ttl,
     })
@@ -108,13 +92,10 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
 
 const app = new Hono<{ Bindings: Cloudflare.Env }>()
   .route('/api', api)
-  // The preview a link carries, drawn from the snippet it names. Rendered
-  // before the page is answered, because the crawler reading it runs no
-  // JavaScript. Registered ahead of the fall-through, which would otherwise
-  // hand both of these to the app.
+  // Render server-side preview images before the application fall-through routes.
   .get('/s/:id/og.png', async (c) => {
     const kept = await c.env.LINKS?.get(c.req.param('id'))
-    // A link that expired still has a card, which is the app's own.
+    // Use the default application card when the shared state has expired.
     if (!kept) return c.redirect('/og.jpg', 302)
     const { state } = Links.read(kept)
     // Named rather than `caches.default`, which shares its keyspace with the
@@ -125,34 +106,28 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 
     if (!c.env.BROWSER) return c.redirect('/og.jpg', 302)
     const settings = Codec.deserialize(state)
-    // The picture the frame stands on, carried rather than named: the renderer
-    // fetches nothing, so a backdrop reaches it as data or not at all.
+    // Inline wallpaper data because the standalone renderer performs no requests.
     const named =
       Wallpapers.at(settings.background) ??
       (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
     const picture = named ? await inlined(new URL(c.req.url).origin, named.id) : undefined
-    // Drawn through the route rather than beside it, so a preview and a caller
-    // asking for the same frame get the same image from the same validation.
+    // Render through the public image route to reuse its validation and output behavior.
     const drawn = await api.request(
       '/image',
       {
         body: JSON.stringify({
-          // A wallpaper is an asset the app serves and the renderer has no
-          // reach to, so a card drawn for one takes the theme's own backdrop.
+          // Replace wallpaper identifiers with the theme backdrop for standalone rendering.
           background: settings.background.startsWith('wallpaper:')
             ? 'default'
             : settings.background,
-          // Bounded rather than whole: the frame is as tall as the snippet is
-          // long, and a card is cropped to a shape a hundred lines cannot fit.
+          // Limit code lines to keep text legible within the card dimensions.
           code: Links.excerpt(settings.code),
-          // `auto` is the editor asking to be told, which it answers in the
-          // browser. The renderer takes a language shiki bundles or nothing.
+          // Resolve automatic language detection before invoking the renderer.
           lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-          // The card's shape rather than the editor's: a preview is cropped to
-          // 1.91:1, and a frame as tall as the editor draws loses its middle.
+          // Use card-specific padding to preserve content within the 1.91:1 crop.
           padding: 88,
           ...(picture ? { picture } : {}),
-          // The frame a theme asks for, which is what the app draws it in.
+          // Apply the selected theme's frame radius override.
           radius: Themes.frame(settings.theme).radius ?? settings.radius,
           scale: 1.5,
           theme: settings.theme,
@@ -168,7 +143,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     if (!drawn.ok) return c.redirect('/og.jpg', 302)
 
     const response = new Response(drawn.body, {
-      // The state behind an id never changes, so a hit needs no revalidation.
+      // Shared state is immutable, so cached images require no revalidation.
       headers: {
         'cache-control': 'public, max-age=31536000, immutable',
         'content-type': 'image/png',
@@ -180,16 +155,14 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
   .get('/s/:id', async (c) => {
     const id = c.req.param('id')
     const kept = await c.env.LINKS?.get(id)
-    // Nothing to open, so the reader lands on an empty editor rather than on
-    // an error page for a link that merely expired.
+    // Redirect expired links to an empty editor instead of returning an error page.
     if (!kept) return c.redirect('/', 302)
     const link = Links.read(kept)
     const settings = Codec.deserialize(link.state)
     const language = settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang
     return c.html(
       Links.page({
-        // What the model made of the snippet when it was shared, or what its
-        // own first line says about it.
+        // Fall back to deterministic metadata when model-generated metadata is absent.
         description: link.description ?? `A ${language} snippet, rendered by monoshot.`,
         id,
         origin: new URL(c.req.url).origin,
@@ -204,11 +177,10 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
 export default app
 
 /**
- * A wallpaper as a `data:` URL, read from the assets this Worker serves.
+ * Loads a Worker-served wallpaper as a data URL.
  *
- * Fetched here rather than named in the render, because the page a capture
- * loads makes no requests of its own: a URL there would be a fetch the
- * screenshot never waits for.
+ * The standalone renderer performs no external requests, so wallpaper data
+ * must be embedded in the document.
  */
 async function inlined(origin: string, id: string): Promise<string | undefined> {
   try {
@@ -219,7 +191,7 @@ async function inlined(origin: string, id: string): Promise<string | undefined> 
     for (const byte of bytes) binary += String.fromCharCode(byte)
     return `data:image/webp;base64,${btoa(binary)}`
   } catch {
-    // A backdrop that cannot be read leaves the frame on the theme's own.
+    // Omit the picture when the wallpaper cannot be loaded.
     return undefined
   }
 }

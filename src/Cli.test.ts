@@ -257,8 +257,7 @@ describe('create', () => {
     })
 
     test('refuses a `--type` the `--out` contradicts', async () => {
-      // Writing one format under the other's name produces a file nothing
-      // opens.
+      // Reject output extensions that conflict with the requested format.
       const source = await file('demo.ts')
       const { exit, output } = await run(['render', source, '--type', 'png', '--out', 'a.svg'])
       expect(exit).toBe(1)

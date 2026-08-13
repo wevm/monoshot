@@ -11,7 +11,7 @@ import { motion } from '../theme/tokens.stylex.js'
 
 const title = 'monoshot'
 const description = 'Render code images with type-aware annotations.'
-/** Drawn by `gen:og`, which records what it rendered at. */
+/** Dimensions and path of the generated social card. */
 const card = { height: '630', path: '/og.jpg', width: '1200' } as const
 
 export const Route = createRootRoute({
@@ -21,9 +21,7 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title },
       { name: 'description', content: description },
-      // The preview is a frame this renderer drew, which is the product
-      // showing its own output. Absolute URLs throughout: a crawler has no
-      // page to resolve a relative one against.
+      // Use absolute URLs because link-preview clients do not share page context.
       { property: 'og:type', content: 'website' },
       { property: 'og:site_name', content: title },
       { property: 'og:title', content: title },

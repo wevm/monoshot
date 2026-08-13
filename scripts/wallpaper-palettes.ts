@@ -20,29 +20,15 @@ import { converter, formatCss } from 'culori'
 /** How many colors a theme is built from, most telling first. */
 const wanted = 6
 
-/**
- * Colors for pictures with none in them to read.
- *
- * A picture drawn in black and white yields nothing to build a theme from, and
- * a theme built from nothing lands on the zero-degree red. Named here, beside
- * the reading that failed, rather than hand-written into the generated file.
- */
+/** Fallback palette colors for images without measurable chroma. */
 const borrowed: Record<string, readonly string[]> = {
-  // Line art on black, which reads no color at all. The blue the app draws
-  // with, and white. In that order: a theme takes its colors in turn, and the
-  // second is where strings land.
+  // Tempo uses blue for accents and white for string tokens.
   tempo: ['oklch(64.94% 0.1982 251.813)', '#ffffff'],
 }
 
-/**
- * Canvases stated rather than derived.
- *
- * A backdrop that is a flat color wants the window to sit on that color, and a
- * background derived from a borrowed hue lands a shade off it.
- */
+/** Explicit canvas colors for artwork with a fixed background. */
 const canvas: Record<string, string> = {
-  // Black, and a tenth of the way through: the artwork behind the frame reads
-  // as the frame's own, rather than as something the frame covers.
+  // Match the translucent black background of the Tempo artwork.
   tempo: '#000000e6',
 }
 

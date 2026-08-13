@@ -47,10 +47,7 @@ namespace schema {
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
       padding: z.number().int().min(0).max(256).optional(),
-      /**
-       * A backdrop to stand the frame on, as a `data:` URL. Carried rather
-       * than named, because the renderer fetches nothing.
-       */
+      /** Embedded backdrop image for the request-free renderer. */
       picture: z
         .string()
         .max(limit.picture)

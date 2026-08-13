@@ -3,9 +3,9 @@ import * as Links from './links.js'
 describe('id', () => {
   test('is short, and drawn from an alphabet a link can carry', () => {
     const ids = Array.from({ length: 200 }, () => Links.id())
-    // No `l`, and none of `0`, `1`, `9`: the characters a reader mistypes.
+    // Exclude visually ambiguous characters from generated identifiers.
     expect(ids.every((value) => /^[a-km-z2-8]{12}$/.test(value))).toBe(true)
-    // Two of the same in two hundred would mean the source is not random.
+    // Detect an obvious failure in the random identifier source.
     expect(new Set(ids).size).toBe(ids.length)
   })
 })
@@ -42,8 +42,7 @@ describe('page', () => {
       '<meta property="og:image" content="https://example.com/s/abc123defg/og.png">',
     )
     expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
-    // A reader is sent on to the editor, with the snippet in the fragment the
-    // editor already reads every other link from.
+    // Redirect to the editor with the encoded state in the URL fragment.
     expect(html).toContain('content="0; url=https://example.com/#N4IgZg"')
   })
 
@@ -61,12 +60,12 @@ describe('page', () => {
 })
 
 describe('describe', () => {
-  /** A model that answers from memory, which is the whole capability read. */
+  /** Creates a deterministic implementation of the model interface. */
   function answering(answer: unknown): Links.describe.Model {
     return { run: () => Promise.resolve(answer) }
   }
 
-  /** The envelope this binding returns, whatever the docs say it returns. */
+  /** Wraps model output in the OpenAI-compatible response format. */
   function chat(content: string) {
     return { choices: [{ message: { content } }] }
   }
@@ -111,7 +110,7 @@ describe('describe', () => {
       'const a = 1',
     )
     expect(said?.title.length).toBe(60)
-    // The opening is this module's, so only what the model said is cut.
+    // Apply the description limit before adding the fixed sentence prefix.
     expect(said?.description.length).toBe('A code snippet of '.length + 180)
     expect(said?.title.endsWith('…')).toBe(true)
   })
@@ -132,8 +131,7 @@ describe('describe', () => {
   test('gives up on a reading that never answers', async () => {
     vi.useFakeTimers()
     try {
-      // A binding that neither answers nor rejects, which is the case that
-      // would otherwise hold a link open for as long as it lasted.
+      // Simulate a binding that never resolves or rejects.
       const pending: Links.describe.Model = { run: () => new Promise(() => {}) }
       const said = Links.describe(pending, 'const a = 1')
       await vi.advanceTimersByTimeAsync(30_000)
@@ -161,7 +159,7 @@ describe('read', () => {
   })
 
   test('reads a link kept before a snippet was ever read', () => {
-    // The fragment alone, which is every link written before this existed.
+    // Legacy records contain only the encoded fragment.
     expect(Links.read('N4IgRiBcICYKYDM')).toMatchInlineSnapshot(`
       {
         "state": "N4IgRiBcICYKYDM",

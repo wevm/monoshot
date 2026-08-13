@@ -30,46 +30,35 @@ export const compilerOptions = {
 }
 
 /**
- * Creates a twoslasher that reads a document's packages from the registry
- * rather than from the machine running it, so a snippet resolves the same
- * locally, in CI, and in a Worker.
+ * Creates a Twoslash resolver with consistent package declarations across runtimes.
  *
- * Two stages, because they come from different places: the compiler's lib
- * files are the same for every snippet and are loaded once per process, while
- * packages depend on what a document imports and are fetched per document by
- * {@link prepare}.
+ * Compiler libraries load once per process; imported packages load per document through {@link prepare}.
  */
 export function create(): create.ReturnType {
   /** The compiler's file system, written to directly by both stages. */
   const files = new Map<string, string>()
   let started: Promise<Cdn> | undefined
 
-  /** What every twoslasher here compiles with, however it was built. */
+  /** Compiler and Twoslash options shared by local and CDN-backed resolvers. */
   const overrides = {
     compilerOptions,
-    // The tags the frame draws, which stay ordinary comments unless the
-    // compiler is told to read them.
+    // Register custom tags so Twoslash interprets them instead of ordinary comments.
     customTags: [...tags],
-    // Half-typed code is the normal case, and twoslash otherwise insists
-    // every compiler error be declared in the source.
+    // Allow incomplete snippets without requiring annotations for every diagnostic.
     handbookOptions: { noErrorValidation: true },
   }
 
   async function start(): Promise<Cdn> {
     const compiler = (await import('typescript')).default
     const lib = await bundled(compiler)
-    // Node has the compiler on disk, so its lib files are read rather than
-    // fetched: a hundred requests per process is slow where it works and flaky
-    // where a network throttles them, and `String` resolving to `any` is what
-    // a half-fetched set looks like. Package declarations still come from the
-    // registry, which is what keeps a render off the caller's `node_modules`.
+    // Read compiler libraries from disk in Node to avoid network-dependent type resolution.
     if (lib) {
       for (const [path, source] of lib) files.set(path, source)
       const { createTwoslasher } = await import('twoslash')
       const twoslasher = createTwoslasher({ ...overrides, fsMap: files })
       return { compiler, run: (code, lang) => twoslasher(code, lang) }
     }
-    // A runtime with no file system reads them over the network instead.
+    // Fetch compiler libraries when the runtime has no filesystem access.
     const { createTwoslashFromCDN } = await import('twoslash-cdn')
     const twoslash = createTwoslashFromCDN({
       compilerOptions,
@@ -114,30 +103,22 @@ export declare namespace create {
   type Twoslasher = (code: string, lang?: string) => TwoslashReturn
 }
 
-/**
- * Where fetched lib files are kept on a runtime that has to fetch them, shared
- * by every resolver in the process. They are the same hundred or so files for
- * every snippet, and fetching them per renderer would make a second frame cost
- * as much as the first.
- */
+/** Shared storage for compiler libraries fetched by filesystem-free runtimes. */
 let storage: Promise<Storage> | undefined
 function cache() {
   return (storage ??= import('unstorage').then((module) => module.createStorage()))
 }
 
-/** What {@link create} holds once the lib files have landed. */
+/** Initialized compiler and Twoslash runner. */
 type Cdn = {
   compiler: typeof import('typescript')
   run: create.Twoslasher
 }
 
 /**
- * The compiler's own lib files, read from the package this process loaded, or
- * nothing on a runtime with no file system to read them from.
+ * Reads library declarations from the active TypeScript installation.
  *
- * They belong to the compiler rather than to the caller's project: a `lib` set
- * from anywhere else would describe a different TypeScript than the one about
- * to compile the snippet.
+ * Returns `undefined` when the runtime provides no compatible filesystem API.
  */
 async function bundled(compiler: typeof import('typescript')) {
   const directory = compiler.sys?.getExecutingFilePath?.()
@@ -159,10 +140,7 @@ async function bundled(compiler: typeof import('typescript')) {
   }
 }
 
-/**
- * One package's declarations, straight from the registry. The browser reaches
- * for a route instead, which is the only difference between the two.
- */
+/** Loads one package's declarations from the registry. */
 async function read(name: string) {
   try {
     const result = await Registry.types({ name, version: 'latest' })
