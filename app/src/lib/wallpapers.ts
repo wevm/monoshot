@@ -1,5 +1,12 @@
 import { converter, formatCss } from 'culori'
 
+/**
+ * Available backdrops include Tempo artwork and macOS wallpapers sourced from
+ * the 512 Pixels archive. Neither source grants redistribution rights here.
+ *
+ * @see https://512pixels.net/projects/default-mac-wallpapers-in-5k/
+ */
+
 /** Prefix for wallpaper background identifiers. */
 const prefix = 'wallpaper:'
 
@@ -24,8 +31,19 @@ export type Picture = {
   source: string
 }
 
-/** Available wallpapers. Add only artwork with documented redistribution rights. */
-export const list: readonly Wallpaper[] = []
+/** Available wallpapers, ordered from newest to oldest release. */
+export const list: readonly Wallpaper[] = [
+  { id: 'tempo', name: 'Tempo', themed: true },
+  { id: 'golden-gate-light', name: 'Golden Gate' },
+  { id: 'golden-gate-dark', name: 'Golden Gate Dark' },
+  { id: 'tahoe-light', name: 'Tahoe' },
+  { id: 'tahoe-dark', name: 'Tahoe Dark' },
+  { id: 'sequoia-light', name: 'Sequoia' },
+  { id: 'sequoia-dark', name: 'Sequoia Dark' },
+  { id: 'mountain-lion', name: 'Mountain Lion' },
+  { id: 'snow-leopard', name: 'Snow Leopard' },
+  { id: 'panther', name: 'Panther' },
+]
 
 /** Wallpapers available as user-selectable backdrops. */
 export const offered: readonly Wallpaper[] = list.filter((wallpaper) => !wallpaper.themed)
