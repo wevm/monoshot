@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
 import type { BundledLanguage } from 'shiki'
 import { flushSync } from 'react-dom'
@@ -401,22 +401,26 @@ function resolvedSample(): Twoslash.Resolved {
   }
 }
 
-function Page() {
-  const [settings, setSettings] = useState<Settings>(fallback)
-  const [title, setTitle] = useState('')
-  const [code, setCode] = useState(sample)
+/** Interactive editor initialized from an optional server-visible shared state. */
+export function Page({ state }: { state?: string | undefined } = {}) {
+  const navigate = useNavigate()
+  const initial = state ? restore(state) : { code: sample, settings: fallback, title: '' }
+  const [settings, setSettings] = useState<Settings>(initial.settings)
+  const [title, setTitle] = useState(initial.title)
+  const [code, setCode] = useState(initial.code)
 
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
+    if (state) return
     // Retain application defaults when the fragment is absent or unreadable.
     if (!Codec.readable(window.location.hash)) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
     setSettings(shared.settings)
     setTitle(shared.title)
-  }, [])
+  }, [state])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
@@ -477,13 +481,18 @@ function Page() {
   const language =
     settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
 
-  // The fragment is the only place state is kept. Write it before paint so a
-  // reload or close cannot discard the latest edit.
-  useLayoutEffect(() => {
-    const url = new URL(window.location.href)
-    url.hash = share({ code, settings, title })
-    window.history.replaceState(window.history.state, '', url)
-  }, [code, settings, title])
+  // The fragment is the only place state is kept, so it is written on every
+  // change, debounced: a keystroke should not push a history entry, and the
+  // router owns the address bar rather than `history.replaceState`.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const hash = share({ code, settings, title })
+      // Preserve the immutable short URL until the editor diverges from it.
+      if (state === hash) return
+      void navigate({ to: '/', hash, replace: true, resetScroll: false })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [code, navigate, settings, state, title])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.

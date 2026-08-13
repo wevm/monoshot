@@ -26,7 +26,7 @@
   "[!start-pkg]": "",
   "name": "monoshot",
   "type": "module",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "license": "MIT",
   "description": "Create code images with syntax highlighting, customizable themes, and type-aware annotations.",
   "repository": {
@@ -47,7 +47,7 @@
     "monoshot.src": "./src/bin.ts"
   },
   "files": [
-    "app/public/wallpapers/tempo.webp",
+    "app/public/wallpapers",
     "dist",
     "src",
     "!src/**/*.test.ts",

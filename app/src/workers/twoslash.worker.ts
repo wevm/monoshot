@@ -6,6 +6,7 @@ import indexedDb from 'unstorage/drivers/indexedb'
 
 import * as Completions from '#/lib/twoslash/completions.js'
 import { compilerOptions } from '#/lib/twoslash/options.js'
+import { missingImports } from '#/lib/twoslash/protocol.js'
 import type { Complete, Request, Resolve, Response } from '#/lib/twoslash/protocol.js'
 
 /**
@@ -121,8 +122,11 @@ async function resolve(request: Resolve) {
     // anything at all. Acquiring a package's types is a separate stage.
     await twoslash.init()
     const first = annotate(request)
-    reply(first)
-    void upgrade(request, first)
+    const published = !missingImports(first.result)
+    // Keep the editor's mapped annotations while acquisition resolves imports.
+    // Publishing this intermediate result would replace valid types with `any`.
+    if (published) reply(first)
+    void upgrade(request, first, published)
   } catch (cause) {
     reply(failure(request, cause))
   }
@@ -136,7 +140,7 @@ async function resolve(request: Resolve) {
  * for it. The queue does not await this operation and remains available for the
  * next keystroke while this runs.
  */
-async function upgrade(request: Resolve, first: Response) {
+async function upgrade(request: Resolve, first: Resolved, published: boolean) {
   try {
     const acquired = await Twoslash.acquire({ code: request.code, compiler: ts, files, load })
     // A newer document has its own upgrade request.
@@ -147,14 +151,14 @@ async function upgrade(request: Resolve, first: Response) {
     completions.forget()
     const upgraded = annotate(request, ambient)
     // Skip duplicate results when type acquisition did not change the output.
-    if (JSON.stringify(upgraded) === JSON.stringify(first)) return
+    if (published && JSON.stringify(upgraded) === JSON.stringify(first)) return
     reply(upgraded)
   } catch (cause) {
     if (request.version === version) reply(failure(request, cause))
   }
 }
 
-function annotate(request: Resolve, types: readonly string[] = []): Response {
+function annotate(request: Resolve, types: readonly string[] = []): Resolved {
   // The compiler is kept off the lines the snippet marks as removed: blanking
   // keeps every offset, so what it does resolve still lands where it was found.
   const run = twoslash.runSync(
@@ -176,6 +180,8 @@ function annotate(request: Resolve, types: readonly string[] = []): Response {
     version: request.version,
   }
 }
+
+type Resolved = Extract<Response, { result: Twoslash.Result }>
 
 /**
  * Loads one package's declarations through the app route.

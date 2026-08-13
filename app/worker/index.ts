@@ -158,25 +158,6 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     c.executionCtx.waitUntil(keep(c.env, id, drawn))
     return response
   })
-  .get('/s/:id', async (c) => {
-    const id = c.req.param('id')
-    const kept = await c.env.LINKS?.get(id)
-    // Redirect expired links to an empty editor instead of returning an error page.
-    if (!kept) return c.redirect('/', 302)
-    const link = Links.read(kept)
-    const settings = Codec.deserialize(link.state)
-    const language = settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang
-    return c.html(
-      Links.page({
-        // Fall back to deterministic metadata when model-generated metadata is absent.
-        description: link.description ?? `A ${language} snippet, rendered by monoshot.`,
-        id,
-        origin: new URL(c.req.url).origin,
-        state: link.state,
-        title: link.title ?? Links.summarize(settings.code, 'A snippet on monoshot'),
-      }),
-    )
-  })
   .get('/', async (c) => {
     const type = accepts(c, {
       default: 'text/html',
@@ -334,7 +315,7 @@ async function card(
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
   // Limit source to a fixed viewport so dense snippets remain readable.
-  const shown = Links.excerpt(settings.code)
+  const shown = Links.excerpt(Links.withoutTypes(settings.code))
   const drawn = await api.request(
     '/document',
     {
@@ -351,6 +332,8 @@ async function card(
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
         theme: settings.theme,
         titleBar: false,
+        // Preview crawlers cannot wait for package acquisition during Twoslash.
+        twoslash: false,
         width: Links.card.width,
       }),
       headers: { 'content-type': 'application/json' },

@@ -2,8 +2,12 @@ import { Codec } from 'monoshot'
 
 import app from './index.js'
 
+const startFetch = vi.hoisted(() =>
+  vi.fn(() => new Response('html', { headers: { 'content-type': 'text/html' } })),
+)
+
 vi.mock('@tanstack/react-start/server-entry', () => ({
-  default: { fetch: () => new Response('html', { headers: { 'content-type': 'text/html' } }) },
+  default: { fetch: startFetch },
 }))
 
 const env = {
@@ -174,6 +178,14 @@ describe('agent skill', () => {
     )
     expect(await response.text()).toBe('html')
     expect(response.headers.get('content-type')).toBe('text/html')
+  })
+
+  test('serves shared links through the application route', async () => {
+    startFetch.mockClear()
+    const response = await app.request('/s/abc123', {}, env)
+    expect(await response.text()).toBe('html')
+    expect(response.headers.get('location')).toBeNull()
+    expect(startFetch).toHaveBeenCalledTimes(1)
   })
 })
 

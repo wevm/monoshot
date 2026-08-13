@@ -11,18 +11,15 @@ export type Types = Record<string, string>
 export async function types(options: types.Options): Promise<types.Result> {
   const { name, version } = options
   const request = options.fetch ?? fetch
-  const meta = await json({
-    fetch: request,
-    name,
-    url: `${registry}/${encodeName(name)}/${encodeURIComponent(version)}`,
-    version,
-  })
+  const meta = await metadata({ fetch: request, name, version })
   const resolved = typeof meta['version'] === 'string' ? meta['version'] : version
   const dist = meta['dist']
   const tarball =
     typeof dist === 'object' && dist !== null && 'tarball' in dist
       ? (dist as { tarball: unknown }).tarball
-      : undefined
+      : resolved === version && version === 'latest'
+        ? undefined
+        : `${registry}/${encodeName(name)}/-/${encodeURIComponent(basename(name))}-${encodeURIComponent(resolved)}.tgz`
   // Absent rather than failed: a version that ships no tarball ships none on
   // every later attempt too.
   if (typeof tarball !== 'string')
@@ -112,6 +109,15 @@ const limits = {
   files: 4_096,
 } as const
 
+const metadataSources = [
+  (name: string, version: string) =>
+    `${registry}/${encodeName(name)}/${encodeURIComponent(version)}`,
+  (name: string, version: string) =>
+    `https://cdn.jsdelivr.net/npm/${encodeName(name)}@${encodeURIComponent(version)}/package.json`,
+  (name: string, version: string) =>
+    `https://unpkg.com/${encodeName(name)}@${encodeURIComponent(version)}/package.json`,
+] as const
+
 async function bytes(
   stream: ReadableStream<Uint8Array>,
   limit: number,
@@ -141,6 +147,32 @@ async function bytes(
     offset += chunk.length
   }
   return output
+}
+
+/** Resolves a package version even when npm rate-limits shared Worker egress. */
+async function metadata(options: {
+  fetch: typeof globalThis.fetch
+  name: string
+  version: string
+}) {
+  const { name, version } = options
+  let failure: unknown
+  for (const [at, source] of metadataSources.entries()) {
+    try {
+      return await json({ ...options, url: source(name, version) })
+    } catch (cause) {
+      // npm is authoritative when a package or version does not exist. Mirrors
+      // are only fallbacks for a source that could not answer reliably.
+      if (at === 0 && cause instanceof RegistryError && cause.absent) throw cause
+      failure = cause
+    }
+  }
+  throw failure
+}
+
+/** Tarballs name a scoped package by its final segment. */
+function basename(name: string) {
+  return name.slice(name.lastIndexOf('/') + 1)
 }
 
 /** A scope's `/` is part of the name, so only the scope separator survives. */
