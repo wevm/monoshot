@@ -314,7 +314,7 @@ export declare namespace create {
      * `background` or a font field carries CSS that would leave the stylesheet
      * or fetch a resource.
      */
-    toDocument: (options: toDocument.Options) => Promise<toDocument.ReturnType>
+    toDocument: (options: toDocument.Options<themes>) => Promise<toDocument.ReturnType>
     /**
      * Tokenizes code without rendering it, for a surface that draws its own
      * text. An editor colors its own document from these.

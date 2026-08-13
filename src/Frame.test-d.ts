@@ -25,6 +25,17 @@ describe('create', () => {
     const frame = Frame.create({ themes: [theme, 'nord'] })
     expectTypeOf(frame.render).toBeCallableWith({ code: 'a', lang: 'ts', theme: 'mine' })
     expectTypeOf(frame.load).toBeCallableWith({ lang: 'ts', theme: 'mine' })
+    expectTypeOf(frame.toDocument).toBeCallableWith({
+      background: 'default',
+      code: 'a',
+      lang: 'ts',
+      padding: 48,
+      radius: 12,
+      theme: 'mine',
+      title: '',
+      titleBar: true,
+      width: 800,
+    })
     expectTypeOf(frame.tokens).toBeCallableWith({ code: 'a', lang: 'ts', theme: 'mine' })
   })
 
