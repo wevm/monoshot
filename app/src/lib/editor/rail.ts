@@ -221,8 +221,12 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   }
 
   function drop() {
+    if (!painting) return
     painting = undefined
     window.removeEventListener('mousemove', carry)
+    // Refresh once replacing the pressed control can no longer interrupt its drag.
+    showing = undefined
+    show(view.state.field(reached, false))
   }
 
   /**
@@ -367,6 +371,8 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     if (strip.dataset['following'] === undefined)
       strip.style.setProperty('--rail-top', `${Math.round(row.top + row.height / 2)}px`)
     strip.dataset['shown'] = ''
+    // Replacing the pressed control can interrupt its drag and moves the tooltip anchor.
+    if (painting) return
     if (showing === key) return
     showing = key
     Tooltip.point()
