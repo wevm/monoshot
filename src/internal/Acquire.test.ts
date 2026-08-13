@@ -64,4 +64,57 @@ describe('acquire', () => {
       ]
     `)
   })
+
+  test('reports each package while it is loading', async () => {
+    const loading: [string, boolean][] = []
+    await acquire({
+      code: "import { a } from 'one'\n",
+      compiler: ts,
+      files: new Map(),
+      load: shipping('export declare const a: 1'),
+      onPackage: (name, active) => loading.push([name, active]),
+    })
+    expect(loading).toMatchInlineSnapshot(`
+      [
+        [
+          "one",
+          true,
+        ],
+        [
+          "one",
+          false,
+        ],
+      ]
+    `)
+  })
+
+  test('removes declarations left by a previous package version', async () => {
+    const files = new Map([
+      ['/node_modules/one/index.d.ts', 'old'],
+      ['/node_modules/one/removed.d.ts', 'old'],
+    ])
+    await acquire({
+      code: "import { a } from 'one'\n",
+      compiler: ts,
+      files,
+      load: shipping('new'),
+    })
+    expect(Object.fromEntries(files)).toMatchInlineSnapshot(`
+      {
+        "/node_modules/one/index.d.ts": "new",
+      }
+    `)
+  })
+
+  test('does not write packages after the acquisition is superseded', async () => {
+    const files = new Map<string, string>()
+    await acquire({
+      active: () => false,
+      code: "import { a } from 'one'\n",
+      compiler: ts,
+      files,
+      load: shipping('old'),
+    })
+    expect(files.size).toBe(0)
+  })
 })

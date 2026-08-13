@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { detect, languages } from '#/lib/detect.js'
 import * as Export from '#/lib/export.js'
 import * as Links from '#/lib/links.js'
+import type { Versions } from '#/lib/editor/packages.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
 import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
@@ -202,6 +203,9 @@ const empty: Editor.Props['types'] = []
 /** Stable empty offset list used before compiler results are available. */
 const emptyOffsets: readonly number[] = []
 
+/** Stable empty package list used while no declarations are loading. */
+const emptyPackages: readonly string[] = []
+
 const quiet: Editor.Props['diagnostics'] = []
 
 /** Everything on screen that a shared link carries, less the code and title. */
@@ -384,6 +388,8 @@ function Page() {
   const [diagnostics, setDiagnostics] = useState<Editor.Props['diagnostics']>(quiet)
   /** Diagnostic offsets ignored by both the editor and exported image. */
   const [ignored, setIgnored] = useState<readonly number[]>(emptyOffsets)
+  const [loading, setLoading] = useState<readonly string[]>(emptyPackages)
+  const [versions, setVersions] = useState<Versions>({})
   // Seeded with the default snippet's types, resolved at build time: the
   // worker that resolves them carries a compiler, and a first visit would
   // download it to draw a document nobody has touched.
@@ -471,17 +477,18 @@ function Page() {
         console.error('Type resolution failed.', message)
         setResolved(undefined)
       },
+      onLoading: setLoading,
       onResult: setResolved,
     })
     // Already resolved, and by something other than the worker: an untouched
     // visit never spawns it.
-    if (code === sample && dialect === Sample.lang) {
+    if (code === sample && dialect === Sample.lang && !Object.keys(versions).length) {
       setResolved(resolvedSample())
       return
     }
-    const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
+    const timer = setTimeout(() => resolver.current?.resolve(code, dialect, versions), 300)
     return () => clearTimeout(timer)
-  }, [code, language, settings.types])
+  }, [code, language, settings.types, versions])
 
   // The picture the artwork stands on, by name: what the effect below watches.
   const picture = backdrop(settings)?.id
@@ -952,8 +959,17 @@ function Page() {
                   code={code}
                   diagnostics={diagnostics}
                   language={language}
+                  loading={loading}
                   onCodeChange={setCode}
                   onIgnore={setIgnored}
+                  onVersionChange={(name, version) =>
+                    setVersions((current) => {
+                      const next = { ...current }
+                      if (version === 'latest') delete next[name]
+                      else next[name] = version
+                      return next
+                    })
+                  }
                   // Return no completions for unsupported languages or before resolver creation.
                   onComplete={async (document, position) => {
                     const dialect = settings.types
@@ -965,6 +981,7 @@ function Page() {
                   palette={frame.palette}
                   tokens={frame.tokens}
                   types={annotations}
+                  versions={versions}
                 />
               </Frame>
             </div>

@@ -6,6 +6,7 @@ import type { ViewUpdate } from '@codemirror/view'
 
 import * as Annotation from './annotation.js'
 import * as Notations from './notations.js'
+import * as Packages from './packages.js'
 import { Tooltip } from '#/ui/Tooltip.js'
 import { keep, keptUnder } from './problems.js'
 
@@ -70,17 +71,24 @@ const reached = StateField.define<string | undefined>({
  * down the lines with them.
  */
 export function rail(options: rail.Options): Extension {
-  const { container, syntax } = options
+  const { container, onVersionChange, syntax, versions } = options
   if (!container) return []
-  return [reached, ViewPlugin.define((view) => build(view, container, syntax))]
+  return [
+    reached,
+    ViewPlugin.define((view) => build(view, container, syntax, versions, onVersionChange)),
+  ]
 }
 
 export declare namespace rail {
   type Options = {
     /** Where the controls are drawn, outside the window and over the artwork. */
     container: HTMLElement | null
+    /** Receives a package version committed from an import line. */
+    onVersionChange: (name: string, version: string) => void
     /** The comment a mark is written as, in the language of the snippet. */
     syntax: Notations.Syntax
+    /** Package versions selected in the editor. */
+    versions: Packages.Versions
   }
 }
 
@@ -115,7 +123,13 @@ type Row = {
  * the window so running down it runs down the code without a gap to fall
  * through.
  */
-function build(view: EditorView, container: HTMLElement, syntax: Notations.Syntax) {
+function build(
+  view: EditorView,
+  container: HTMLElement,
+  syntax: Notations.Syntax,
+  versions: Packages.Versions,
+  onVersionChange: (name: string, version: string) => void,
+) {
   const strip = document.createElement('div')
   /** What covers each row on screen, by what that row is. */
   const reaches = new Map<string, HTMLElement>()
@@ -429,7 +443,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
               select: () => keep(view, at),
             }),
           ]
-    return order.map((kind) => {
+    const offered: HTMLElement[] = order.map((kind) => {
       const button = control({
         active: row.takes === true && row.carried?.includes(kind) === true,
         disabled: row.takes !== true,
@@ -452,6 +466,10 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
       button.dataset['kind'] = kind
       return button
     })
+    const imported = Packages.at(view.state, line)
+    if (imported)
+      offered.push(selector(imported.name, versions[imported.name] ?? 'latest', onVersionChange))
+    return offered
   }
 
   /** One control of the strip, whichever the strip is. */
@@ -503,6 +521,41 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
       if (!options.hold || event.detail === 0) options.select()
     })
     return button
+  }
+
+  /** Version committed for the npm package imported on this row. */
+  function selector(
+    name: string,
+    selected: string,
+    onSelect: (name: string, version: string) => void,
+  ) {
+    const input = document.createElement('input')
+    input.className = 'rail-version'
+    input.value = selected
+    input.setAttribute('aria-label', `Package version for ${name}`)
+    input.setAttribute('autocapitalize', 'none')
+    input.setAttribute('autocomplete', 'off')
+    input.setAttribute('spellcheck', 'false')
+
+    const commit = () => {
+      const version = input.value.trim() || 'latest'
+      input.value = version
+      if (version !== selected) onSelect(name, version)
+    }
+    input.addEventListener('change', commit)
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        commit()
+        input.blur()
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        input.value = selected
+        input.blur()
+      }
+    })
+    return input
   }
 
   /**

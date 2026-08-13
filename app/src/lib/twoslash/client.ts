@@ -27,7 +27,7 @@ import type { Completion, Lang, Request, Response, Run } from './protocol.js'
  * avoiding compiler startup for sessions that do not use TypeScript.
  */
 export function create(options: create.Options): create.ReturnType {
-  const { onError, onResult } = options
+  const { onError, onLoading, onResult } = options
   let worker: Worker | undefined
   let version = 0
   let asked = 0
@@ -36,12 +36,15 @@ export function create(options: create.Options): create.ReturnType {
   // The document associated with the latest accepted response.
   let latest = ''
   let dialect: Lang = 'ts'
+  /** Packages loading for the current document. */
+  const loading = new Set<string>()
 
   return {
     dispose() {
       worker?.terminate()
       worker = undefined
       settle()
+      clear()
     },
     complete(code, lang, position) {
       const instance = start()
@@ -53,14 +56,16 @@ export function create(options: create.Options): create.ReturnType {
     },
     invalidate() {
       version += 1
+      clear()
     },
-    resolve(code, lang) {
+    resolve(code, lang, versions = {}) {
       version += 1
       latest = code
       dialect = lang
+      clear()
       const instance = start()
       if (!instance) return
-      instance.postMessage({ code, kind: 'resolve', lang, version } satisfies Request)
+      instance.postMessage({ code, kind: 'resolve', lang, version, versions } satisfies Request)
     },
   }
 
@@ -68,6 +73,13 @@ export function create(options: create.Options): create.ReturnType {
   function settle() {
     for (const resolve of waiting.values()) resolve([])
     waiting.clear()
+  }
+
+  /** Clears package loading state when its document is superseded. */
+  function clear() {
+    if (!loading.size) return
+    loading.clear()
+    onLoading?.([])
   }
 
   function start() {
@@ -98,6 +110,13 @@ export function create(options: create.Options): create.ReturnType {
       // A reply for a document that has already been edited past is dropped:
       // resolution latency allows responses to arrive out of order.
       if (event.data.version !== version) return
+      if (event.data.kind === 'loading') {
+        const before = loading.size
+        if (event.data.loading) loading.add(event.data.name)
+        else loading.delete(event.data.name)
+        if (before !== loading.size) onLoading?.([...loading])
+        return
+      }
       if ('error' in event.data) onError?.(event.data.error)
       else
         onResult({
@@ -120,10 +139,12 @@ export function create(options: create.Options): create.ReturnType {
       }
       // Resolve pending completions because this worker cannot respond.
       settle()
+      clear()
       onError?.(event.message || 'The type resolver could not start.')
     })
     instance.addEventListener('messageerror', () => {
       settle()
+      clear()
       onError?.('The type resolver sent a reply that could not be read.')
     })
     return instance
@@ -134,6 +155,8 @@ export declare namespace create {
   type Options = {
     /** Called when a document could not be resolved, including when the worker never starts. */
     onError?: ((message: string) => void) | undefined
+    /** Called when the packages loading for the current document change. */
+    onLoading?: ((packages: readonly string[]) => void) | undefined
     /** Called with the types for the most recent document. */
     onResult: (resolved: Resolved) => void
   }
@@ -148,6 +171,6 @@ export declare namespace create {
     /** Returns completion entries at a document offset, or an empty array. */
     complete: (code: string, lang: Lang, position: number) => Promise<readonly Completion[]>
     /** Resolves document types and supersedes any in-flight request. */
-    resolve: (code: string, lang: Lang) => void
+    resolve: (code: string, lang: Lang, versions?: Readonly<Record<string, string>>) => void
   }
 }

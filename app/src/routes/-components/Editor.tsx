@@ -14,6 +14,7 @@ import type { Token } from '#/lib/editor/highlight.js'
 import { hover } from '#/lib/editor/hover.js'
 import { indent } from '#/lib/editor/indent.js'
 import { bare, notations, syntax } from '#/lib/editor/notations.js'
+import * as Packages from '#/lib/editor/packages.js'
 import { rail } from '#/lib/editor/rail.js'
 import { overlooked, pins, problems } from '#/lib/editor/problems.js'
 import { query as queries } from '#/lib/editor/query.js'
@@ -39,12 +40,15 @@ export function Editor(props: Editor.Props) {
     code,
     diagnostics,
     language,
+    loading,
     onCodeChange,
     onComplete,
     onIgnore,
+    onVersionChange,
     palette,
     tokens,
     types,
+    versions,
   } = props
 
   const host = useRef<HTMLDivElement>(null)
@@ -56,6 +60,8 @@ export function Editor(props: Editor.Props) {
   complete.current = onComplete
   const ignored = useRef(onIgnore)
   ignored.current = onIgnore
+  const selectVersion = useRef(onVersionChange)
+  selectVersion.current = onVersionChange
   // Ignoring a diagnostic changes editor state without changing the document.
   const [overlooking, setOverlooking] = useState<readonly number[]>(none)
   const palettes = useRef(new Compartment()).current
@@ -90,6 +96,7 @@ export function Editor(props: Editor.Props) {
           EditorView.contentAttributes.of({ 'aria-label': 'Code' }),
           highlight,
           notations,
+          Packages.packages,
           pins,
           // Diagnostics are supplied externally, so only linter configuration is needed.
           // Suppress built-in tooltips when the custom hover can present the diagnostic.
@@ -97,7 +104,14 @@ export function Editor(props: Editor.Props) {
             tooltipFilter: (found, state) =>
               found.filter((diagnostic) => !Types.over(state, diagnostic)),
           }),
-          rails.of(rail({ container: aside, syntax: syntax(language) })),
+          rails.of(
+            rail({
+              container: aside,
+              onVersionChange: (name, version) => selectVersion.current(name, version),
+              syntax: syntax(language),
+              versions,
+            }),
+          ),
           queries,
           hover,
           completions((document, position) => complete.current(document, position)),
@@ -133,9 +147,20 @@ export function Editor(props: Editor.Props) {
 
   useEffect(() => {
     view.current?.dispatch({
-      effects: rails.reconfigure(rail({ container: aside, syntax: syntax(language) })),
+      effects: rails.reconfigure(
+        rail({
+          container: aside,
+          onVersionChange: (name, version) => selectVersion.current(name, version),
+          syntax: syntax(language),
+          versions,
+        }),
+      ),
     })
-  }, [aside, language, rails])
+  }, [aside, language, rails, versions])
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: Packages.setLoading.of(loading) })
+  }, [loading])
 
   useEffect(() => {
     view.current?.dispatch({ effects: Types.setTypes.of(types) })
@@ -175,16 +200,22 @@ export declare namespace Editor {
     diagnostics: readonly Twoslash.Diagnostic[]
     /** What the snippet is written in, which decides how a mark is written. */
     language: string
+    /** Bare npm package names whose declarations are loading. */
+    loading: readonly string[]
     /** Receives every edit. */
     onCodeChange: (code: string) => void
     /** Receives the offsets of ignored diagnostics. */
     onIgnore: (offsets: readonly number[]) => void
+    /** Selects the version or dist-tag used to load an npm package. */
+    onVersionChange: (name: string, version: string) => void
     /** Requests completion entries at the caret. */
     onComplete: (code: string, position: number) => Promise<readonly Completion[]>
     /** Colors the editor to match the frame it sits in. */
     palette: Theme.derive.Result
     /** Types by identifier, shown on hover and under a pinned `^?` caret. */
     types: Types.Types
+    /** Versions selected for imported npm packages. */
+    versions: Packages.Versions
     /** Shiki tokens for the current document, one array per line. */
     tokens: readonly (readonly Token[])[]
   }

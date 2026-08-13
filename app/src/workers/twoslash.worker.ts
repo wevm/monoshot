@@ -134,7 +134,15 @@ async function resolve(request: Resolve) {
  */
 async function upgrade(request: Resolve, first: Response) {
   try {
-    await Twoslash.acquire({ code: request.code, compiler: ts, files, load })
+    await Twoslash.acquire({
+      active: () => request.version === version,
+      code: request.code,
+      compiler: ts,
+      files,
+      load: (name) => load(request, name),
+      onPackage: (name, loading) =>
+        reply({ kind: 'loading', loading, name, version: request.version }),
+    })
     // The program the completion service holds read the file system before
     // these packages were available, so invalidate the cached program.
     completions.forget()
@@ -172,11 +180,16 @@ function annotate(request: Resolve): Response {
  * Loads one package's declarations through the app route.
  * The route avoids registry CORS restrictions and consolidates tarball requests.
  */
-async function load(name: string) {
+async function load(request: Resolve, name: string) {
   try {
-    const response = await fetch(`/api/types/${name}`)
+    const selected = request.versions[name] ?? 'latest'
+    // Keep the existing URL for unversioned packages, including its warm cache.
+    const specifier = selected === 'latest' ? name : `${name}@${encodeURIComponent(selected)}`
+    const response = await fetch(`/api/types/${specifier}`)
     if (!response.ok) return undefined
-    return (await response.json()) as { files: Record<string, string>; name: string }
+    const result = (await response.json()) as { files: Record<string, string>; name: string }
+    // A superseded request must not overwrite a newer package selection.
+    return request.version === version ? result : undefined
   } catch {
     // Preserve the initial `any` result when declaration loading fails.
     return undefined

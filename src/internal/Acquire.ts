@@ -13,7 +13,7 @@ import type ts from 'typescript'
  * types for the same imports.
  */
 export async function acquire(options: acquire.Options): Promise<void> {
-  const { code, compiler, files, load, onProgress } = options
+  const { active, code, compiler, files, load, onPackage, onProgress } = options
   const seen = new Set<string>()
   let queue = references(compiler, code)
   let done = 0
@@ -25,17 +25,33 @@ export async function acquire(options: acquire.Options): Promise<void> {
     for (const name of wanted) seen.add(name)
     if (!wanted.length) return
 
-    const packages = (await Promise.all(wanted.map((name) => read(name)))).filter(
-      (value) => value !== undefined,
-    )
+    const packages = (
+      await Promise.all(
+        wanted.map(async (name) => {
+          onPackage?.(name, true)
+          try {
+            return await read(name)
+          } finally {
+            onPackage?.(name, false)
+          }
+        }),
+      )
+    ).filter((value) => value !== undefined)
     done += wanted.length
+    // A superseded acquisition can finish fetching, but must not replace files
+    // selected by the request that superseded it.
+    if (active?.() === false) return
 
     // Package declarations can reference additional packages, which form the
     // next acquisition round.
     queue = packages.flatMap((entry) => {
       const found: string[] = []
+      const root = `/node_modules/${entry.name}`
+      // A resolver can replace a package with another version. Remove files
+      // absent from the replacement before writing the files it does ship.
+      for (const path of files.keys()) if (path.startsWith(`${root}/`)) files.delete(path)
       for (const [path, source] of Object.entries(entry.files)) {
-        files.set(`/node_modules/${entry.name}${path}`, source)
+        files.set(`${root}${path}`, source)
         if (/\.d\.[cm]?ts$/.test(path))
           for (const reference of references(compiler, source)) found.push(reference)
       }
@@ -61,6 +77,8 @@ export async function acquire(options: acquire.Options): Promise<void> {
 
 export declare namespace acquire {
   type Options = {
+    /** Whether fetched packages still belong to the active request. */
+    active?: (() => boolean) | undefined
     /** The document whose imports to resolve. */
     code: string
     /** A TypeScript module, used to read imports out of source. */
@@ -72,6 +90,8 @@ export declare namespace acquire {
      * none, which leaves its imports as `any`.
      */
     load: (name: string) => Promise<Package | undefined>
+    /** Called when each package starts and finishes loading. */
+    onPackage?: ((name: string, loading: boolean) => void) | undefined
     /** Called as packages land, for a caller that shows progress. */
     onProgress?: ((loaded: number, total: number) => void) | undefined
   }

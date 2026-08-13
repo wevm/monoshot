@@ -100,6 +100,32 @@
     text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
   }
 
+  /* Package acquisition belongs to the import that caused it. The loader sits
+     after that line without changing the source or its export. */
+  .package-loading {
+    align-items: center;
+    display: inline-flex;
+    margin-left: 7px;
+    opacity: 0.55;
+    vertical-align: -2px;
+  }
+
+  @keyframes package-loading {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  .package-loading svg {
+    animation: package-loading 800ms linear infinite;
+    fill: none;
+    height: 13px;
+    stroke: currentcolor;
+    stroke-linecap: round;
+    stroke-width: 2;
+    width: 13px;
+  }
+
   /* What is wrong with a token outranks what type it holds, so the mark that
      advertises the type steps aside for the squiggle rather than sitting under
      it. The hover similarly prioritizes the diagnostic over the type. */
@@ -382,6 +408,10 @@
   .twoslash-controls {
     transform: none;
   }
+
+  .package-loading svg {
+    animation: none;
+  }
 }
 
 /* Position line controls outside the clipping window using editor measurements. */
@@ -516,6 +546,35 @@
   stroke-linejoin: round;
   stroke-width: 2;
   width: 14px;
+}
+
+.rail-version {
+  background-color: color-mix(in oklab, var(--window-foreground) 8%, transparent);
+  border: none;
+  border-radius: 6px;
+  color: var(--window-foreground);
+  height: 20px;
+  min-width: 0;
+  outline: none;
+  padding-inline: 5px;
+  transition:
+    background-color var(--motion-fast) var(--motion-out),
+    transform var(--motion-fast) var(--motion-out);
+  width: 64px;
+}
+
+.rail-version:hover {
+  background-color: color-mix(in oklab, var(--window-foreground) 12%, transparent);
+}
+
+.rail-version:active {
+  transform: scale(0.97);
+}
+
+.rail-version:focus-visible {
+  background-color: color-mix(in oklab, var(--window-foreground) 14%, transparent);
+  outline: 2px solid var(--window-foreground);
+  outline-offset: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {

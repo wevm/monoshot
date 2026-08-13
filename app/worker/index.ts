@@ -64,9 +64,6 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
     const { name, version } = parse(spec)
     if (!name) return c.json({ error: 'Name a package to read types for.' }, 400)
 
-    // Exact package versions are immutable and need no revalidation. Tags may
-    // resolve to a different version after a release.
-    const exact = version !== 'latest'
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
     const cache = await caches.open('types')
@@ -87,6 +84,9 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
       return c.json({ error: result.message }, absent ? 404 : 502)
     }
 
+    // Exact versions resolve to themselves and are immutable. Any dist-tag can
+    // resolve to a different version after a release.
+    const exact = version === result.version
     const response = Response.json(result, {
       headers: {
         'cache-control': exact

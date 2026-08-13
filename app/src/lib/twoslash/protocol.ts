@@ -37,6 +37,8 @@ export type Resolve = {
   lang: Lang
   /** Increments per document; a reply carrying an older one is stale. */
   version: number
+  /** Package versions selected for this document, keyed by bare package name. */
+  versions: Readonly<Record<string, string>>
 }
 
 /**
@@ -71,6 +73,16 @@ export type Response =
       id: number
       /** Names this message among the replies the worker sends. */
       kind: 'complete'
+    }
+  | {
+      /** Whether this package started or finished loading. */
+      loading: boolean
+      /** Names this message among the replies the worker sends. */
+      kind: 'loading'
+      /** Bare package name whose declarations are loading. */
+      name: string
+      /** Version of the corresponding document request. */
+      version: number
     }
   | {
       /** Why the document could not be resolved. */
