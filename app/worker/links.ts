@@ -136,8 +136,11 @@ function escape(value: string) {
  */
 const model = '@cf/meta/llama-3.2-3b-instruct'
 
-/** How much of a snippet the model is shown, and how long an answer may be. */
-const reading = { code: 4_000, description: 180, title: 60 } as const
+/**
+ * How much of a snippet the model is shown, how long an answer may be, and how
+ * long the reading may take.
+ */
+const reading = { code: 4_000, description: 180, timeout: 5_000, title: 60 } as const
 
 /**
  * Reads a snippet and names it, for the preview a link carries.
@@ -149,20 +152,33 @@ const reading = { code: 4_000, description: 180, title: 60 } as const
  * else is text it may follow. Nothing here acts on the answer, and the page
  * escapes it, so the worst a crafted snippet buys is its own bad heading.
  */
-export async function describe(ai: Ai, code: string): Promise<describe.Result | undefined> {
+export async function describe(
+  ai: describe.Model,
+  code: string,
+): Promise<describe.Result | undefined> {
   try {
-    const answer = await ai.run(model, {
-      max_tokens: 120,
-      messages: [
+    const answer = await Promise.race([
+      ai.run(
+        model,
         {
-          content:
-            'You label a code snippet for a link preview. Answer with exactly two lines and nothing else. First line: a name for the snippet, at most 5 words, no quotes and no full stop. Second line: what the code does, as one short phrase completing "A code snippet of ...". Describe the behaviour, never the language or library on its own.',
-          role: 'system',
+          max_tokens: 120,
+          messages: [
+            {
+              content:
+                'You label a code snippet for a link preview. Answer with exactly two lines and nothing else. First line: a name for the snippet, at most 5 words, no quotes and no full stop. Second line: what the code does, as one short phrase completing "A code snippet of ...". Describe the behaviour, never the language or library on its own.',
+              role: 'system',
+            },
+            { content: code.slice(0, reading.code), role: 'user' },
+          ],
+          temperature: 0.2,
         },
-        { content: code.slice(0, reading.code), role: 'user' },
-      ],
-      temperature: 0.2,
-    })
+        // Cancels the inference where the binding honours it. The race below
+        // is what bounds the wait, because a signal that goes unread leaves
+        // the caller holding a promise that never settles.
+        { signal: AbortSignal.timeout(reading.timeout) },
+      ),
+      elapsed(reading.timeout),
+    ])
     const [title, subject] = lines(answer)
     if (!title || !subject) return undefined
     return { description: `A code snippet of ${subject}`, title }
@@ -170,6 +186,11 @@ export async function describe(ai: Ai, code: string): Promise<describe.Result | 
     // The model is not what a link is for. A reader still gets their preview.
     return undefined
   }
+}
+
+/** Nothing, after a wait. Loses the race a reading has to win. */
+function elapsed(ms: number): Promise<undefined> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
@@ -207,8 +228,30 @@ function lines(answer: unknown): readonly (string | undefined)[] {
 }
 
 export declare namespace describe {
+  /**
+   * The one capability read from a Workers AI binding, which the binding
+   * itself satisfies. Named this narrowly so a reading can be exercised
+   * against an adapter that answers from memory.
+   */
+  type Model = {
+    run(
+      model: string,
+      inputs: {
+        max_tokens?: number | undefined
+        messages: { content: string; role: string }[]
+        temperature?: number | undefined
+      },
+      options?: { signal?: AbortSignal | undefined } | undefined,
+    ): Promise<unknown>
+  }
+
   /** What a snippet is called, and what it is said to be. */
-  type Result = { description: string; title: string }
+  type Result = {
+    /** What the code does, as the sentence a preview shows beneath the title. */
+    description: string
+    /** A name for the snippet, at most five words. */
+    title: string
+  }
 }
 
 /**
@@ -236,5 +279,12 @@ export function read(kept: string): read.Link {
 
 export declare namespace read {
   /** The fragment a link carries, and what was made of it when it was shared. */
-  type Link = { description?: string | undefined; state: string; title?: string | undefined }
+  type Link = {
+    /** What the snippet was read to do, absent on a link written before it was read. */
+    description?: string | undefined
+    /** The encoded state the editor opens. */
+    state: string
+    /** What the snippet was named, absent on a link written before it was read. */
+    title?: string | undefined
+  }
 }
