@@ -498,30 +498,26 @@ export function Toolbar(props: Toolbar.Props) {
                         {section.entries.map((entry) => {
                           const shown = Themes.swatch(entry.name)
                           return (
-                            <Tooltip key={entry.name} label={entry.displayName}>
-                              <button
-                                aria-pressed={entry.name === theme}
-                                data-option={entry.name === theme ? 'selected' : ''}
-                                onClick={() => onChange({ theme: entry.name })}
-                                onFocus={() => onChange({ theme: entry.name })}
-                                ref={entry.name === theme ? reveal : null}
-                                type="button"
-                                {...stylex.props(styles.themeBox(shown.backdrop))}
-                              >
-                                <span {...stylex.props(styles.themeStripes)}>
-                                  {shown.colors.map((paint) => (
-                                    <span
-                                      key={paint}
-                                      {...stylex.props(styles.themeStroke(paint))}
-                                    />
-                                  ))}
-                                </span>
-                                <span {...stylex.props(styles.themeName, text.label10)}>
-                                  {entry.displayName}
-                                </span>
-                                {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
-                              </button>
-                            </Tooltip>
+                            <button
+                              aria-pressed={entry.name === theme}
+                              data-option={entry.name === theme ? 'selected' : ''}
+                              key={entry.name}
+                              onClick={() => onChange({ theme: entry.name })}
+                              onFocus={() => onChange({ theme: entry.name })}
+                              ref={entry.name === theme ? reveal : null}
+                              type="button"
+                              {...stylex.props(styles.themeBox(shown.backdrop))}
+                            >
+                              <span {...stylex.props(styles.themeStripes)}>
+                                {shown.colors.map((paint) => (
+                                  <span key={paint} {...stylex.props(styles.themeStroke(paint))} />
+                                ))}
+                              </span>
+                              <span {...stylex.props(styles.themeName, text.label10)}>
+                                {entry.displayName}
+                              </span>
+                              {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
+                            </button>
                           )
                         })}
                       </div>
