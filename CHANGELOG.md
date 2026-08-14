@@ -1,5 +1,10 @@
 # monoshot
 
+## 0.0.8
+### Patch Changes
+
+- 0e281da: Fixed responsive editing, command suggestions, MCP render portability, CLI warning noise, and API health documentation.
+
 ## 0.0.7
 
 ### Patch Changes
