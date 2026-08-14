@@ -16,7 +16,6 @@ z.config(z.locales.en())
 const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
-  .get('/health', (c) => c.json({ status: 'ok' }))
   .post('/document', (c) => apiRender(c, '/document'))
   .post('/image', (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.

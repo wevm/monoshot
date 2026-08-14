@@ -91,6 +91,9 @@ export function create() {
     mcp: {
       instructions:
         'Turn code into PNG or SVG images, or shareable links. Supports syntax highlighting, themes, and type annotations for JavaScript and TypeScript. Use `themes` to list available themes.',
+      // Four commands do not need a discovery gateway. Direct exposure also
+      // keeps `mcp doctor` identical to what MCP clients list.
+      tools: { discovery: 'direct' },
     },
     version,
   })
@@ -120,6 +123,12 @@ export function create() {
           .optional()
           .describe('Extra flag for the browser, such as `--no-sandbox`. Repeatable.'),
         executable: z.string().optional().describe('Path to a Chrome or Chromium executable.'),
+        embed: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include the image as a data URL for clients without access to the output path.',
+          ),
         type: z
           .enum(['png', 'svg'])
           .optional()
@@ -144,6 +153,7 @@ export function create() {
       }),
       output: z.object({
         bytes: z.number().describe('Size of the image written.'),
+        dataUrl: z.string().optional().describe('The image as a data URL when `--embed` is set.'),
         path: z.string().describe('Where the image was written.'),
       }),
       async run({ args, error, formatExplicit, ok, options }) {
@@ -202,15 +212,21 @@ export function create() {
         await fs.writeFile(out, rendered.image)
         if (rendered.preview) await Terminal.preview(rendered.preview)
         return ok(
-          { bytes: rendered.image.length, path: out },
+          {
+            bytes: rendered.image.length,
+            ...(options.embed
+              ? {
+                  dataUrl: `data:image/${type === 'svg' ? 'svg+xml' : 'png'};base64,${Buffer.from(rendered.image).toString('base64')}`,
+                }
+              : {}),
+            path: out,
+          },
           {
             cta: {
               commands: [
                 {
-                  ...(args.file === undefined ? {} : { args: { file: args.file } }),
-                  command: options.titleBar === true ? 'share --title-bar' : 'share',
+                  command: shareCommand(args.file, options),
                   description: 'Create a matching editor link.',
-                  options: shareOptions(options),
                 },
               ],
               description: 'Next, create an editor link:',
@@ -264,20 +280,34 @@ export function create() {
     })
 }
 
-/** Keeps the snippet and frame options accepted by `share`. */
-function shareOptions(options: z.output<typeof linked>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries({
-      background: options.background,
-      code: options.code,
-      lang: options.lang,
-      padding: options.padding,
-      radius: options.radius,
-      theme: options.theme,
-      title: options.title,
-      width: options.width,
-    }).filter((entry) => entry[1] !== undefined),
-  )
+/** Builds a copy-ready POSIX command for a matching editor link. */
+function shareCommand(
+  file: string | undefined,
+  options: z.output<typeof settings> & z.output<typeof inline>,
+) {
+  const command = ['share']
+  if (options.titleBar) command.push('--title-bar')
+  if (file !== undefined) command.push(shellQuote(file))
+  for (const [name, value] of Object.entries({
+    background: options.background,
+    code: file === undefined ? options.code : undefined,
+    lang: options.lang,
+    padding: options.padding,
+    radius: options.radius,
+    theme: options.theme,
+    title: options.title,
+    width: options.width,
+  })) {
+    if (value === undefined) continue
+    command.push(`--${name}`, shellQuote(String(value)))
+  }
+  return command.join(' ')
+}
+
+/** Quotes one shell token without allowing interpolation or command substitution. */
+function shellQuote(value: string) {
+  if (/^[\w%+./:=,@-]+$/.test(value)) return value
+  return `'${value.replaceAll("'", `'\\''`)}'`
 }
 
 /** Command failure returned through the CLI error handler. */

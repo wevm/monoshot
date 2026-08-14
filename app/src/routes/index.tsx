@@ -79,7 +79,7 @@ const styles = stylex.create({
     display: 'flex',
     height: 56,
     justifyContent: 'space-between',
-    paddingInline: 20,
+    paddingInline: { default: 16, '@media (min-width: 800px)': 20 },
   },
   wordmark: {
     backgroundColor: 'currentColor',
@@ -92,6 +92,7 @@ const styles = stylex.create({
     maskSize: 'contain',
   },
   actions: { alignItems: 'center', display: 'flex', gap: 12 },
+  agents: { display: { default: 'none', '@media (min-width: 800px)': 'block' } },
   // Beside the menu that started the export, quiet enough to read as a note on
   // the action rather than a failure of the page.
   notice: { opacity: 0.7 },
@@ -99,13 +100,15 @@ const styles = stylex.create({
     alignItems: 'center',
     display: 'flex',
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'safe center',
+    minWidth: 0,
+    overflowX: 'auto',
     // Room for the floating toolbar.
     paddingBlock: 24,
     paddingBottom: 120,
-    paddingInline: 24,
+    paddingInline: { default: 10, '@media (min-width: 800px)': 24 },
   },
-  canvas: { maxWidth: '100%' },
+  canvas: { flexShrink: 0, maxWidth: '100%' },
   // Crop guides: dashed lines continuing the artwork's edges across the
   // viewport. Fixed and measured, so they never add to the page's own size.
   // The page stacks in three layers: guides over the artwork (a solid fill
@@ -148,7 +151,7 @@ const styles = stylex.create({
     borderStyle: 'none',
     color: 'inherit',
     cursor: 'pointer',
-    display: 'flex',
+    display: { default: 'none', '@media (min-width: 800px)': 'flex' },
     opacity: { default: 0.35, ':hover': 1, ':focus-visible': 1 },
     outline: 'none',
     paddingInline: 28,
@@ -196,16 +199,23 @@ const styles = stylex.create({
   arrowName: { whiteSpace: 'nowrap' },
   // Floats over the artwork so opening a taller panel never reflows the page.
   controls: {
-    bottom: 24,
+    bottom: { default: 36, '@media (min-width: 800px)': 24 },
     zIndex: 3,
     display: 'flex',
     insetInline: 0,
     justifyContent: 'center',
-    paddingInline: 20,
+    paddingInline: { default: 10, '@media (min-width: 800px)': 20 },
     pointerEvents: 'none',
     position: 'fixed',
   },
-  controlsInner: { pointerEvents: 'auto' },
+  controlsInner: {
+    display: 'flex',
+    justifyContent: 'center',
+    maxWidth: 720,
+    minWidth: 0,
+    pointerEvents: 'auto',
+    width: '100%',
+  },
   loadingScreen: {
     alignItems: 'center',
     backgroundColor: color.background,
@@ -409,8 +419,22 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const navigate = useNavigate()
   const initial = state ? restore(state) : { code: sample, settings: fallback, title: '' }
   const [settings, setSettings] = useState<Settings>(initial.settings)
+  const [mobile, setMobile] = useState(false)
   const [title, setTitle] = useState(initial.title)
   const [code, setCode] = useState(initial.code)
+
+  useEffect(() => {
+    const query = matchMedia('(max-width: 799px)')
+    const update = () => setMobile(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (!mobile || settings.padding <= 16) return
+    setSettings((current) => (current.padding <= 16 ? current : { ...current, padding: 16 }))
+  }, [mobile, settings.padding])
 
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
@@ -1019,9 +1043,11 @@ export function Page({ state }: { state?: string | undefined } = {}) {
               {notice}
             </span>
           )}
-          <ButtonLink href="/skill" variant="tertiary">
-            For Agents
-          </ButtonLink>
+          <div {...stylex.props(styles.agents)}>
+            <ButtonLink href="/skill" variant="tertiary">
+              For Agents
+            </ButtonLink>
+          </div>
           <ExportMenu onCopyImage={copyImage} onCopyUrl={copyUrl} onSave={save} />
         </div>
       </header>
@@ -1036,13 +1062,19 @@ export function Page({ state }: { state?: string | undefined } = {}) {
             <div ref={measure}>
               <Frame
                 background={settings.background}
-                onPaddingChange={(padding) => setSettings((current) => ({ ...current, padding }))}
+                onPaddingChange={(padding) =>
+                  setSettings((current) => ({
+                    ...current,
+                    padding: mobile ? Math.min(16, padding) : padding,
+                  }))
+                }
                 onTitleChange={setTitle}
                 onWidthChange={(width) => setSettings((current) => ({ ...current, width }))}
                 padding={settings.padding}
                 onRadiusChange={(radius) => setSettings((current) => ({ ...current, radius }))}
                 palette={frame.palette}
                 radius={settings.radius}
+                responsive
                 title={title}
                 titleBar={settings.titleBar}
                 wallpaper={wallpaper ? { source: wallpaper.source, spread: 'viewport' } : undefined}

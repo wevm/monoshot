@@ -43,6 +43,8 @@ Or register the MCP server:
 npx monoshot mcp add
 ```
 
+The server exposes `open`, `render`, `share`, and `themes` directly. Pass `embed: true` to `render` when the MCP client cannot read files from the server filesystem.
+
 ## API
 
 Base URL: [monoshot.dev/api](https://monoshot.dev/api)
@@ -68,13 +70,14 @@ JavaScript and TypeScript resolve Twoslash annotations automatically. Add a `^?`
 npx monoshot render -c 'console.log("Hello, world!")' -o hello.png
 npx monoshot render -c 'console.log("Hello, world!")' -o hello.svg
 npx monoshot render -c 'console.log("Hello, world!")' --preview
+npx monoshot render -c 'console.log("Hello, world!")' --embed --format json
 npx monoshot share -c 'console.log("Hello, world!")' -t vitesse-light
 ```
 
 > [!NOTE]
 > Use `pnpx monoshot` with pnpm or `bunx monoshot` with Bun.
 
-`--preview` displays the image with native terminal graphics when available and ANSI blocks otherwise.
+`--preview` displays the image with native terminal graphics when available and ANSI blocks otherwise. `--embed` includes a data URL for clients that cannot read the output path.
 
 ### Reference
 

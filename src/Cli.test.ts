@@ -366,6 +366,55 @@ describe('create', () => {
       }
     })
 
+    test('shell-quotes inline code in the suggested editor link', async () => {
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+      } as never)
+      try {
+        const out = await file('quoted.png', '')
+        const { output } = await run([
+          'render',
+          '--code',
+          'const answer: number = 42',
+          '--lang',
+          'typescript',
+          '--out',
+          out,
+          '--full-output',
+        ])
+        expect((output as { meta: { cta: { commands: { command: string }[] } } }).meta.cta.commands)
+          .toMatchInlineSnapshot(`
+            [
+              {
+                "command": "monoshot share --code 'const answer: number = 42' --lang typescript",
+                "description": "Create a matching editor link.",
+              },
+            ]
+          `)
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    test('can return rendered bytes to clients without filesystem access', async () => {
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+      } as never)
+      try {
+        const out = await file('render.png', '')
+        const { output } = await run(['render', '--code', 'a', '--embed', '--out', out])
+        expect(output).toMatchObject({
+          bytes: 3,
+          dataUrl: 'data:image/png;base64,AQID',
+          path: out,
+        })
+      } finally {
+        create.mockRestore()
+      }
+    })
+
     test('refuses a theme it does not have, before starting a browser', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['render', source, '--theme', 'nope'])

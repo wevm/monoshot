@@ -28,6 +28,12 @@ async function document(body: unknown) {
 }
 
 describe('api rendering', () => {
+  test('serves shared API health', async () => {
+    const response = await app.request('/api/health', {}, env, executionCtx)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'ok' })
+  })
+
   test('applies curated theme framing when frame options are omitted', async () => {
     const html = await document({ code: 'const a = 1', lang: 'typescript', theme: 'tempo' })
     expect(html).toContain('background: url("data:image/webp;base64,c2tpbGw=") center / cover;')

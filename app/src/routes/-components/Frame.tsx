@@ -33,11 +33,18 @@ const styles = stylex.create({
     '--handle-opacity': { default: 0, ':hover': 0.45 },
     position: 'relative',
   },
+  responsive: {
+    maxWidth: {
+      default: 'calc(100vw - 20px)',
+      '@media (min-width: 800px)': 'calc(100vw - 48px)',
+    },
+  },
   intrinsic: {
     '--code-annotation-max-width': 'none',
     minWidth: 320,
     width: 'max-content',
   },
+  responsiveIntrinsic: { minWidth: 'min(360px, calc(100vw - 20px))' },
   // Grips take the opposite polarity from the artwork, so they read on a light
   // theme as well as a dark one, with a hairline in the other direction to
   // hold them against a backdrop of similar lightness.
@@ -206,6 +213,7 @@ export function Frame(props: Frame.Props) {
     padding,
     palette,
     radius,
+    responsive,
     title,
     titleBar,
     wallpaper,
@@ -255,7 +263,9 @@ export function Frame(props: Frame.Props) {
             foreground: palette.window.foreground,
           }),
           styles.gripPalette(palette.type === 'light'),
+          responsive && styles.responsive,
           width === undefined ? styles.intrinsic : styles.width(width),
+          responsive && width === undefined && styles.responsiveIntrinsic,
         )}
       >
         <div
@@ -539,6 +549,8 @@ export declare namespace Frame {
     onRadiusChange: (radius: number) => void
     /** Corner radius of the code window, in pixels. */
     radius: number
+    /** Constrains the live editor to the viewport. Export frames remain at their requested width. */
+    responsive?: boolean | undefined
     /** Title-bar text. Empty shows the placeholder. */
     title: string
     /** Shows the window chrome: traffic lights and the title field. */

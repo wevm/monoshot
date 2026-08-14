@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
+import { Hono, type Handler } from 'hono'
 import { bundledLanguages } from 'shiki'
 import * as z from 'zod'
 
@@ -127,6 +127,9 @@ namespace schema {
       type: z.union([z.literal('dark'), z.literal('light')]),
     }),
   )
+
+  /** Response returned by `/health`. */
+  export const health = z.object({ status: z.literal('ok') })
 }
 
 /**
@@ -181,6 +184,14 @@ export function create(options: create.Options = {}) {
   }
 
   const app = new Hono()
+    .get(
+      '/health',
+      OpenApi.operation((c) => c.json({ status: 'ok' } as const), {
+        description: 'Reports whether the API process can serve requests.',
+        responses: { 200: { description: 'The API is available.', schema: schema.health } },
+        summary: 'Check API health',
+      }),
+    )
     .post(
       '/document',
       OpenApi.validate('json', schema.body, {
@@ -286,9 +297,17 @@ namespace OpenApi {
   export type Described = {
     description: string
     responses: Record<number, { description: string; media?: string; schema?: z.ZodType }>
-    schema: z.ZodType
+    schema?: z.ZodType | undefined
     summary: string
-    target: 'json' | 'query'
+    target?: 'json' | 'query' | undefined
+  }
+
+  /** Attaches OpenAPI metadata to a route that has no request parameters. */
+  export function operation<handler extends Handler>(
+    handler: handler,
+    described: Omit<Described, 'schema' | 'target'>,
+  ): handler {
+    return Object.assign(handler, described)
   }
 
   /**
@@ -334,11 +353,13 @@ namespace OpenApi {
     const paths: Record<string, Record<string, unknown>> = {}
     for (const route of app.routes) {
       const described = route.handler as Partial<Described>
-      if (!described.schema) continue
-      const schema = z.toJSONSchema(described.schema) as {
-        properties?: Record<string, unknown>
-        required?: string[]
-      }
+      if (!described.description || !described.responses || !described.summary) continue
+      const request = described.schema
+        ? (z.toJSONSchema(described.schema) as {
+            properties?: Record<string, unknown>
+            required?: string[]
+          })
+        : undefined
       const path = (paths[`${prefix}${route.path}`] ??= {})
       path[route.method.toLowerCase()] = {
         description: described.description,
@@ -351,19 +372,33 @@ namespace OpenApi {
           ),
           // Every validated route can turn a request away, so every one of
           // subsequent middleware returns this response.
-          400: content({ description: 'The request was not understood.', schema: schema_failure }),
+          ...(request
+            ? {
+                400: content({
+                  description: 'The request was not understood.',
+                  schema: schema_failure,
+                }),
+              }
+            : {}),
         },
         summary: described.summary,
-        ...(described.target === 'json'
-          ? { requestBody: { content: { 'application/json': { schema } }, required: true } }
-          : {
-              parameters: Object.entries(schema.properties ?? {}).map(([name, property]) => ({
-                in: 'query',
-                name,
-                required: schema.required?.includes(name) ?? false,
-                schema: property,
-              })),
-            }),
+        ...(request
+          ? described.target === 'json'
+            ? {
+                requestBody: {
+                  content: { 'application/json': { schema: request } },
+                  required: true,
+                },
+              }
+            : {
+                parameters: Object.entries(request.properties ?? {}).map(([name, property]) => ({
+                  in: 'query',
+                  name,
+                  required: request.required?.includes(name) ?? false,
+                  schema: property,
+                })),
+              }
+          : {}),
       }
     }
     return { info: { title: 'monoshot', version: '1' }, openapi: '3.1.0', paths }

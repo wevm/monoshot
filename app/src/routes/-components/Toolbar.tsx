@@ -28,7 +28,7 @@ const shortcuts = {
 const styles = stylex.create({
   root: {
     display: 'flex',
-    maxWidth: 'min(720px, 100%)',
+    maxWidth: '100%',
     // The bar alone sizes the stack; the panel is anchored to it, so a long
     // row of colors scrolls inside that width instead of stretching it.
     position: 'relative',
@@ -39,7 +39,12 @@ const styles = stylex.create({
   // the bar. Matching the bar would stretch or squeeze it every time the theme
   // name changes length.
   // Use a fixed panel width so selection-label changes do not reflow the grid.
-  panelThemes: { width: 520 },
+  panelThemes: {
+    maxHeight: 'min(70dvh, 520px)',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+    width: 520,
+  },
   panelFit: {
     insetInline: 'auto auto',
     left: '50%',
@@ -61,12 +66,14 @@ const styles = stylex.create({
   // rather than pushing its trailing controls past the viewport.
   bar: {
     alignItems: 'center',
+    borderRadius: { default: 8, '@media (min-width: 800px)': radius.floating },
     display: 'flex',
-    gap: 2,
+    gap: { default: 0, '@media (min-width: 800px)': 2 },
     maxWidth: '100%',
-    overflowX: 'auto',
-    padding: 6,
-    scrollbarWidth: 'none',
+    overflowX: { default: 'hidden', '@media (min-width: 800px)': 'auto' },
+    padding: { default: 2, '@media (min-width: 800px)': 6 },
+    scrollbarWidth: 'thin',
+    width: 'max-content',
   },
   // Two lines: what the control is, and what it is set to.
   item: {
@@ -78,11 +85,14 @@ const styles = stylex.create({
     color: color.onChrome,
     cursor: 'pointer',
     display: 'flex',
+    flex: { default: '0 1 auto', '@media (min-width: 800px)': '0 0 auto' },
     flexDirection: 'column',
-    gap: 2,
+    gap: { default: 1, '@media (min-width: 800px)': 2 },
+    minHeight: { default: 36, '@media (min-width: 800px)': 'auto' },
+    minWidth: { default: 48, '@media (min-width: 800px)': 0 },
     outline: 'none',
-    paddingBlock: 8,
-    paddingInline: 14,
+    paddingBlock: { default: 3, '@media (min-width: 800px)': 8 },
+    paddingInline: { default: 6, '@media (min-width: 800px)': 14 },
     textAlign: 'start',
     transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
     transitionDuration: motion.fast,
@@ -98,8 +108,14 @@ const styles = stylex.create({
     opacity: 0.45,
     transform: 'scale(1)',
   },
-  itemHeading: { alignItems: 'center', display: 'flex', gap: 6 },
-  itemTitle: { color: color.onChromeSecondary },
+  itemHeading: { alignItems: 'center', display: 'flex', gap: 6, maxWidth: '100%' },
+  itemTitle: {
+    color: color.onChromeSecondary,
+    fontSize: { default: 10, '@media (min-width: 800px)': 12 },
+    lineHeight: { default: '12px', '@media (min-width: 800px)': '16px' },
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
   // The key that reaches this control, in the same cap the theme arrows use.
   itemKey: {
     alignItems: 'center',
@@ -109,17 +125,29 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderWidth: 1,
     color: color.onChromeSecondary,
-    display: 'flex',
+    display: { default: 'none', '@media (min-width: 800px)': 'flex' },
     height: 13,
     justifyContent: 'center',
     minWidth: 13,
     paddingInline: 2,
     textTransform: 'uppercase',
   },
-  itemValue: { color: color.onChrome },
+  itemValue: {
+    color: color.onChrome,
+    fontSize: { default: 11, '@media (min-width: 800px)': 14 },
+    fontWeight: 500,
+    lineHeight: { default: '14px', '@media (min-width: 800px)': '20px' },
+    maxWidth: '100%',
+    width: { default: '100%', '@media (min-width: 800px)': 'auto' },
+  },
   // The row is exactly one line tall and clips, so a rolling character can
   // never ride up over the label above it.
-  divider: { backgroundColor: color.chromeHover, flexShrink: 0, marginBlock: 8, width: 1 },
+  divider: {
+    backgroundColor: color.chromeHover,
+    flexShrink: 0,
+    marginBlock: { default: 6, '@media (min-width: 800px)': 8 },
+    width: 1,
+  },
   rows: { display: 'flex', flexDirection: 'column', gap: 4, padding: 4 },
   // Started where the row below it starts: the rows take different insets, and a
   // label set to one of them hangs off the other.
@@ -252,7 +280,10 @@ const styles = stylex.create({
   themeGrid: {
     display: 'grid',
     gap: 6,
-    gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))',
+    gridTemplateColumns: {
+      default: 'repeat(2, minmax(0, 1fr))',
+      '@media (min-width: 800px)': 'repeat(4, minmax(0, 1fr))',
+    },
     padding: 6,
   },
   // The artwork in miniature: the backdrop a theme draws, with the colors it
@@ -271,13 +302,15 @@ const styles = stylex.create({
       ':focus-visible': shadow.focusRing,
     },
     cursor: 'pointer',
-    display: 'grid',
-    height: 34,
+    alignItems: 'stretch',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 5,
+    height: 52,
     outline: 'none',
     // Room for the backdrop to read as the picture or gradient it is, rather
     // than as a hairline around the colors.
     padding: 7,
-    placeItems: 'center',
     position: 'relative',
     transform: {
       default: 'scale(1)',
@@ -293,8 +326,15 @@ const styles = stylex.create({
     gap: 4,
     gridAutoColumns: '1fr',
     gridAutoFlow: 'column',
-    height: '100%',
+    height: 20,
     width: '100%',
+  },
+  themeName: {
+    color: color.onChrome,
+    overflow: 'hidden',
+    textAlign: 'start',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   // A white hairline holds each bar off the picture behind it, the same on every
   // swatch: an edge taken from a theme's own colors reads on some pictures and
@@ -468,7 +508,6 @@ export function Toolbar(props: Toolbar.Props) {
                                 type="button"
                                 {...stylex.props(styles.themeBox(shown.backdrop))}
                               >
-                                <span {...stylex.props(styles.srOnly)}>{entry.displayName}</span>
                                 <span {...stylex.props(styles.themeStripes)}>
                                   {shown.colors.map((paint) => (
                                     <span
@@ -476,6 +515,9 @@ export function Toolbar(props: Toolbar.Props) {
                                       {...stylex.props(styles.themeStroke(paint))}
                                     />
                                   ))}
+                                </span>
+                                <span {...stylex.props(styles.themeName, text.label10)}>
+                                  {entry.displayName}
                                 </span>
                                 {entry.name === theme && <Ring row="themes" travel={themeTravel} />}
                               </button>
@@ -874,10 +916,10 @@ function Item(props: {
       {...stylex.props(styles.item, open && styles.itemOpen, disabled && styles.itemDisabled)}
     >
       <span {...stylex.props(styles.itemHeading)}>
-        <span {...stylex.props(styles.itemTitle, text.label12)}>{title}</span>
+        <span {...stylex.props(styles.itemTitle)}>{title}</span>
         <kbd {...stylex.props(styles.itemKey, text.label10)}>{shortcut}</kbd>
       </span>
-      <Roll digits={digits} style={[styles.itemValue, text.button14]} up={up} value={value} />
+      <Roll digits={digits} style={[styles.itemValue]} up={up} value={value} />
     </m.button>
   )
 }

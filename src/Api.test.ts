@@ -21,6 +21,12 @@ async function post(body: unknown) {
 }
 
 describe('create', () => {
+  test('reports health without request parameters', async () => {
+    const response = await Api.route.request('/health')
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ status: 'ok' })
+  })
+
   test('renders a snippet to a standalone document', async () => {
     const { body, status } = await post({ code: 'const a = 1\n', lang: 'ts' })
     expect(status).toBe(200)
@@ -141,6 +147,7 @@ describe('create', () => {
     const spec = (await response.json()) as { paths: Record<string, unknown> }
     expect(Object.keys(spec.paths)).toMatchInlineSnapshot(`
       [
+        "/v1/health",
         "/v1/document",
         "/v1/image",
         "/v1/themes",
@@ -155,13 +162,19 @@ describe('create', () => {
     }
     const responses = (path: string, method: string) =>
       Object.keys(spec.paths[path]?.[method]?.responses ?? {})
-    expect({ document: responses('/document', 'post'), themes: responses('/themes', 'get') })
-      .toMatchInlineSnapshot(`
+    expect({
+      document: responses('/document', 'post'),
+      health: responses('/health', 'get'),
+      themes: responses('/themes', 'get'),
+    }).toMatchInlineSnapshot(`
         {
           "document": [
             "200",
             "400",
             "500",
+          ],
+          "health": [
+            "200",
           ],
           "themes": [
             "200",
@@ -231,6 +244,7 @@ describe('create', () => {
     expect(Object.keys(spec.paths).sort()).toMatchInlineSnapshot(`
       [
         "/document",
+        "/health",
         "/image",
         "/themes",
       ]

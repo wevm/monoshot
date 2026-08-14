@@ -61,6 +61,13 @@
     --editor-inset: 16px;
   }
 
+  @media (max-width: 799px) {
+    :root {
+      --code-font-size: 12px;
+      --code-line-height: 18px;
+    }
+  }
+
   /* Shiki emits `pre > code`, and both carry UA font defaults that would
      otherwise win over anything inherited from the frame. */
   .shiki,
