@@ -27,6 +27,18 @@ describe('unchecked', () => {
     const code = 'const a = 1\n'
     expect(unchecked(code)).toBe(code)
   })
+
+  test('masks consecutive presentation tags without shifting source offsets', () => {
+    const code = '// @log: src/\n// @log: └── cli.ts\nconst a = 1\n'
+    const prepared = unchecked(code)
+    expect(prepared.length).toBe(code.length)
+    expect(prepared).toMatchInlineSnapshot(`
+      "//  log: src/
+      //  log: └── cli.ts
+      const a = 1
+      "
+    `)
+  })
 })
 
 test('counts only as far as there are lines to count', () => {

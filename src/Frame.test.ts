@@ -234,6 +234,28 @@ describe('render with notations', () => {
     expect(result.html).not.toContain('@log:')
   })
 
+  test('draws every consecutive tag in source order', async () => {
+    const frame = Frame.create()
+    const result = await frame.render({
+      code: [
+        '// @log: src/',
+        '// @log: ├── cli.ts',
+        '// @log: └── commands/',
+        '// @log:     └── list.ts',
+        'const a = 1',
+        '',
+      ].join('\n'),
+      lang: 'ts',
+      theme: 'vitesse-dark',
+      twoslash: true,
+    })
+    await frame.dispose()
+    expect(
+      [...result.html.matchAll(/twoslash-tag-log-line">([^<]+)</g)].map((match) => match[1]),
+    ).toEqual(['src/', '├── cli.ts', '└── commands/', '    └── list.ts'])
+    expect(result.css).toContain('.twoslash-tag-line + .twoslash-tag-line')
+  })
+
   test('draws a tag in a language no compiler reads', async () => {
     const frame = Frame.create()
     const result = await frame.render({

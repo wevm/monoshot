@@ -371,6 +371,10 @@ ${mark(Theme.marks.remove)}
   line-height: var(--code-line-height);
   min-height: var(--code-line-height);
 }
+.twoslash-tag-line + .twoslash-tag-line {
+  /* Consecutive tag rows form one block, matching their editor preview. */
+  margin-top: 0;
+}
 .twoslash-tag-icon {
   /* Color identifies the annotation type, so an additional glyph is redundant. */
   display: none;

@@ -1,11 +1,17 @@
+import { tags } from './Tags.js'
+
 /** A notation asking for a line to read as removed, in any comment syntax. */
 const removal = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+--(?::(\d+))?\][ \t]*(?:\*\/|-->)?/
 
 /** Any notation, which is what a line carries besides the code on it. */
 const notation = /(?:\/\/|\/\*|#|<!--)[ \t]*\[!code[ \t]+[\w+-]+(?::\d+)?\][ \t]*(?:\*\/|-->)?/g
 
+/** Tag prefix Twoslash would otherwise remove before Monoshot can render it. */
+const tag = new RegExp(`^//[ \\t]?@(?=(?:${tags.join('|')}):)`, 'gm')
+
 /**
- * Blanks the lines a snippet marks as removed, keeping every offset it had.
+ * Blanks removed lines and hides presentation tags from the compiler, keeping
+ * every offset the snippet had.
  *
  * The code being replaced is not code the snippet is claiming: checking it
  * alongside its replacement reports the conflict between the two rather than a
@@ -28,10 +34,13 @@ export function unchecked(code: string): string {
     for (let target = first; target < Math.min(first + count(match[1]), lines.length); target++)
       blanked.add(target)
   }
-  if (!blanked.size) return code
-  return lines
-    .map((line, index) => (blanked.has(index) ? ' '.repeat(line.length) : line))
-    .join('\n')
+  const prepared = blanked.size
+    ? lines.map((line, index) => (blanked.has(index) ? ' '.repeat(line.length) : line)).join('\n')
+    : code
+  // Twoslash collapses adjacent custom tags into one removal and retains only
+  // the final node. Mask the sigil for compilation; the original source is
+  // restored after resolution and Monoshot renders every tag itself.
+  return prepared.replace(tag, (prefix) => `${prefix.slice(0, -1)} `)
 }
 
 /** How many lines a notation covers, as a count this can count to. */
