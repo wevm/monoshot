@@ -34,7 +34,7 @@ export const schema = z.object({
   /** `auto` pairs syntax colors with the backdrop; a theme name pins them. */
   syntax: z.union([z.literal('auto'), z.enum(Theme.names)]).catch('auto'),
   /** A theme name, as `Theme.list` offers them. */
-  theme: z.enum(Theme.names).catch('vitesse-dark'),
+  theme: z.enum(Theme.names).catch('golden-gate-dark'),
   /** The window's title, which is empty when it has none. */
   title: z.string().catch(''),
   /** Whether the window includes a title bar. Defaults to `false`. */

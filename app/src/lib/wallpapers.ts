@@ -33,8 +33,8 @@ export type Picture = {
 
 /** Available wallpapers, with macOS releases first and Tempo last. */
 export const list: readonly Wallpaper[] = [
-  { id: 'golden-gate-light', name: 'Golden Gate' },
   { id: 'golden-gate-dark', name: 'Golden Gate Dark' },
+  { id: 'golden-gate-light', name: 'Golden Gate' },
   { id: 'tahoe-light', name: 'Tahoe' },
   { id: 'tahoe-dark', name: 'Tahoe Dark' },
   { id: 'sequoia-light', name: 'Sequoia' },

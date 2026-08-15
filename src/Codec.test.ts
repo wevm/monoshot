@@ -30,7 +30,7 @@ describe('serialize', () => {
         "padding": 64,
         "radius": 12,
         "syntax": "auto",
-        "theme": "vitesse-dark",
+        "theme": "golden-gate-dark",
         "title": "",
         "titleBar": false,
         "types": true,
@@ -81,9 +81,9 @@ describe('deserialize', () => {
       Codec.deserialize(truncated).theme,
     ]).toMatchInlineSnapshot(`
       [
-        "vitesse-dark",
-        "vitesse-dark",
-        "vitesse-dark",
+        "golden-gate-dark",
+        "golden-gate-dark",
+        "golden-gate-dark",
       ]
     `)
   })
@@ -102,7 +102,7 @@ describe('deserialize', () => {
         "padding": 64,
         "radius": 12,
         "syntax": "auto",
-        "theme": "vitesse-dark",
+        "theme": "golden-gate-dark",
         "title": "",
         "titleBar": false,
         "types": true,

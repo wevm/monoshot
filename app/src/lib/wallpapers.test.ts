@@ -1,5 +1,9 @@
 import * as Wallpapers from './wallpapers.js'
 
+test('offers Golden Gate Dark first', () => {
+  expect(Wallpapers.list[0]).toMatchObject({ id: 'golden-gate-dark' })
+})
+
 test('extracts four dominant image colors', () => {
   const colors = [
     [16, 32, 48],
