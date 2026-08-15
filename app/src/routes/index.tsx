@@ -67,7 +67,6 @@ const styles = stylex.create({
   // One full-page picture sits behind the transparent live artwork. Keeping a
   // single copy prevents the seams caused by independently covered boxes.
   canvasPicture: {
-    backgroundAttachment: 'fixed',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
     backgroundSize: 'cover',
@@ -365,6 +364,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const navigate = useNavigate()
   const initial = state ? restore(state) : { code: sample, settings: fallback, title: '' }
   const [settings, setSettings] = useState<Settings>(initial.settings)
+  const [syntaxPreview, setSyntaxPreview] = useState<Theme.Info['name']>()
   const [mobile, setMobile] = useState(false)
   const [title, setTitle] = useState(initial.title)
   const [code, setCode] = useState(initial.code)
@@ -445,6 +445,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   }, [code, settings.language])
 
   const language = settings.language !== 'auto' ? settings.language : detected
+  const syntaxTheme = syntaxPreview ?? settings.theme
 
   // The fragment is the only place state is kept, so it is written on every
   // change, debounced: a keystroke should not push a history entry, and the
@@ -463,7 +464,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
     let active = true
-    renderer.tokens({ code, lang: language, theme: settings.theme }).then(
+    renderer.tokens({ code, lang: language, theme: syntaxTheme }).then(
       (result) => {
         if (!active) return
         setError(undefined)
@@ -476,7 +477,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     return () => {
       active = false
     }
-  }, [code, language, settings.theme])
+  }, [code, language, syntaxTheme])
 
   // The language service runs in a worker: it carries the TypeScript compiler,
   // which would block typing on this thread. Debounced, because resolving a
@@ -612,13 +613,13 @@ export function Page({ state }: { state?: string | undefined } = {}) {
       return
     setDiagnostics(resolved.result.diagnostics)
     let active = true
-    void paint(settings.theme, resolved.result.hovers).then((painted) => {
+    void paint(syntaxTheme, resolved.result.hovers).then((painted) => {
       if (active) setAnnotations(painted)
     })
     return () => {
       active = false
     }
-  }, [code, resolved, settings.theme])
+  }, [code, resolved, syntaxTheme])
 
   /**
    * Renders the frame away from the page and captures that, so an export
@@ -1045,6 +1046,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
           onCopyUrl={copyUrl}
           onImageChange={setImage}
           onSave={save}
+          onSyntaxPreview={setSyntaxPreview}
           resolved={language}
           {...settings}
           width={Math.min(

@@ -280,6 +280,7 @@ export function Drawer(props: Drawer.Props) {
     onCopyUrl,
     onImageChange,
     onSave,
+    onSyntaxPreview,
     padding,
     radius: windowRadius,
     resolved,
@@ -316,6 +317,10 @@ export function Drawer(props: Drawer.Props) {
   function selectSyntax(value: string) {
     const syntax = value as Drawer.State['syntax']
     onChange(syntax === 'auto' ? { syntax } : { syntax, theme: syntax })
+  }
+  function previewSyntax(value: string | undefined) {
+    const syntax = value as Drawer.State['syntax'] | undefined
+    onSyntaxPreview(syntax === 'auto' ? theme : syntax)
   }
   const [mode, setMode] = useState<Mode>(() => modeFor(background))
   const [gradientColors, setGradientColors] = useState<[string, string]>(
@@ -805,6 +810,7 @@ export function Drawer(props: Drawer.Props) {
               aria-label="Syntax theme"
               items={syntaxItems}
               onItemHighlighted={selectSyntax}
+              onItemPreview={previewSyntax}
               onValueChange={selectSyntax}
               value={syntax}
             />
@@ -1125,6 +1131,8 @@ export declare namespace Drawer {
     maxWidth: number
     /** Saves the artwork to the user's downloads. */
     onSave: (options: capture.Options) => void
+    /** Temporarily previews syntax colors without changing the selected theme. */
+    onSyntaxPreview: (theme: Theme.Info['name'] | undefined) => void
     /** Resolved language; under `auto`, this is the detected language. */
     resolved: detect.LanguageId
   }

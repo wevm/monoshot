@@ -126,6 +126,7 @@ export function PaletteSelect<Value extends string>(props: PaletteSelect.Props<V
         value: item.value,
       }))}
       onItemHighlighted={props.onItemHighlighted}
+      onItemPreview={props.onItemPreview}
       onValueChange={props.onValueChange}
       value={props.value}
     />
@@ -142,8 +143,11 @@ export function MenuSelect<Value extends string>(props: MenuSelect.Props<Value>)
       itemToStringLabel={label}
       items={props.items.map((item) => item.value)}
       onItemHighlighted={(value, details) => {
-        if (value && (details.reason === 'keyboard' || details.reason === 'pointer'))
-          props.onItemHighlighted?.(value)
+        if (value && details.reason === 'keyboard') props.onItemHighlighted?.(value)
+        if (details.reason === 'pointer') props.onItemPreview?.(value)
+      }}
+      onOpenChange={(open) => {
+        if (!open) props.onItemPreview?.(undefined)
       }}
       onValueChange={(value) => value && props.onValueChange(value)}
       value={props.value}
@@ -220,6 +224,7 @@ export declare namespace PaletteSelect {
     'aria-label': string
     items: readonly Item<Value>[]
     onItemHighlighted?: ((value: Value) => void) | undefined
+    onItemPreview?: ((value: Value | undefined) => void) | undefined
     onValueChange: (value: Value) => void
     value: Value
   }
@@ -231,6 +236,7 @@ export declare namespace MenuSelect {
     'aria-label': string
     items: readonly Item<Value>[]
     onItemHighlighted?: ((value: Value) => void) | undefined
+    onItemPreview?: ((value: Value | undefined) => void) | undefined
     onValueChange: (value: Value) => void
     value: Value
   }
