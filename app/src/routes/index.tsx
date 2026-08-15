@@ -22,7 +22,6 @@ import * as Sample from '#/lib/twoslash/sample.gen.js'
 import { sample } from '#/lib/sample.js'
 import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
-import { ButtonLink } from '#/ui/Button.js'
 import { color, crossfade, font, motion } from '../theme/tokens.stylex.js'
 import { Editor } from './-components/Editor.js'
 import { Frame } from './-components/Frame.js'
@@ -99,8 +98,6 @@ const styles = stylex.create({
     maskRepeat: 'no-repeat',
     maskSize: 'contain',
   },
-  actions: { alignItems: 'center', display: 'flex', gap: 12 },
-  agents: { display: { default: 'none', '@media (min-width: 800px)': 'block' } },
   // Beside the menu that started the export, quiet enough to read as a note on
   // the action rather than a failure of the page.
   notice: { opacity: 0.7 },
@@ -964,18 +961,11 @@ export function Page({ state }: { state?: string | undefined } = {}) {
               </Frame>
             ) : null}
           </div>
-          <div {...stylex.props(styles.actions)}>
-            {notice && (
-              <span role="status" {...stylex.props(styles.notice, text.copy14)}>
-                {notice}
-              </span>
-            )}
-            <div {...stylex.props(styles.agents)}>
-              <ButtonLink href="/skill" variant="tertiary">
-                For Agents
-              </ButtonLink>
-            </div>
-          </div>
+          {notice && (
+            <span role="status" {...stylex.props(styles.notice, text.copy14)}>
+              {notice}
+            </span>
+          )}
         </header>
 
         <div {...stylex.props(styles.stage)}>

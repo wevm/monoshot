@@ -12,7 +12,6 @@ import {
 
 import * as Backgrounds from '#/lib/backgrounds.js'
 import * as detect from '#/lib/detect.js'
-import { scales } from '#/lib/export.js'
 import type { capture } from '#/lib/export.js'
 import * as Themes from '#/lib/themes.js'
 import { dialects } from '#/lib/twoslash/options.js'
@@ -575,16 +574,13 @@ export function Drawer(props: Drawer.Props) {
               Export
             </SectionHeading>
             <div {...stylex.props(styles.exports)}>
-              {scales.map((scale) => (
-                <Button
-                  key={scale}
-                  onClick={() => onSave({ scale, type: 'png' })}
-                  size="small"
-                  variant="chrome"
-                >
-                  PNG {scale}x
-                </Button>
-              ))}
+              <Button
+                onClick={() => onSave({ scale: 6, type: 'png' })}
+                size="small"
+                variant="chrome"
+              >
+                PNG
+              </Button>
               <Button
                 onClick={() => onSave({ scale: 1, type: 'svg' })}
                 size="small"
