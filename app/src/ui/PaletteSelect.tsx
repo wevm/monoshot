@@ -142,7 +142,8 @@ export function MenuSelect<Value extends string>(props: MenuSelect.Props<Value>)
       itemToStringLabel={label}
       items={props.items.map((item) => item.value)}
       onItemHighlighted={(value, details) => {
-        if (value && details.reason === 'keyboard') props.onItemHighlighted?.(value)
+        if (value && (details.reason === 'keyboard' || details.reason === 'pointer'))
+          props.onItemHighlighted?.(value)
       }}
       onValueChange={(value) => value && props.onValueChange(value)}
       value={props.value}
