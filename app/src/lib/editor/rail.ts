@@ -399,13 +399,18 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // pointer, which is where it sits then.
     if (strip.dataset['following'] === undefined)
       strip.style.setProperty('--rail-top', `${Math.round(row.top + row.height / 2)}px`)
-    strip.dataset['shown'] = ''
     // Replacing the pressed control can interrupt its drag and moves the tooltip anchor.
-    if (painting) return
+    if (painting) {
+      strip.dataset['shown'] = ''
+      return
+    }
     if (showing === key) return
+    const offered = controls(row)
     showing = key
     Tooltip.point()
-    strip.replaceChildren(...controls(row))
+    strip.replaceChildren(...offered)
+    if (offered.length) strip.dataset['shown'] = ''
+    else delete strip.dataset['shown']
   }
 
   /**
