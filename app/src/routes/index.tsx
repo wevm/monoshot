@@ -245,7 +245,7 @@ type Capture = {
 }
 
 const fallback: Settings = {
-  background: 'default',
+  background: 'wallpaper:golden-gate-dark',
   language: 'auto',
   padding: 64,
   radius: 12,
