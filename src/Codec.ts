@@ -12,13 +12,14 @@ import * as Theme from './Theme.js'
 export const schema = z.object({
   /**
    * The frame's backdrop: `default` for the theme's own gradient, `none` for a
-   * transparent one, a `#rrggbb` color, or `wallpaper:<id>` for a picture the
-   * surface drawing it carries.
+   * transparent one, a `#rrggbb` color, `gradient:#rrggbb:#rrggbb`, or
+   * `wallpaper:<id>` for a picture the surface drawing it carries.
    */
   background: z
     .union([
       z.enum(['default', 'none']),
       z.string().regex(/^#[0-9a-f]{6}$/i),
+      z.string().regex(/^gradient:#[0-9a-f]{6}:#[0-9a-f]{6}$/i),
       z.string().regex(/^wallpaper:[a-z0-9-]+$/),
     ])
     .catch('default'),
@@ -30,6 +31,8 @@ export const schema = z.object({
   padding: z.number().int().min(0).max(256).catch(64),
   /** Corner radius of the window, in pixels. */
   radius: z.number().int().min(0).max(24).catch(12),
+  /** `auto` pairs syntax colors with the backdrop; a theme name pins them. */
+  syntax: z.union([z.literal('auto'), z.enum(Theme.names)]).catch('auto'),
   /** A theme name, as `Theme.list` offers them. */
   theme: z.enum(Theme.names).catch('vitesse-dark'),
   /** The window's title, which is empty when it has none. */
@@ -55,6 +58,7 @@ const keys = {
   lang: 'g',
   padding: 'p',
   radius: 'r',
+  syntax: 'x',
   theme: 't',
   title: 'i',
   titleBar: 'y',

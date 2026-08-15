@@ -45,7 +45,7 @@ const settings = z.object({
   background: z
     .string()
     .optional()
-    .describe('Frame background: `default`, `none`, or a `#rrggbb` color.'),
+    .describe('Frame background: `default`, `none`, `#rrggbb`, or `gradient:#rrggbb:#rrggbb`.'),
   lang: z
     .string()
     .optional()

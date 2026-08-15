@@ -42,6 +42,7 @@ const swatches = Object.fromEntries(
       return [
         info.name,
         {
+          background: palette.window.background,
           backdrop: `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`,
           colors: strongest(theme),
         },
@@ -56,7 +57,7 @@ fs.writeFileSync(
  * The colors each bundled theme paints with, read from the themes themselves by
  * \`scripts/theme-swatches.ts\`. Generated: edit the script, not this.
  */
-export const swatches: Record<string, { backdrop: string; colors: readonly string[] }> =
+export const swatches: Record<string, { background: string; backdrop: string; colors: readonly string[] }> =
   ${JSON.stringify(swatches, null, 2)}
 `,
 )
@@ -95,14 +96,18 @@ function strongest(theme: ThemeRegistration): string[] {
     found.colors.set(value, (found.colors.get(value) ?? 0) + reach)
     groups.set(key, found)
   }
-  return [...groups.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, wanted)
-    .map((group) => {
-      // The color itself rather than the group's average, which is a color the
-      // theme never paints: a group of blues averages to a duller blue than any
-      // of them.
-      const [best] = [...group.colors].sort((a, b) => b[1] - a[1])
-      return formatHex(toOklch(best?.[0] ?? '#888888') ?? { c: 0, h: 0, l: 0.5, mode: 'oklch' })
-    })
+  const ranked = [...groups.values()].sort((a, b) => b.count - a.count)
+  const selected: string[] = []
+  const add = (raw: string | undefined) => {
+    const value = formatHex(toOklch(raw ?? '#888888') ?? { c: 0, h: 0, l: 0.5, mode: 'oklch' })
+    const color = toOklch(value)
+    if ((color && color.l >= 0.82 && color.c < 0.08) || selected.includes(value)) return
+    selected.push(value)
+  }
+  // Start with one representative per hue group. If filtering pale neutrals
+  // leaves a gap, fill it with another color the theme actually paints.
+  for (const group of ranked) add([...group.colors].sort((a, b) => b[1] - a[1])[0]?.[0])
+  for (const group of ranked)
+    for (const [value] of [...group.colors].sort((a, b) => b[1] - a[1])) add(value)
+  return selected.slice(0, wanted)
 }

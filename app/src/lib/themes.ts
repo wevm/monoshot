@@ -33,14 +33,23 @@ export function reframe(from: string, to: string): Partial<Framing> {
 
 /** Theme preview colors and background. */
 export type Swatch = {
+  /** Code surface behind the syntax colors. */
+  background: string
   /** CSS background used by the theme preview. */
   backdrop: string
+  /** Representative syntax foreground colors. */
   colors: readonly string[]
 }
 
 /** Returns the preview swatch for a theme. */
 export function swatch(name: string): Swatch {
-  return drawn.get(name) ?? { backdrop: '#101010', colors: ['#888888', '#aaaaaa', '#cccccc'] }
+  return (
+    drawn.get(name) ?? {
+      background: '#101010',
+      backdrop: '#101010',
+      colors: ['#888888', '#aaaaaa', '#cccccc'],
+    }
+  )
 }
 
 /** Returns whether a theme is derived from curated artwork. */
@@ -52,6 +61,7 @@ const drawn = new Map<string, Swatch>(
   Object.entries(swatches).map(([name, shown]) => [
     name,
     {
+      background: shown.background,
       // Use curated artwork as the preview background when available.
       backdrop: curated(name) ? `url("${Wallpapers.thumbnail(name)}")` : shown.backdrop,
       colors: shown.colors,

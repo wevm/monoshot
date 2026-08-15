@@ -86,8 +86,9 @@ function Layout() {
 }
 
 // Runs before first paint so a stored override never flashes the OS scheme.
-// Inlined rather than imported because module scripts are deferred.
-const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{};try{if(sessionStorage.getItem(${JSON.stringify(Opening.storageKey)})==='true')document.documentElement.style.setProperty('--loading-screen-display','none')}catch{}`
+// A fragment cannot reach the server, so its loading screen remains until the
+// client restores the complete shared state. Module scripts run too late here.
+const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{};try{if(!location.hash&&sessionStorage.getItem(${JSON.stringify(Opening.storageKey)})==='true')document.documentElement.style.setProperty('--loading-screen-display','none')}catch{}`
 
 function Document({ children }: { children: ReactNode }) {
   return (

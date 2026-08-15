@@ -5,7 +5,7 @@
     "target": "esnext",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["@types/node", "vite-plus/test/globals"],
+    "types": ["@types/node", "unplugin-icons/types/react", "vite-plus/test/globals"],
     "paths": {
       "#/*": ["./src/*"],
       "monoshot": ["../src/index.ts"]

@@ -50,6 +50,15 @@ const styles = stylex.create({
     },
     color: 'inherit',
   },
+  chrome: {
+    backgroundColor: {
+      default: color.chromeTranslucent,
+      ':hover:not(:disabled)': 'rgb(255 255 255 / 0.04)',
+      ':active:not(:disabled)': color.chromeHover,
+    },
+    boxShadow: { default: shadow.chromeBorder, ':focus-visible': shadow.focusRing },
+    color: color.onChrome,
+  },
   danger: {
     backgroundColor: color.red800,
     color: color.onSolid,
@@ -75,6 +84,7 @@ const variants = {
   primary: styles.primary,
   secondary: styles.secondary,
   tertiary: styles.tertiary,
+  chrome: styles.chrome,
   danger: styles.danger,
 }
 const typography = { small: text.button12, medium: text.button14, large: text.button16 }
@@ -141,7 +151,7 @@ export declare namespace Button {
     /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | readonly stylex.StyleXStyles[] | undefined
     /** Visual weight. One primary action per surface. @default 'secondary' */
-    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | undefined
+    variant?: 'primary' | 'secondary' | 'tertiary' | 'chrome' | 'danger' | undefined
   }
 }
 
@@ -154,6 +164,6 @@ export declare namespace ButtonLink {
     /** Styles merged onto the root. */
     style?: stylex.StyleXStyles | readonly stylex.StyleXStyles[] | undefined
     /** Visual weight. @default 'secondary' */
-    variant?: 'primary' | 'secondary' | 'tertiary' | 'danger' | undefined
+    variant?: 'primary' | 'secondary' | 'tertiary' | 'chrome' | 'danger' | undefined
   }
 }

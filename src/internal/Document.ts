@@ -16,8 +16,9 @@ export type Font = {
 export type Options = {
   /**
    * `default` paints the theme's gradient, `none` leaves it transparent, a
-   * `wallpaper:<id>` uses {@link picture} when provided and otherwise uses the
-   * theme gradient. Any other value becomes the canvas CSS background.
+   * `gradient:#rrggbb:#rrggbb` paints a custom gradient. `wallpaper:<id>` uses
+   * {@link picture} when provided and otherwise uses the theme gradient. Any
+   * other value becomes the canvas CSS background.
    */
   background: string
   /** The code, already highlighted. */
@@ -64,13 +65,16 @@ export function build(options: Options): string {
   const fonts = options.fonts ?? []
   // Use the theme gradient when a wallpaper identifier has no embedded image.
   const named = background.startsWith('wallpaper:')
+  const gradient = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
   const backdrop = options.picture
     ? `url("${source(options.picture, 'picture')}") center / cover`
-    : background === 'none'
-      ? 'transparent'
-      : background === 'default' || named
-        ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
-        : css(background, 'background')
+    : gradient
+      ? `linear-gradient(135deg, ${gradient[1]}, ${gradient[2]})`
+      : background === 'none'
+        ? 'transparent'
+        : background === 'default' || named
+          ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
+          : css(background, 'background')
   const annotationWidth = width === undefined ? '  --code-annotation-max-width: none;\n' : ''
   const canvasHeight =
     options.height === undefined ? '' : `  height: ${options.height}px;\n  overflow: hidden;\n`

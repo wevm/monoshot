@@ -16,10 +16,14 @@ import type {
   Highlighter,
   RegexEngine,
   ShikiTransformer,
+  SpecialLanguage,
   ThemeRegistrationRaw,
   ThemeRegistrationResolved,
   ThemedToken,
 } from 'shiki'
+
+/** A bundled grammar or one of Shiki's grammar-free language modes. */
+export type Language = BundledLanguage | SpecialLanguage
 
 /**
  * Creates a renderer that owns a highlighter for its lifetime.
@@ -278,7 +282,7 @@ export declare namespace create {
      */
     engine?: RegexEngine | 'javascript' | undefined
     /** Languages to preload. Anything else loads on first use. */
-    langs?: readonly BundledLanguage[] | undefined
+    langs?: readonly Language[] | undefined
     /**
      * Bundled or custom themes to preload. Custom theme names are accepted by
      * this renderer's `render`, `load`, and `tokens` operations.
@@ -326,7 +330,7 @@ export declare namespace create {
 export declare namespace load {
   type Options<themes extends Themes = []> = {
     /** Language grammar to load. */
-    lang: BundledLanguage
+    lang: Language
     /** Theme to load. */
     theme: Name<themes>
   }
@@ -361,7 +365,7 @@ export declare namespace render {
     /** Source to highlight. */
     code: string
     /** Language to tokenize with. */
-    lang: BundledLanguage
+    lang: Language
     /** Theme to color with. */
     theme: Name<themes>
     /**

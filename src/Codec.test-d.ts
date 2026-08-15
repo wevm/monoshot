@@ -32,6 +32,7 @@ describe('deserialize', () => {
       lang: string
       padding: number
       radius: number
+      syntax: 'auto' | Theme.Name
       theme: Theme.Name
       title: string
       titleBar: boolean

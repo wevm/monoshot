@@ -1,7 +1,17 @@
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
-import { bare, notations, removed, syntax, takesMark, toggle } from './notations.js'
+import {
+  bare,
+  notations,
+  removed,
+  syntax,
+  tagAt,
+  takesTag,
+  takesMark,
+  toggle,
+  toggleTag,
+} from './notations.js'
 
 /** The class each line ends up with, which is what this field decides. */
 function marked(doc: string) {
@@ -275,6 +285,67 @@ describe('syntax', () => {
         },
       ]
     `)
+  })
+})
+
+describe('toggleTag', () => {
+  function pressed(doc: string, options: Parameters<typeof toggleTag>[1]) {
+    const state = EditorState.create({ doc, extensions: [notations] })
+    return state.update({ changes: toggleTag(state, options) }).state.doc.toString()
+  }
+
+  test('adds a tag to a line comment in place', () => {
+    expect(pressed('// hello\n', { line: 1, syntax: { open: '//' }, tag: 'log' })).toBe(
+      '// @log: hello\n',
+    )
+    expect(pressed('//hello\n', { line: 1, syntax: { open: '//' }, tag: 'warn' })).toBe(
+      '// @warn: hello\n',
+    )
+  })
+
+  test('removes the active tag while preserving its comment', () => {
+    expect(pressed('// @warn: careful\n', { line: 1, syntax: { open: '//' }, tag: 'warn' })).toBe(
+      '// careful\n',
+    )
+  })
+
+  test('switches the active tag', () => {
+    expect(pressed('// @log: looked\n', { line: 1, syntax: { open: '//' }, tag: 'error' })).toBe(
+      '// @error: looked\n',
+    )
+  })
+
+  test('preserves a block comment closer', () => {
+    expect(
+      pressed('/* hello */\n', {
+        line: 1,
+        syntax: { close: '*/', open: '/*' },
+        tag: 'annotate',
+      }),
+    ).toBe('/* @annotate: hello */\n')
+  })
+})
+
+describe('takesTag', () => {
+  test('accepts standalone comments and reports their active tag', () => {
+    const state = EditorState.create({
+      doc: '// hello\n// @log: result\nconst value = 1\n',
+      extensions: [notations],
+    })
+    expect([1, 2, 3].map((line) => takesTag(state, line, { open: '//' }))).toEqual([
+      true,
+      true,
+      false,
+    ])
+    expect(tagAt(state, 2)).toBe('log')
+  })
+
+  test('refuses notation and caret comments', () => {
+    const state = EditorState.create({
+      doc: '// [!code hl]\n// ^?\n',
+      extensions: [notations],
+    })
+    expect([1, 2].map((line) => takesTag(state, line, { open: '//' }))).toEqual([false, false])
   })
 })
 
