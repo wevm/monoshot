@@ -45,7 +45,11 @@ namespace schema {
   export const document = z
     .object({
       background: z
-        .union([z.enum(['default', 'none']), z.string().regex(/^#[0-9a-f]{6}$/i)])
+        .union([
+          z.enum(['default', 'none']),
+          z.string().regex(/^#[0-9a-f]{6}$/i),
+          z.string().regex(/^gradient:#[0-9a-f]{6}:#[0-9a-f]{6}$/i),
+        ])
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),

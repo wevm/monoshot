@@ -19,6 +19,9 @@ const field = StateField.define<Value>({
 /** Visual treatment applied by a notation. */
 export type Kind = 'add' | 'focus' | 'highlight' | 'remove'
 
+/** Prose annotation rendered as its own row above code. */
+export type Tag = 'annotate' | 'error' | 'log' | 'warn'
+
 /** A notation, the lines it marks, and where its comment sits in the source. */
 export type Notation = {
   /** Whether the comment stands on a line of its own. */
@@ -112,7 +115,7 @@ const pattern =
  * A twoslash tag, which is prose the snippet carries about the line after it.
  * The export draws it as a row of its own; here it stays where it was written.
  */
-const tags = /^[ \t]*(?:\/\/|#|--|;|%|\/\*|<!--)[ \t]*@(annotate|error|log|warn):[ \t]?/
+const tagPattern = /^[ \t]*(?:\/\/|#|--|;|%|\/\*|<!--)[ \t]*@(annotate|error|log|warn):[ \t]?/
 
 /** How a block comment ends, which a tag written in one carries. */
 const closing = /[ \t]*(?:\*\/|-->)[ \t]*$/
@@ -154,7 +157,7 @@ export function bare(text: string): string {
   return text
     .split('\n')
     .filter((line) => {
-      if (tags.test(line) || Identifier.caretColumn(line) !== undefined) return false
+      if (tagPattern.test(line) || Identifier.caretColumn(line) !== undefined) return false
       // Remove notation-only lines while preserving intentional blank lines.
       return line.trim() === '' || line.replace(pattern, '').trim() !== ''
     })
@@ -171,6 +174,19 @@ export function at(state: EditorState, line: number): readonly Notation[] {
   return found.filter((notation) => notation.lines.includes(line))
 }
 
+/** The tag carried by a comment line. */
+export function tagAt(state: EditorState, line: number): Tag | undefined {
+  return parseTag(state.doc.line(line).text)
+}
+
+/** Whether a row is a standalone comment that can become a prose tag. */
+export function takesTag(state: EditorState, line: number, syntax: Syntax): boolean {
+  const text = state.doc.line(line).text.trim()
+  if (!text.startsWith(syntax.open)) return false
+  if (syntax.close && !text.endsWith(syntax.close)) return false
+  return text.match(pattern) === null && Identifier.caretColumn(text) === undefined
+}
+
 /**
  * Whether a line can carry a mark. A blank one cannot: a comment alone on a line
  * addresses the line after it, and is taken out along with the line it sat on.
@@ -180,7 +196,7 @@ export function takesMark(state: EditorState, line: number): boolean {
   const { text } = state.doc.line(line)
   // A tag is prose about the code and a `^?` is a question about it: neither is
   // a line a mark reads on, and a marker written into one stays as it was typed.
-  if (tags.test(text) || Identifier.caretColumn(text) !== undefined) return false
+  if (tagPattern.test(text) || Identifier.caretColumn(text) !== undefined) return false
   return text.replace(pattern, '').trim() !== ''
 }
 
@@ -234,6 +250,27 @@ export function toggle(
     const close = syntax.close ? ` ${syntax.close}` : ''
     return `${syntax.open} [!code ${names[kind]}]${close}`
   }
+}
+
+/** Adds, changes, or removes the tag on a comment line. */
+export function toggleTag(
+  state: EditorState,
+  options: { line: number; syntax: Syntax; tag: Tag },
+): ChangeSpec {
+  const { line, syntax, tag } = options
+  const target = state.doc.line(line)
+  const open = target.text.indexOf(syntax.open) + syntax.open.length
+  const found = tagPattern.exec(target.text)
+  if (!found) {
+    const following = target.text.slice(open)
+    const gap = following.startsWith(' ') ? '' : ' '
+    return { from: target.from + open, insert: ` @${tag}:${gap}` }
+  }
+  const from = target.from + open
+  const to = target.from + found[0].length
+  if (found[1] !== tag) return { from, to, insert: ` @${tag}: ` }
+  const following = target.text.slice(found[0].length)
+  return { from, to, insert: following ? ' ' : '' }
 }
 
 /**
@@ -294,7 +331,7 @@ function build(state: EditorState): Value {
   const tagged = new Set<number>()
   for (let number = 1; number <= doc.lines; number++) {
     const line = doc.line(number)
-    const tag = tags.exec(line.text)
+    const tag = tagPattern.exec(line.text)
     if (tag) {
       // What names the tag is not part of what it says, so it reads as the
       // prose the export draws rather than as a comment.
@@ -363,6 +400,10 @@ function build(state: EditorState): Value {
     notations: found,
     removed,
   }
+}
+
+function parseTag(text: string): Tag | undefined {
+  return tagPattern.exec(text)?.[1] as Tag | undefined
 }
 
 /**

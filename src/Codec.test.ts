@@ -8,6 +8,7 @@ const state = {
   lang: 'typescript',
   padding: 96,
   radius: 8,
+  syntax: 'github-dark',
   theme: 'github-dark',
   title: 'highlight.ts',
   titleBar: false,
@@ -28,6 +29,7 @@ describe('serialize', () => {
         "lang": "auto",
         "padding": 64,
         "radius": 12,
+        "syntax": "auto",
         "theme": "vitesse-dark",
         "title": "",
         "titleBar": false,
@@ -99,6 +101,7 @@ describe('deserialize', () => {
         "lang": "rust",
         "padding": 64,
         "radius": 12,
+        "syntax": "auto",
         "theme": "vitesse-dark",
         "title": "",
         "titleBar": false,
@@ -113,6 +116,7 @@ describe('deserialize', () => {
       lzString.compressToEncodedURIComponent(JSON.stringify({ b: background }))
     expect([
       Codec.deserialize(hash('#1c1c1e')).background,
+      Codec.deserialize(hash('gradient:#3f37c9:#8c87df')).background,
       Codec.deserialize(hash('none')).background,
       Codec.deserialize(hash('red')).background,
       Codec.deserialize(hash('#bogus')).background,
@@ -120,6 +124,7 @@ describe('deserialize', () => {
     ]).toMatchInlineSnapshot(`
       [
         "#1c1c1e",
+        "gradient:#3f37c9:#8c87df",
         "none",
         "default",
         "default",

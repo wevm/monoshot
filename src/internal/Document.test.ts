@@ -119,11 +119,13 @@ describe('build', () => {
     expect({
       custom: await shown('#101014'),
       default: await shown('default'),
+      gradient: await shown('gradient:#3f37c9:#8c87df'),
       none: await shown('none'),
     }).toMatchInlineSnapshot(`
       {
         "custom": "#101014",
         "default": "linear-gradient(140deg, oklch(0.34220370283599866 0.09235901076610567 356.5125502468221), oklch(0.28220370283599866 0.09235901076610567 46.512550246822116))",
+        "gradient": "linear-gradient(135deg, #3f37c9, #8c87df)",
         "none": "transparent",
       }
     `)

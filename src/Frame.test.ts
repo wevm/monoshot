@@ -39,6 +39,15 @@ describe('create', () => {
 })
 
 describe('render', () => {
+  test('renders plain text without loading a grammar', async () => {
+    const result = await Frame.create().render({
+      code: 'plain words',
+      lang: 'text',
+      theme: 'nord',
+    })
+    expect(result.html).toContain('plain words')
+  })
+
   test('marks every line with its number', async () => {
     const frame = Frame.create()
     const result = await frame.render({

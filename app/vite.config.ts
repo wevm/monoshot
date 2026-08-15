@@ -3,6 +3,7 @@ import babel from '@rolldown/plugin-babel'
 import stylex from '@stylexjs/unplugin'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import icons from 'unplugin-icons/vite'
 import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
@@ -34,6 +35,7 @@ export default defineConfig({
         prefix: 'stylex',
       },
     }),
+    icons({ compiler: 'jsx', jsx: 'react' }),
     react(),
     // The React Compiler memoizes components automatically, so the app does
     // not hand-write useMemo/useCallback. This plugin's oxc pipeline has no
