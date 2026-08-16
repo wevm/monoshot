@@ -172,17 +172,15 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Truncate source to the maximum row count supported by the largest canvas.
-  const shown = Links.excerpt(settings.code)
-  // Derive canvas dimensions from the rendered row count.
-  const shape = Links.geometry(shown)
+  // Truncate source to the largest canvas, then size the canvas to what remains.
+  const shape = Links.layout(settings.code)
   const drawn = await api.request(
     '/image',
     {
       body: JSON.stringify({
         // Pass wallpaper content through `picture`, not the application identifier.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        code: shown,
+        code: shape.code,
         height: shape.height,
         // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,

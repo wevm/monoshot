@@ -1,54 +1,60 @@
-/**
- * Size, retention, and preview limits for shared links. The row limit fits
- * within the maximum canvas dimensions returned by {@link geometry}.
- */
-export const limits = { rows: 29, size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+/** Size and retention limits for shared links. */
+export const limits = { size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
-/** Card output dimensions and canvas layout constants. */
-const card = {
-  /** Fixed output dimensions in pixels. */
-  height: 630,
-  width: 1200,
-  /** Canvas width limits in pixels. */
-  narrowest: 800,
-  widest: 1600,
-  /** Approximate width of one code column in pixels. */
+/** Fixed social-card output dimensions in pixels, advertised by {@link page}. */
+const output = { height: 630, width: 1200 } as const
+
+/**
+ * Canvas layout metrics in pixels.
+ *
+ * These mirror the renderer's own CSS in `src/internal/Document.ts`, which
+ * holds the real values. Underestimating one clips the code the canvas carries.
+ */
+const canvas = {
+  /** Advance of one code column, at 0.6em of the renderer's 14px code font. */
   column: 8.4,
-  /** Code-window horizontal inset in pixels. */
+  /** Code-window horizontal inset. */
   inset: 16,
-  /** Code-line height in pixels. */
+  /** Code-line height. */
   line: 22,
-  /** Canvas space around the code window in pixels. */
+  /** Narrowest canvas width. */
+  narrowest: 800,
+  /** Canvas space around the code window. */
   padding: 80,
-  /** Code-window vertical padding in pixels. */
+  /** Canvas width increment. */
+  step: 40,
+  /** Widest canvas width. */
+  widest: 1600,
+  /** Code-window vertical padding, drawn without a title bar. */
   window: 40,
 } as const
 
 /**
- * Computes canvas dimensions and scale from the rendered row count.
+ * Truncates code to what the widest canvas shows, then sizes a canvas to fit it.
  *
- * Width grows at the 40:21 aspect ratio in 40-pixel increments, then scales to
- * the fixed 1200x630 output.
+ * Width grows in fixed increments at the output ratio before scaling to the
+ * output size, leaving a short snippet larger on the card than a long one.
  */
-export function geometry(code: string): geometry.Result {
-  for (let width = card.narrowest; width <= card.widest; width += 40) {
-    const height = (width * card.height) / card.width
-    const window = rows(code, width) * card.line + card.window
-    if (window > height - card.padding * 2) continue
-    return { height, padding: card.padding, scale: card.width / width, width }
-  }
-  const width = card.widest
+export function layout(code: string): layout.Result {
+  const shown = excerpt(code)
+  const measured = measure(codeLines(shown))
+  let width = canvas.narrowest
+  for (; width < canvas.widest; width += canvas.step)
+    if (rows(measured, width) <= capacity(width)) break
   return {
-    height: (width * card.height) / card.width,
-    padding: card.padding,
-    scale: card.width / width,
+    code: shown,
+    height: height(width),
+    padding: canvas.padding,
+    scale: output.width / width,
     width,
   }
 }
 
-export declare namespace geometry {
+export declare namespace layout {
   type Result = {
-    /** Canvas height in pixels, derived from `width` at the card ratio. */
+    /** Source code, truncated to the rows the widest canvas shows. */
+    code: string
+    /** Canvas height in pixels, derived from `width` at the output ratio. */
     height: number
     /** Canvas space around the code window in pixels. */
     padding: number
@@ -57,6 +63,93 @@ export declare namespace geometry {
     /** Canvas width in pixels. */
     width: number
   }
+}
+
+/** Truncates code to the rows available at the widest canvas. */
+function excerpt(code: string): string {
+  const source = codeLines(code)
+  const measured = measure(source)
+  const limit = capacity(canvas.widest)
+  if (rows(measured, canvas.widest) <= limit) return code
+  const available = columns(canvas.widest)
+  const shown: string[] = []
+  let remaining = limit
+  for (const [at, line] of source.entries()) {
+    const needed = span(measured[at]!, available)
+    if (needed > remaining) {
+      if (remaining > 0) shown.push(takeColumns(line, remaining * available))
+      break
+    }
+    shown.push(line)
+    remaining -= needed
+  }
+  return `${shown.join('\n')}\n`
+}
+
+/** Splits code into lines, ignoring a single trailing newline. */
+function codeLines(code: string): string[] {
+  return code.replace(/\n$/, '').split('\n')
+}
+
+/**
+ * Counts the display columns of each line.
+ *
+ * Measuring once keeps the width search in {@link layout} free of string work.
+ */
+function measure(source: readonly string[]): number[] {
+  return source.map(columnCount)
+}
+
+/** Canvas height at a canvas width, held to the output ratio. */
+function height(width: number): number {
+  return (width * output.height) / output.width
+}
+
+/** Code columns available at a canvas width. */
+function columns(width: number): number {
+  return Math.max(1, Math.floor((width - canvas.padding * 2 - canvas.inset * 2) / canvas.column))
+}
+
+/** Code rows that fit within the padded canvas at a canvas width. */
+function capacity(width: number): number {
+  return Math.floor((height(width) - canvas.padding * 2 - canvas.window) / canvas.line)
+}
+
+/** Counts the rows measured lines occupy at a canvas width. */
+function rows(measured: readonly number[], width: number): number {
+  const available = columns(width)
+  return measured.reduce((count, value) => count + span(value, available), 0)
+}
+
+/** Rows a line of the given display columns occupies at a column capacity. */
+function span(count: number, available: number): number {
+  return Math.max(1, Math.ceil(count / available))
+}
+
+/** Display columns a character occupies at a column offset. */
+function advance(character: string, at: number): number {
+  if (character === '\t') return 2 - (at % 2)
+  return character.codePointAt(0)! > 127 ? 2 : 1
+}
+
+/** Counts display columns, including two-column tabs and non-ASCII characters. */
+function columnCount(value: string): number {
+  let count = 0
+  for (const character of value) count += advance(character, count)
+  return count
+}
+
+/** Returns the prefix that fits within the requested display columns. */
+function takeColumns(value: string, limit: number): string {
+  let count = 0
+  let result = ''
+  for (const character of value) {
+    const next = count + advance(character, count)
+    if (next > limit) break
+    count = next
+    result += character
+  }
+  return result
 }
 
 /**
@@ -100,8 +193,8 @@ export function page(options: page.Options): string {
 <meta property="og:description" content="${escape(description)}">
 <meta property="og:url" content="${escape(`${origin}/s/${id}`)}">
 <meta property="og:image" content="${escape(image)}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:width" content="${output.width}">
+<meta property="og:image:height" content="${output.height}">
 <meta property="og:image:alt" content="${escape(title)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escape(title)}">
@@ -131,62 +224,6 @@ export declare namespace page {
     /** Preview title of the snippet. */
     title: string
   }
-}
-
-/** Truncates code by rendered row count to keep social-card text legible. */
-export function excerpt(code: string): string {
-  if (rows(code, card.widest) <= limits.rows) return code
-  const capacity = columns(card.widest)
-  const lines = code.replace(/\n$/, '').split('\n')
-  const output: string[] = []
-  let remaining = limits.rows
-  for (const line of lines) {
-    const needed = Math.max(1, Math.ceil(columnCount(line) / capacity))
-    if (needed <= remaining) {
-      output.push(line)
-      remaining -= needed
-      continue
-    }
-    if (remaining > 0) output.push(takeColumns(line, remaining * capacity))
-    return `${output.join('\n')}\n`
-  }
-  return code
-}
-
-/** Returns the number of code columns available at a canvas width. */
-function columns(width: number): number {
-  return Math.max(1, Math.floor((width - card.padding * 2 - card.inset * 2) / card.column))
-}
-
-/** Counts rendered rows after code wraps at a canvas width. */
-function rows(code: string, width: number): number {
-  const capacity = columns(width)
-  return code
-    .replace(/\n$/, '')
-    .split('\n')
-    .reduce((count, line) => count + Math.max(1, Math.ceil(columnCount(line) / capacity)), 0)
-}
-
-/** Counts display columns, including two-column tabs and non-ASCII characters. */
-function columnCount(value: string): number {
-  let count = 0
-  for (const character of value)
-    count += character === '\t' ? 2 - (count % 2) : character.codePointAt(0)! > 127 ? 2 : 1
-  return count
-}
-
-/** Returns the prefix that fits within the requested display columns. */
-function takeColumns(value: string, limit: number): string {
-  let count = 0
-  let result = ''
-  for (const character of value) {
-    const next =
-      count + (character === '\t' ? 2 - (count % 2) : character.codePointAt(0)! > 127 ? 2 : 1)
-    if (next > limit) break
-    count = next
-    result += character
-  }
-  return result
 }
 
 /** Returns the first non-empty line, truncated for use as a preview title. */

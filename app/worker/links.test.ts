@@ -59,9 +59,11 @@ describe('page', () => {
   })
 })
 
-describe('geometry', () => {
+describe('layout', () => {
   test('uses standard dimensions for a short snippet', () => {
-    expect(Links.geometry('const a = 1\n')).toMatchInlineSnapshot(`
+    const { code, ...shape } = Links.layout('const a = 1\n')
+    expect(code).toBe('const a = 1\n')
+    expect(shape).toMatchInlineSnapshot(`
       {
         "height": 420,
         "padding": 80,
@@ -73,7 +75,8 @@ describe('geometry', () => {
 
   test('preserves output dimensions as the canvas grows', () => {
     const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
-    const grown = Links.geometry(fifteen)
+    const { code, ...grown } = Links.layout(fifteen)
+    expect(code).toBe(fifteen)
     expect(grown).toMatchInlineSnapshot(`
       {
         "height": 546,
@@ -87,24 +90,36 @@ describe('geometry', () => {
     expect(Math.round(grown.height * grown.scale)).toBe(630)
   })
 
-  test('supports the line limit at the maximum canvas width', () => {
+  test('draws the tallest snippet the card holds without dropping a line', () => {
     const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
-    const grown = Links.geometry(most)
+    const grown = Links.layout(most)
     expect(grown.width).toBe(1600)
-    // Verify that code and window padding fit within the padded canvas.
-    expect(29 * 22 + 40).toBeLessThanOrEqual(grown.height - 2 * grown.padding)
+    expect(grown.code).toBe(most)
+  })
+
+  test('drops the line past the last one the card holds', () => {
+    const over = Array.from({ length: 30 }, (_, at) => `const v${at} = ${at}`).join('\n')
+    const grown = Links.layout(over)
+    expect(grown.width).toBe(1600)
+    expect(grown.code).toBe(`${over.split('\n').slice(0, 29).join('\n')}\n`)
   })
 
   test('grows the canvas when a long line wraps', () => {
-    expect(Links.geometry('x'.repeat(721)).width).toBeGreaterThan(800)
+    expect(Links.layout('x'.repeat(721)).width).toBeGreaterThan(800)
   })
-})
 
-describe('excerpt', () => {
-  test('limits wrapped code to the rows available at the widest canvas', () => {
-    const shown = Links.excerpt('x'.repeat(10_000))
-    expect(shown.length).toBeLessThan(10_000)
-    expect(Links.geometry(shown).width).toBe(1600)
+  test('cuts wrapped code to the rows available at the widest canvas', () => {
+    const grown = Links.layout('x'.repeat(10_000))
+    expect(grown.code.length).toBeLessThan(10_000)
+    expect(grown.width).toBe(1600)
+  })
+
+  test('wraps a wide-character line at half the columns of a Latin one', () => {
+    // Non-ASCII characters occupy two display columns, so the same count wraps sooner.
+    const wide = Links.layout('あ'.repeat(400))
+    const latin = Links.layout('a'.repeat(400))
+    expect(latin.width).toBe(800)
+    expect(wide.width).toBeGreaterThan(latin.width)
   })
 })
 
