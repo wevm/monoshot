@@ -108,12 +108,12 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     if (!kept) return c.redirect('/og.jpg', 302)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
-    const cache = await caches.open('og')
+    const cache = await caches.open(Links.cardCache)
     const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
     // Read from KV because the Cache API entry may exist only in another data center.
-    const held = await c.env.LINKS?.get(`og:${id}`, 'arrayBuffer')
+    const held = await c.env.LINKS?.get(`${Links.cardCache}:${id}`, 'arrayBuffer')
     if (held) {
       const response = pictured(held)
       c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
@@ -215,7 +215,7 @@ function pictured(bytes: ArrayBuffer): Response {
 
 /** Stores a rendered card with the same retention period as its shared link. */
 function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void> {
-  return env.LINKS.put(`og:${id}`, bytes, { expirationTtl: Links.limits.ttl })
+  return env.LINKS.put(`${Links.cardCache}:${id}`, bytes, { expirationTtl: Links.limits.ttl })
 }
 
 /**

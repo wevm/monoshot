@@ -1,22 +1,20 @@
+import * as DocumentLayout from '../../src/internal/DocumentLayout.js'
+import * as Tags from '../../src/internal/Tags.js'
+
 /** Size and retention limits for shared links. */
 export const limits = { size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+
+/** Revision shared by preview URLs and rendered-card caches. */
+export const cardRevision = 2
+
+/** Cache namespace for the current rendered-card revision. */
+export const cardCache = `og:${cardRevision}`
 
 /** Fixed social-card output dimensions in pixels, advertised by {@link page}. */
 const output = { height: 630, width: 1200 } as const
 
-/**
- * Canvas layout metrics in pixels.
- *
- * These mirror the renderer's own CSS in `src/internal/Document.ts`, which
- * holds the real values. Underestimating one clips the code the canvas carries.
- */
+/** Card-specific canvas bounds and increments in pixels. */
 const canvas = {
-  /** Advance of one code column, at 0.6em of the renderer's 14px code font. */
-  column: 8.4,
-  /** Code-window horizontal inset. */
-  inset: 16,
-  /** Code-line height. */
-  line: 22,
   /** Narrowest canvas width. */
   narrowest: 800,
   /** Canvas space around the code window. */
@@ -25,8 +23,6 @@ const canvas = {
   step: 40,
   /** Widest canvas width. */
   widest: 1600,
-  /** Code-window vertical padding, drawn without a title bar. */
-  window: 40,
 } as const
 
 /**
@@ -40,10 +36,10 @@ export function layout(code: string): layout.Result {
   const measured = measure(codeLines(shown))
   let width = canvas.narrowest
   for (; width < canvas.widest; width += canvas.step)
-    if (rows(measured, width) <= capacity(width)) break
+    if (contentHeight(measured, width) <= room(width)) break
   return {
     code: shown,
-    height: height(width),
+    height: canvasHeight(width),
     padding: canvas.padding,
     scale: output.width / width,
     width,
@@ -69,15 +65,17 @@ export declare namespace layout {
 function excerpt(code: string): string {
   const source = codeLines(code)
   const measured = measure(source)
-  const limit = capacity(canvas.widest)
-  if (rows(measured, canvas.widest) <= limit) return code
+  if (contentHeight(measured, canvas.widest) <= room(canvas.widest)) return code
   const available = columns(canvas.widest)
   const shown: string[] = []
-  let remaining = limit
+  let remaining = room(canvas.widest)
   for (const [at, line] of source.entries()) {
-    const needed = span(measured[at]!, available)
+    const measuredLine = measured[at]!
+    const needed = lineHeight(measuredLine, available)
     if (needed > remaining) {
-      if (remaining > 0) shown.push(takeColumns(line, remaining * available))
+      const gap = measuredLine.tagged ? DocumentLayout.metrics.annotation.gap : 0
+      const rows = Math.floor((remaining - gap) / DocumentLayout.metrics.code.line)
+      if (rows > 0) shown.push(takeColumns(line, rows * available))
       break
     }
     shown.push(line)
@@ -91,34 +89,43 @@ function codeLines(code: string): string[] {
   return code.replace(/\n$/, '').split('\n')
 }
 
-/**
- * Counts the display columns of each line.
- *
- * Measuring once keeps the width search in {@link layout} free of string work.
- */
-function measure(source: readonly string[]): number[] {
-  return source.map(columnCount)
+/** A source line's width and transformed annotation state. */
+type Line = { columns: number; tagged: boolean }
+
+/** Measures each line once before searching canvas widths. */
+function measure(source: readonly string[]): Line[] {
+  return source.map((line) => ({ columns: columnCount(line), tagged: Tags.tagged(line) }))
 }
 
 /** Canvas height at a canvas width, held to the output ratio. */
-function height(width: number): number {
+function canvasHeight(width: number): number {
   return (width * output.height) / output.width
 }
 
 /** Code columns available at a canvas width. */
 function columns(width: number): number {
-  return Math.max(1, Math.floor((width - canvas.padding * 2 - canvas.inset * 2) / canvas.column))
+  const { advance, size } = DocumentLayout.metrics.code
+  const { inset } = DocumentLayout.metrics.body
+  return Math.max(1, Math.floor((width - canvas.padding * 2 - inset * 2) / (size * advance)))
 }
 
-/** Code rows that fit within the padded canvas at a canvas width. */
-function capacity(width: number): number {
-  return Math.floor((height(width) - canvas.padding * 2 - canvas.window) / canvas.line)
+/** Vertical pixels available to source and annotation rows. */
+function room(width: number): number {
+  const { padding } = DocumentLayout.metrics.body
+  const window = padding.plain * 2 + DocumentLayout.metrics.source.padding * 2
+  return canvasHeight(width) - canvas.padding * 2 - window
 }
 
-/** Counts the rows measured lines occupy at a canvas width. */
-function rows(measured: readonly number[], width: number): number {
+/** Vertical pixels that measured lines occupy at a canvas width. */
+function contentHeight(measured: readonly Line[], width: number): number {
   const available = columns(width)
-  return measured.reduce((count, value) => count + span(value, available), 0)
+  return measured.reduce((height, line) => height + lineHeight(line, available), 0)
+}
+
+/** Vertical pixels that one measured line occupies. */
+function lineHeight(line: Line, available: number): number {
+  const annotation = line.tagged ? DocumentLayout.metrics.annotation.gap : 0
+  return span(line.columns, available) * DocumentLayout.metrics.code.line + annotation
 }
 
 /** Rows a line of the given display columns occupies at a column capacity. */
@@ -126,16 +133,23 @@ function span(count: number, available: number): number {
   return Math.max(1, Math.ceil(count / available))
 }
 
-/** Display columns a character occupies at a column offset. */
+const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
+const zeroWidth = /^(?:\p{Control}|\p{Format}|\p{Mark})+$/u
+const wide =
+  /[\u1100-\u115f\u2329-\u232a\u2e80-\u303e\u3040-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{1b000}-\u{1b2ff}\u{20000}-\u{3fffd}]|\p{Emoji_Presentation}|\p{Regional_Indicator}/u
+
+/** Display columns a grapheme occupies at a column offset. */
 function advance(character: string, at: number): number {
-  if (character === '\t') return 2 - (at % 2)
-  return character.codePointAt(0)! > 127 ? 2 : 1
+  const { tab } = DocumentLayout.metrics.code
+  if (character === '\t') return tab - (at % tab)
+  if (zeroWidth.test(character)) return 0
+  return wide.test(character) || character.includes('\u20e3') ? 2 : 1
 }
 
-/** Counts display columns, including two-column tabs and non-ASCII characters. */
+/** Counts display columns, including tabs and East Asian wide graphemes. */
 function columnCount(value: string): number {
   let count = 0
-  for (const character of value) count += advance(character, count)
+  for (const { segment } of graphemes.segment(value)) count += advance(segment, count)
   return count
 }
 
@@ -143,11 +157,11 @@ function columnCount(value: string): number {
 function takeColumns(value: string, limit: number): string {
   let count = 0
   let result = ''
-  for (const character of value) {
-    const next = count + advance(character, count)
+  for (const { segment } of graphemes.segment(value)) {
+    const next = count + advance(segment, count)
     if (next > limit) break
     count = next
-    result += character
+    result += segment
   }
   return result
 }
@@ -179,7 +193,7 @@ export function id(): string {
 export function page(options: page.Options): string {
   const { description, id, origin, state, title } = options
   const target = `${origin}/#${state}`
-  const image = `${origin}/s/${id}/og.png`
+  const image = `${origin}/s/${id}/og.png?v=${cardRevision}`
   return `<!doctype html>
 <html lang="en">
 <head>

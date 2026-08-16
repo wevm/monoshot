@@ -39,7 +39,7 @@ describe('page', () => {
       title: 'const a = 1',
     })
     expect(html).toContain(
-      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png">',
+      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png?v=2">',
     )
     expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
     // Redirect to the editor with the encoded state in the URL fragment.
@@ -115,11 +115,25 @@ describe('layout', () => {
   })
 
   test('wraps a wide-character line at half the columns of a Latin one', () => {
-    // Non-ASCII characters occupy two display columns, so the same count wraps sooner.
+    // East Asian wide characters occupy two display columns, so the same count wraps sooner.
     const wide = Links.layout('あ'.repeat(400))
     const latin = Links.layout('a'.repeat(400))
     expect(latin.width).toBe(800)
     expect(wide.width).toBeGreaterThan(latin.width)
+  })
+
+  test('keeps single-column Unicode without truncating it as wide text', () => {
+    const code = Array.from({ length: 29 }, () => 'éλЖ'.repeat(30)).join('\n')
+    const grown = Links.layout(code)
+    expect(grown.width).toBe(1600)
+    expect(grown.code).toBe(code)
+  })
+
+  test('includes annotation-row margins when choosing the canvas', () => {
+    const plain = Array.from({ length: 10 }, () => 'const a = 1').join('\n')
+    const tagged = Array.from({ length: 10 }, () => '// @log: looked at').join('\n')
+    expect(Links.layout(plain).width).toBe(800)
+    expect(Links.layout(tagged).width).toBeGreaterThan(800)
   })
 })
 

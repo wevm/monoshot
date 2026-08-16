@@ -1,4 +1,5 @@
 import * as Theme from '../Theme.js'
+import * as DocumentLayout from './DocumentLayout.js'
 
 /** Font data embedded in the standalone document. */
 export type Font = {
@@ -76,12 +77,12 @@ export function build(options: Options): string {
 ${fontFaces(fonts)}
 :root {
   --code-font-family: ${fontStack(fonts)};
-  --code-font-size: 14px;
-  --code-line-height: 22px;
-  --code-tab-size: 2;
-  --code-annotation-size: 12px;
+  --code-font-size: ${DocumentLayout.metrics.code.size}px;
+  --code-line-height: ${DocumentLayout.metrics.code.line}px;
+  --code-tab-size: ${DocumentLayout.metrics.code.tab};
+  --code-annotation-size: ${DocumentLayout.metrics.annotation.size}px;
   /* What the window insets its code by, so a marked line can reach past it. */
-  --body-inset: 16px;
+  --body-inset: ${DocumentLayout.metrics.body.inset}px;
   --window-background: ${palette.window.background};
   --window-border: ${palette.window.border};
   --window-shadow: ${shadow[palette.type]};
@@ -127,7 +128,7 @@ body { -webkit-font-smoothing: antialiased; }
 }
 .body {
   color: ${palette.window.foreground};
-  padding: ${titleBar ? '4px' : '8px'} var(--body-inset);
+  padding: ${titleBar ? DocumentLayout.metrics.body.padding.titled : DocumentLayout.metrics.body.padding.plain}px var(--body-inset);
 }
 .shiki, .shiki code {
   background: transparent !important;
@@ -141,7 +142,7 @@ body { -webkit-font-smoothing: antialiased; }
   tab-size: var(--code-tab-size);
   white-space: pre-wrap;
 }
-.shiki { padding-block: 12px; }
+.shiki { padding-block: ${DocumentLayout.metrics.source.padding}px; }
 ${marked(html) ? marks(palette) : ''}
 ${styles}
 .twoslash-block {
@@ -357,7 +358,7 @@ ${mark(Theme.marks.remove)}
 .twoslash-tag-line {
   align-items: center;
   /* Separate annotation prose from the source line it describes. */
-  margin-top: 6px;
+  margin-top: ${DocumentLayout.metrics.annotation.gap}px;
   display: flex;
   font-size: var(--code-annotation-size);
   gap: 6px;
