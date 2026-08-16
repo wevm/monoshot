@@ -1,15 +1,178 @@
+import * as DocumentLayout from '../../src/internal/DocumentLayout.js'
+import * as Tags from '../../src/internal/Tags.js'
 import * as Shared from '../src/lib/shared.js'
 
-/** Size, retention, and preview limits for shared links. */
-export const limits = {
-  columns: 72,
-  rows: 10,
-  size: 20_000,
-  ttl: 60 * 60 * 24 * 90,
+/** Size and retention limits for shared links. */
+export const limits = { size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
+
+/** Standard social-card canvas dimensions and cache version. */
+export const card = Shared.card
+
+/** Fixed social-card output dimensions in pixels. */
+const output = { height: card.height * card.scale, width: card.width * card.scale } as const
+
+/** Card-specific canvas bounds and increments in pixels. */
+const canvas = {
+  /** Narrowest canvas width. */
+  narrowest: card.width,
+  /** Canvas space around the code window. */
+  padding: card.padding,
+  /** Canvas width increment. */
+  step: 40,
+  /** Widest canvas width. */
+  widest: 1600,
 } as const
 
-/** Fixed social-card canvas dimensions and cache version. */
-export const card = Shared.card
+/**
+ * Truncates code to what the widest canvas shows, then sizes a canvas to fit it.
+ *
+ * Width grows in fixed increments at the output ratio before scaling to the
+ * output size, leaving a short snippet larger on the card than a long one.
+ */
+export function layout(code: string): layout.Result {
+  const shown = excerpt(code)
+  const measured = measure(codeLines(shown.code))
+  let width = canvas.narrowest
+  for (; width < canvas.widest; width += canvas.step)
+    if (contentHeight(measured, width) <= room(width)) break
+  return {
+    code: shown.code,
+    height: canvasHeight(width),
+    overflow: { horizontal: false, vertical: shown.truncated },
+    padding: canvas.padding,
+    scale: output.width / width,
+    width,
+  }
+}
+
+export declare namespace layout {
+  type Result = {
+    /** Source code, truncated to the rows the widest canvas shows. */
+    code: string
+    /** Canvas height in pixels, derived from `width` at the output ratio. */
+    height: number
+    /** Clipped axes used to mark truncated source at the canvas edge. */
+    overflow: fade.Overflow
+    /** Canvas space around the code window in pixels. */
+    padding: number
+    /** Device scale factor that maps the canvas to the output size. */
+    scale: number
+    /** Canvas width in pixels. */
+    width: number
+  }
+}
+
+/** Truncates code to the rows available at the widest canvas. */
+function excerpt(code: string): { code: string; truncated: boolean } {
+  const source = codeLines(code)
+  const measured = measure(source)
+  if (contentHeight(measured, canvas.widest) <= room(canvas.widest))
+    return { code, truncated: false }
+  const available = columns(canvas.widest)
+  const shown: string[] = []
+  let remaining = room(canvas.widest)
+  for (const [at, line] of source.entries()) {
+    const measuredLine = measured[at]!
+    const needed = lineHeight(measuredLine, available)
+    if (needed > remaining) {
+      const gap = measuredLine.gap ? DocumentLayout.metrics.annotation.gap : 0
+      const rows = Math.floor((remaining - gap) / DocumentLayout.metrics.code.line)
+      if (rows > 0) shown.push(takeColumns(line, rows * available))
+      break
+    }
+    shown.push(line)
+    remaining -= needed
+  }
+  return { code: `${shown.join('\n')}\n`, truncated: true }
+}
+
+/** Splits code into lines, ignoring a single trailing newline. */
+function codeLines(code: string): string[] {
+  return code.replace(/\n$/, '').split('\n')
+}
+
+/** A source line's width and preceding annotation gap. */
+type Line = { columns: number; gap: boolean }
+
+/** Measures each line once before searching canvas widths. */
+function measure(source: readonly string[]): Line[] {
+  let previousTagged = false
+  return source.map((line) => {
+    const tagged = Tags.tagged(line)
+    const measured = { columns: columnCount(line), gap: tagged && !previousTagged }
+    previousTagged = tagged
+    return measured
+  })
+}
+
+/** Canvas height at a canvas width, held to the output ratio. */
+function canvasHeight(width: number): number {
+  return (width * output.height) / output.width
+}
+
+/** Code columns available at a canvas width. */
+function columns(width: number): number {
+  const { advance, size } = DocumentLayout.metrics.code
+  const { inset } = DocumentLayout.metrics.body
+  return Math.max(1, Math.floor((width - canvas.padding * 2 - inset * 2) / (size * advance)))
+}
+
+/** Vertical pixels available to source and annotation rows. */
+function room(width: number): number {
+  const { padding } = DocumentLayout.metrics.body
+  const window = padding.plain * 2 + DocumentLayout.metrics.source.padding * 2
+  return canvasHeight(width) - canvas.padding * 2 - window
+}
+
+/** Vertical pixels that measured lines occupy at a canvas width. */
+function contentHeight(measured: readonly Line[], width: number): number {
+  const available = columns(width)
+  return measured.reduce((height, line) => height + lineHeight(line, available), 0)
+}
+
+/** Vertical pixels that one measured line occupies. */
+function lineHeight(line: Line, available: number): number {
+  const annotation = line.gap ? DocumentLayout.metrics.annotation.gap : 0
+  return span(line.columns, available) * DocumentLayout.metrics.code.line + annotation
+}
+
+/** Rows a line of the given display columns occupies at a column capacity. */
+function span(count: number, available: number): number {
+  return Math.max(1, Math.ceil(count / available))
+}
+
+const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' })
+const zeroWidth = /^(?:\p{Control}|\p{Format}|\p{Mark})+$/u
+const wide =
+  /[\u1100-\u115f\u2329-\u232a\u2e80-\u303e\u3040-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{1b000}-\u{1b2ff}\u{20000}-\u{3fffd}]|\p{Emoji_Presentation}|\p{Regional_Indicator}/u
+
+/** Display columns a grapheme occupies at a column offset. */
+function advance(character: string, at: number): number {
+  const { tab } = DocumentLayout.metrics.code
+  if (character === '\t') return tab - (at % tab)
+  if (zeroWidth.test(character)) return 0
+  return wide.test(character) || character.includes('\u20e3') ? 2 : 1
+}
+
+/** Counts display columns, including tabs and East Asian wide graphemes. */
+function columnCount(value: string): number {
+  let count = 0
+  for (const { segment } of graphemes.segment(value)) count += advance(segment, count)
+  return count
+}
+
+/** Returns the prefix that fits within the requested display columns. */
+function takeColumns(value: string, limit: number): string {
+  let count = 0
+  let result = ''
+  for (const { segment } of graphemes.segment(value)) {
+    const next = count + advance(segment, count)
+    if (next > limit) break
+    count = next
+    result += segment
+  }
+  return result
+}
 
 /**
  * Generates a 12-character identifier with 60 bits of entropy.
@@ -28,28 +191,6 @@ export function id(): string {
     }
   }
   return name
-}
-
-/** Limits code to the readable social-card viewport and reports clipped axes. */
-export function excerpt(code: string): excerpt.Result {
-  const lines = code.replace(/\n$/, '').split('\n')
-  let horizontal = false
-  const shown = lines.slice(0, limits.rows).map((line) => {
-    if (columnCount(line) <= limits.columns) return line
-    horizontal = true
-    return takeColumns(line, limits.columns)
-  })
-  return {
-    code: shown.join('\n'),
-    overflow: { horizontal, vertical: lines.length > limits.rows },
-  }
-}
-
-export declare namespace excerpt {
-  type Result = {
-    code: string
-    overflow: fade.Overflow
-  }
 }
 
 /** Removes Twoslash query rows from a preview that does not resolve types. */
@@ -102,28 +243,6 @@ export declare namespace fade {
     horizontal: boolean
     vertical: boolean
   }
-}
-
-/** Counts display columns, including two-column tabs and non-ASCII characters. */
-function columnCount(value: string): number {
-  let count = 0
-  for (const character of value)
-    count += character === '\t' ? 2 - (count % 2) : character.codePointAt(0)! > 127 ? 2 : 1
-  return count
-}
-
-/** Returns the prefix that fits within the requested display columns. */
-function takeColumns(value: string, limit: number): string {
-  let count = 0
-  let result = ''
-  for (const character of value) {
-    const next =
-      count + (character === '\t' ? 2 - (count % 2) : character.codePointAt(0)! > 127 ? 2 : 1)
-    if (next > limit) break
-    count = next
-    result += character
-  }
-  return result
 }
 
 /** Returns the first non-empty line, truncated for use as a preview title. */

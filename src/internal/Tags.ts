@@ -19,6 +19,11 @@ const written = new RegExp(`^[ \\t]*(?://|#|--|;|%|/\\*|<!--)[ \\t]*@(${tags.joi
 /** How a block comment ends, which a tag written in one carries. */
 const closing = /[ \t]*(?:\*\/|-->)[ \t]*$/
 
+/** Whether a source line becomes a prose annotation row. */
+export function tagged(line: string): boolean {
+  return written.test(line)
+}
+
 /**
  * Draws the tags a snippet carries as rows of prose, the way a resolved run
  * would draw them.

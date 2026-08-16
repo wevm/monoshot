@@ -36,33 +36,12 @@ describe('card', () => {
         "height": 420,
         "padding": 80,
         "scale": 1.5,
-        "version": 3,
+        "version": 4,
         "width": 800,
       }
     `)
     expect(Links.card.width * Links.card.scale).toBe(1200)
     expect(Links.card.height * Links.card.scale).toBe(630)
-  })
-})
-
-describe('excerpt', () => {
-  test('limits long lines to 72 display columns', () => {
-    const shown = Links.excerpt('x'.repeat(100))
-    expect(shown.code).toHaveLength(72)
-    expect(shown.overflow).toEqual({ horizontal: true, vertical: false })
-  })
-
-  test('limits tall snippets to ten lines', () => {
-    const shown = Links.excerpt(Array.from({ length: 12 }, (_, at) => `line ${at}`).join('\n'))
-    expect(shown.code.split('\n')).toHaveLength(10)
-    expect(shown.overflow).toEqual({ horizontal: false, vertical: true })
-  })
-
-  test('preserves code that fits the viewport', () => {
-    expect(Links.excerpt('const a = 1')).toEqual({
-      code: 'const a = 1',
-      overflow: { horizontal: false, vertical: false },
-    })
   })
 })
 
@@ -92,6 +71,89 @@ describe('fade', () => {
     expect(faded).toContain('class="body preview-overflow-x preview-overflow-y"')
     expect(faded).toContain('linear-gradient(to right')
     expect(faded).toContain('linear-gradient(to bottom')
+  })
+})
+
+describe('layout', () => {
+  test('uses standard dimensions for a short snippet', () => {
+    const { code, overflow, ...shape } = Links.layout('const a = 1\n')
+    expect(code).toBe('const a = 1\n')
+    expect(overflow).toEqual({ horizontal: false, vertical: false })
+    expect(shape).toMatchInlineSnapshot(`
+      {
+        "height": 420,
+        "padding": 80,
+        "scale": 1.5,
+        "width": 800,
+      }
+    `)
+  })
+
+  test('preserves output dimensions as the canvas grows', () => {
+    const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
+    const { code, overflow, ...grown } = Links.layout(fifteen)
+    expect(code).toBe(fifteen)
+    expect(overflow).toEqual({ horizontal: false, vertical: false })
+    expect(grown).toMatchInlineSnapshot(`
+      {
+        "height": 546,
+        "padding": 80,
+        "scale": 1.1538461538461537,
+        "width": 1040,
+      }
+    `)
+    // Verify that scaling produces the fixed social-card dimensions.
+    expect(Math.round(grown.width * grown.scale)).toBe(1200)
+    expect(Math.round(grown.height * grown.scale)).toBe(630)
+  })
+
+  test('draws the tallest snippet the card holds without dropping a line', () => {
+    const most = Array.from({ length: 29 }, () => 'const a = 1').join('\n')
+    const grown = Links.layout(most)
+    expect(grown.width).toBe(1600)
+    expect(grown.code).toBe(most)
+    expect(grown.overflow.vertical).toBe(false)
+  })
+
+  test('drops the line past the last one the card holds', () => {
+    const over = Array.from({ length: 30 }, (_, at) => `const v${at} = ${at}`).join('\n')
+    const grown = Links.layout(over)
+    expect(grown.width).toBe(1600)
+    expect(grown.code).toBe(`${over.split('\n').slice(0, 29).join('\n')}\n`)
+    expect(grown.overflow.vertical).toBe(true)
+  })
+
+  test('grows the canvas when a long line wraps', () => {
+    expect(Links.layout('x'.repeat(721)).width).toBeGreaterThan(800)
+  })
+
+  test('cuts wrapped code to the rows available at the widest canvas', () => {
+    const grown = Links.layout('x'.repeat(10_000))
+    expect(grown.code.length).toBeLessThan(10_000)
+    expect(grown.width).toBe(1600)
+    expect(grown.overflow.vertical).toBe(true)
+  })
+
+  test('wraps a wide-character line at half the columns of a Latin one', () => {
+    // East Asian wide characters occupy two display columns, so the same count wraps sooner.
+    const wide = Links.layout('あ'.repeat(400))
+    const latin = Links.layout('a'.repeat(400))
+    expect(latin.width).toBe(800)
+    expect(wide.width).toBeGreaterThan(latin.width)
+  })
+
+  test('keeps single-column Unicode without truncating it as wide text', () => {
+    const code = Array.from({ length: 29 }, () => 'éλЖ'.repeat(30)).join('\n')
+    const grown = Links.layout(code)
+    expect(grown.width).toBe(1600)
+    expect(grown.code).toBe(code)
+  })
+
+  test('includes annotation-row margins when choosing the canvas', () => {
+    const plain = Array.from({ length: 10 }, () => 'const a = 1').join('\n')
+    const tagged = Array.from({ length: 10 }, () => '// @log: looked at').join('\n')
+    expect(Links.layout(plain).width).toBe(800)
+    expect(Links.layout(tagged).width).toBeGreaterThan(800)
   })
 })
 

@@ -112,7 +112,7 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     if (!kept) return c.redirect('/og.jpg', 302)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
-    const cache = await caches.open('og')
+    const cache = await caches.open(`og:${Links.card.version}`)
     const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
@@ -273,7 +273,7 @@ function varied(response: Response): Response {
 /**
  * Renders a shared-link card from encoded editor state.
  *
- * Uses the image route to share validation and rendering behavior. Returns
+ * Uses the document route to share validation and rendering behavior. Returns
  * `undefined` when rendering fails so callers can serve the default card.
  */
 async function card(
@@ -289,19 +289,19 @@ async function card(
     Wallpapers.at(settings.background) ??
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Limit source to a fixed viewport so dense snippets remain readable.
-  const shown = Links.excerpt(Links.withoutTypes(settings.code))
+  // Truncate source to the largest canvas, then size the canvas to what remains.
+  const shape = Links.layout(Links.withoutTypes(settings.code))
   const drawn = await api.request(
     '/document',
     {
       body: JSON.stringify({
         // Pass wallpaper content through `picture`, not the application identifier.
         background: settings.background.startsWith('wallpaper:') ? 'default' : settings.background,
-        code: shown.code,
-        height: Links.card.height,
+        code: shape.code,
+        height: shape.height,
         // Resolve automatic language detection before invoking the renderer.
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
-        padding: Links.card.padding,
+        padding: shape.padding,
         ...(picture ? { picture } : {}),
         // Apply the selected theme's frame radius override.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
@@ -309,7 +309,7 @@ async function card(
         titleBar: false,
         // Preview crawlers cannot wait for package acquisition during Twoslash.
         twoslash: false,
-        width: Links.card.width,
+        width: shape.width,
       }),
       headers: { 'content-type': 'application/json' },
       method: 'POST',
@@ -320,8 +320,8 @@ async function card(
   if (!drawn.ok) return undefined
   try {
     const png = await Browser.screenshot(env.BROWSER, {
-      html: Links.fade(await drawn.text(), shown.overflow),
-      scale: Links.card.scale,
+      html: Links.fade(await drawn.text(), shape.overflow),
+      scale: shape.scale,
     })
     return png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer
   } catch {

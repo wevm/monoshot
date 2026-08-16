@@ -1,9 +1,9 @@
-/** Fixed social-card canvas dimensions and cache version. */
+/** Standard social-card canvas dimensions and cache version. */
 export const card = {
   height: 420,
   padding: 80,
   scale: 1.5,
-  version: 3,
+  version: 4,
   width: 800,
 } as const
 
