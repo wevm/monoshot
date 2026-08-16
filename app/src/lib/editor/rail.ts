@@ -9,8 +9,8 @@ import * as Notations from './notations.js'
 import { Tooltip } from '#/ui/Tooltip.js'
 import { keep, keptUnder } from './problems.js'
 
-// Lucide, at the size a control is set in: scan, highlighter, plus, minus.
-const icons: Readonly<Record<Notations.Kind, string>> = {
+// Lucide paths, at the size each rail control uses.
+const markIcons: Readonly<Record<Notations.Kind, string>> = {
   add: 'M5 12h14M12 5v14',
   focus:
     'M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2',
@@ -18,17 +18,30 @@ const icons: Readonly<Record<Notations.Kind, string>> = {
   remove: 'M5 12h14',
 }
 
-const labels: Readonly<Record<Notations.Kind, string>> = {
+const markLabels: Readonly<Record<Notations.Kind, string>> = {
   add: 'Mark as added',
   focus: 'Focus this line',
   highlight: 'Highlight this line',
   remove: 'Mark as removed',
 }
 
-const order = ['focus', 'highlight', 'add', 'remove'] as const
+const markOrder = ['focus', 'highlight', 'add', 'remove'] as const
 
-/** Why a row offers no marks, since its controls cannot say so themselves. */
-const unmarkable = 'Marks are unavailable for this row'
+const tagIcons: Readonly<Record<Notations.Tag, string>> = {
+  annotate: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z',
+  error: 'M12 8v4M12 16h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',
+  log: 'm5 7 5 5-5 5M12 17h7',
+  warn: 'M12 9v4M12 17h.01M10.27 4 2.27 18A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3l-8-14a2 2 0 0 0-3.46 0',
+}
+
+const tagColors: Readonly<Record<Notations.Tag, string>> = {
+  annotate: Theme.marks.add,
+  error: Theme.marks.remove,
+  log: Theme.marks.log,
+  warn: Theme.marks.warn,
+}
+
+const tagOrder = ['log', 'warn', 'error', 'annotate'] as const
 
 /**
  * Distance between controls and the window edge, beyond the resize grip's hit area.
@@ -94,14 +107,16 @@ type Painting = {
   set: boolean
 }
 
-/** What a row on screen offers: marks for a line of code, or one way out. */
+/** What a row on screen offers: marks for code, tags for comments, or one way out. */
 type Row = {
   /** Source offset of the pinned diagnostic rendered on this row. */
   at?: number | undefined
   carried?: readonly Notations.Kind[] | undefined
+  comment?: boolean | undefined
   height: number
   key: string
   line?: number | undefined
+  tag?: Notations.Tag | undefined
   takes?: boolean | undefined
   top: number
 }
@@ -137,6 +152,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   strip.className = 'rail'
   strip.style.setProperty('--rail-gap', `${gap}px`)
   container.appendChild(strip)
+  strip.addEventListener('pointerleave', unpoint)
   view.dom.addEventListener('mousemove', track)
   view.dom.addEventListener('mouseover', track)
   view.dom.addEventListener('mouseleave', clear)
@@ -144,9 +160,12 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   // Out here the strip is under the pointer rather than beside a row, so it
   // goes where the pointer goes rather than stepping between rows.
   container.addEventListener('mousemove', follow)
+  container.addEventListener('framegeometrychange', render)
   // On the window: a press carrying a mark down the rows can be let go
   // anywhere, and the rows are not where the pointer has to be by then.
   window.addEventListener('mouseup', drop)
+  const observer = new ResizeObserver(render)
+  observer.observe(container)
   render()
 
   return { destroy, update }
@@ -160,11 +179,14 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   function destroy() {
     gone = true
     Tooltip.point()
+    strip.removeEventListener('pointerleave', unpoint)
     view.dom.removeEventListener('mousemove', track)
     view.dom.removeEventListener('mouseover', track)
     view.dom.removeEventListener('mouseleave', clear)
     container.removeEventListener('mouseleave', clear)
     container.removeEventListener('mousemove', follow)
+    container.removeEventListener('framegeometrychange', render)
+    observer.disconnect()
     window.removeEventListener('mouseup', drop)
     window.removeEventListener('mousemove', carry)
     // Handed back before the layer is emptied: the surfaces outlive this, and a
@@ -177,6 +199,11 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     hung.clear()
     container.replaceChildren()
     reaches.clear()
+  }
+
+  /** Dismisses the shared tooltip after the pointer leaves the whole strip. */
+  function unpoint() {
+    Tooltip.point()
   }
 
   /** Where the pointer is out beside the code, which the strip sits at. */
@@ -221,8 +248,12 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   }
 
   function drop() {
+    if (!painting) return
     painting = undefined
     window.removeEventListener('mousemove', carry)
+    // Refresh once replacing the pressed control can no longer interrupt its drag.
+    showing = undefined
+    show(view.state.field(reached, false))
   }
 
   /**
@@ -274,9 +305,11 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
             if (closed.has(line.number)) continue
             rows.push({
               carried: Notations.at(view.state, line.number).map((notation) => notation.kind),
+              comment: Notations.takesTag(view.state, line.number, syntax),
               height: block.height,
               key: `line:${line.number}`,
               line: line.number,
+              tag: Notations.tagAt(view.state, line.number),
               takes: Notations.takesMark(view.state, line.number),
               // The document's own top, so a scrolled row still lands beside
               // itself.
@@ -366,11 +399,18 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // pointer, which is where it sits then.
     if (strip.dataset['following'] === undefined)
       strip.style.setProperty('--rail-top', `${Math.round(row.top + row.height / 2)}px`)
-    strip.dataset['shown'] = ''
+    // Replacing the pressed control can interrupt its drag and moves the tooltip anchor.
+    if (painting) {
+      strip.dataset['shown'] = ''
+      return
+    }
     if (showing === key) return
+    const offered = controls(row)
     showing = key
     Tooltip.point()
-    strip.replaceChildren(...controls(row))
+    strip.replaceChildren(...offered)
+    if (offered.length) strip.dataset['shown'] = ''
+    else delete strip.dataset['shown']
   }
 
   /**
@@ -412,7 +452,7 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     return cover
   }
 
-  /** What a row offers: the marks it can carry, or the one way out of it. */
+  /** What a row offers: tags for comments, marks for code, or the one way out. */
   function controls(row: Row) {
     const { at, line } = row
     if (line === undefined)
@@ -429,10 +469,24 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
               select: () => keep(view, at),
             }),
           ]
-    return order.map((kind) => {
+    if (row.comment) {
+      return tagOrder.map((tag) => {
+        const active = row.tag === tag
+        const button = control({
+          active,
+          color: tagColors[tag],
+          icon: tagIcons[tag],
+          label: `${active ? 'Remove' : 'Set'} @${tag}`,
+          select: () => toggleTag(line, tag),
+        })
+        button.dataset['kind'] = tag
+        return button
+      })
+    }
+    if (row.takes !== true) return []
+    return markOrder.map((kind) => {
       const button = control({
-        active: row.takes === true && row.carried?.includes(kind) === true,
-        disabled: row.takes !== true,
+        active: row.carried?.includes(kind) === true,
         hold: () => {
           // What the press decides for the row it started on is what it carries
           // to every row it reaches, rather than flipping each in turn.
@@ -445,8 +499,8 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
           window.addEventListener('mousemove', carry)
           spread(line)
         },
-        icon: icons[kind],
-        label: row.takes === true ? labels[kind] : unmarkable,
+        icon: markIcons[kind],
+        label: markLabels[kind],
         select: () => toggle(line, kind),
       })
       button.dataset['kind'] = kind
@@ -484,7 +538,6 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
       const done = () => Tooltip.point()
       button.addEventListener('pointerenter', named)
       button.addEventListener('focus', named)
-      button.addEventListener('pointerleave', done)
       button.addEventListener('blur', done)
     }
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
@@ -549,7 +602,12 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
    */
   function apply(line: number, kind: Notations.Kind, set: boolean) {
     const { state } = view
-    if (line > state.doc.lines || !Notations.takesMark(state, line)) return undefined
+    if (
+      line > state.doc.lines ||
+      !Notations.takesMark(state, line) ||
+      Notations.takesTag(state, line, syntax)
+    )
+      return undefined
     const carries = Notations.at(state, line).some((notation) => notation.kind === kind)
     if (carries === set) return undefined
     const at = state.doc.line(line).from
@@ -561,9 +619,14 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
 
   function toggle(line: number, kind: Notations.Kind) {
     const { state } = view
-    // Refused here rather than only on the control: a blank line carrying a mark
-    // of its own would be taken away along with it.
-    if (line > state.doc.lines || !Notations.takesMark(state, line)) return undefined
+    // Refused here rather than only on the control: blank rows cannot safely
+    // carry marks, and comment rows offer tags instead.
+    if (
+      line > state.doc.lines ||
+      !Notations.takesMark(state, line) ||
+      Notations.takesTag(state, line, syntax)
+    )
+      return undefined
     const transaction = state.update({
       changes: Notations.toggle(state, { kind, line, syntax }),
       // No selection of its own: the caret stays where the writer left it, and
@@ -579,5 +642,9 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     painting.changed.clear()
     for (const at of changed) painting.changed.add(at)
     return transaction
+  }
+
+  function toggleTag(line: number, tag: Notations.Tag) {
+    view.dispatch({ changes: Notations.toggleTag(view.state, { line, syntax, tag }) })
   }
 }

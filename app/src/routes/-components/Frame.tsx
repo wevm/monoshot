@@ -6,7 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   ReactNode,
 } from 'react'
-import { createContext, useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import * as Annotation from '#/lib/editor/annotation.js'
 import * as Identifier from '#/lib/editor/identifier.js'
@@ -14,15 +14,12 @@ import { ignore } from '#/lib/export.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { Tooltip } from '#/ui/Tooltip.js'
-import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
+import { color, crossfade, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   // Backdrop and window colors are per-theme, so they arrive as CSS variables
   // set on the root rather than as static token references.
   palette: (palette: Palette) => ({
-    '--backdrop-angle': `${palette.angle}deg`,
-    '--backdrop-from': palette.from,
-    '--backdrop-to': palette.to,
     '--window-background': palette.background,
     '--window-border': palette.border,
     '--window-title': palette.title,
@@ -33,6 +30,18 @@ const styles = stylex.create({
     '--handle-opacity': { default: 0, ':hover': 0.45 },
     position: 'relative',
   },
+  responsive: {
+    maxWidth: {
+      default: 'calc(100vw - 20px)',
+      '@media (min-width: 800px)': 'calc(100vw - 400px)',
+    },
+  },
+  intrinsic: {
+    '--code-annotation-max-width': 'none',
+    minWidth: 320,
+    width: 'max-content',
+  },
+  responsiveIntrinsic: { minWidth: 'min(360px, calc(100vw - 20px))' },
   // Grips take the opposite polarity from the artwork, so they read on a light
   // theme as well as a dark one, with a hairline in the other direction to
   // hold them against a backdrop of similar lightness.
@@ -73,17 +82,13 @@ const styles = stylex.create({
     display: 'grid',
     justifyItems: 'center',
     overflow: 'hidden',
-    transitionDuration: motion.medium,
-    transitionProperty: 'padding, background-image, background-color',
-    transitionTimingFunction: motion.out,
-    // `MotionConfig` governs Motion components, not this CSS transition, so
-    // the preference has to be honored here too.
-    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0s' },
+    position: 'relative',
   },
   // A drag has to land on the pointer, not ease toward it: the easing would
   // trail every move and leave the handles off their edges mid-gesture.
   dragging: { transitionDuration: '0s' },
   width: (value: number) => ({ width: value }),
+  widthLimit: (value: number) => ({ maxWidth: value }),
   // Resize targets remain transparent until hovered or focused.
   handle: {
     alignItems: 'center',
@@ -132,13 +137,11 @@ const styles = stylex.create({
     height: '100%',
     width: '100%',
   }),
-  backdrop: {
-    backgroundImage:
-      'linear-gradient(var(--backdrop-angle), var(--backdrop-from), var(--backdrop-to))',
-  },
-  fill: (value: string) => ({ backgroundColor: value }),
-  // Crop the image to the artwork bounds. Fixed attachment aligns the artwork
-  // with the same image used as the page background.
+  backgroundLayer: { inset: 0, pointerEvents: 'none', position: 'absolute' },
+  backdrop: (palette: { angle: number; from: string; to: string }) => ({
+    backgroundImage: `linear-gradient(${palette.angle}deg, ${palette.from}, ${palette.to})`,
+  }),
+  // Crop and center the image within the artwork bounds.
   wallpaper: (picture: { attachment: 'fixed' | 'scroll'; source: string }) => ({
     backgroundAttachment: picture.attachment,
     backgroundImage: `url("${picture.source}")`,
@@ -152,6 +155,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    position: 'relative',
     width: '100%',
   },
   radius: (value: number) => ({ borderRadius: value }),
@@ -201,6 +205,8 @@ export function Frame(props: Frame.Props) {
     padding,
     palette,
     radius,
+    responsive,
+    maxWidth,
     title,
     titleBar,
     wallpaper,
@@ -211,19 +217,65 @@ export function Frame(props: Frame.Props) {
   // Held in state rather than a ref: what draws into it is a child, which has to
   // render again once the element exists.
   const [aside, setAside] = useState<HTMLDivElement | null>(null)
+  const [root, setRoot] = useState<HTMLDivElement | null>(null)
+  const [measured, setMeasured] = useState(Frame.minWidth(padding))
+
+  // The editor itself keeps the same dimensions when padding moves its rail
+  // host, so CodeMirror has no geometry change from which to remeasure it.
+  useLayoutEffect(() => {
+    aside?.dispatchEvent(new Event('framegeometrychange'))
+  }, [aside, padding, width])
+
+  // Intrinsic width remains state rather than becoming a saved setting. The
+  // frame can then keep following the longest line until a handle fixes it.
+  useLayoutEffect(() => {
+    if (!root) return
+    const measure = () => setMeasured(root.getBoundingClientRect().width)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [root])
+
+  // Fixed widths share the codec's ceiling. Intrinsic frames follow the
+  // longest line until the live stage bound, then pin there on first resize.
+  const value = Math.min(width ?? measured, maxWidth ?? widthCeiling, widthCeiling)
 
   // Leave the theme arrows and their labels a gutter, but never let a narrow
   // viewport drag the artwork smaller than it already is. Route components are
   // client-only, so the server branch is a fallback rather than a real case.
   const widthMax =
-    typeof window === 'undefined' ? 1280 : Math.max(width, Math.min(1280, window.innerWidth - 320))
-  // Move both bounds together to preserve a usable code width.
-  const paddingMax = Frame.maxPadding(width)
+    maxWidth ??
+    (typeof window === 'undefined'
+      ? 1280
+      : Math.max(value, Math.min(1280, window.innerWidth - 320)))
+  const paddingMax = maxWidth
+    ? Frame.maxPaddingFor(maxWidth, value - padding * 2)
+    : Frame.maxPadding(value)
   const widthMin = Frame.minWidth(padding)
+  const customGradient = gradient(background)
+  const backgroundKey = customGradient
+    ? 'gradient'
+    : background.startsWith('#')
+      ? 'color'
+      : wallpaper
+        ? `${background}:${wallpaper.source}`
+        : background === 'default' || Wallpapers.names(background)
+          ? `${background}:${palette.backdrop.angle}:${palette.backdrop.from}:${palette.backdrop.to}`
+          : background
+  const backgroundAnimation = customGradient
+    ? {
+        backgroundImage: `linear-gradient(135deg, ${customGradient[0]}, ${customGradient[1]})`,
+        opacity: 1,
+      }
+    : background.startsWith('#')
+      ? { backgroundColor: background, opacity: 1 }
+      : { opacity: 1 }
 
   return (
     <MotionConfig reducedMotion="user">
       <div
+        ref={setRoot}
         {...stylex.props(
           styles.root,
           styles.asidePalette({
@@ -232,7 +284,10 @@ export function Frame(props: Frame.Props) {
             foreground: palette.window.foreground,
           }),
           styles.gripPalette(palette.type === 'light'),
-          styles.width(width),
+          responsive && styles.responsive,
+          width === undefined ? styles.intrinsic : styles.width(value),
+          maxWidth !== undefined && styles.widthLimit(maxWidth),
+          responsive && width === undefined && styles.responsiveIntrinsic,
         )}
       >
         <div
@@ -240,30 +295,36 @@ export function Frame(props: Frame.Props) {
             styles.canvas,
             dragging && styles.dragging,
             styles.palette({
-              angle: palette.backdrop.angle,
               background: palette.window.background,
               border: palette.window.border,
-              from: palette.backdrop.from,
               title: palette.window.title,
-              to: palette.backdrop.to,
             }),
-            // Use the theme backdrop while an image loads, then replace it
-            // because both values set the same background property.
-            // Every picture, not only the ones there are: a fragment naming one
-            // that has since gone would otherwise leave the canvas transparent.
-            !wallpaper && (background === 'default' || Wallpapers.names(background))
-              ? styles.backdrop
-              : null,
-            background.startsWith('#') ? styles.fill(background) : null,
-            wallpaper
-              ? styles.wallpaper({
-                  attachment: wallpaper.spread === 'viewport' ? 'fixed' : 'scroll',
-                  source: wallpaper.source,
-                })
-              : null,
             styles.padding(padding),
           )}
         >
+          <AnimatePresence initial={false}>
+            <m.div
+              animate={backgroundAnimation}
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              key={backgroundKey}
+              transition={crossfade}
+              {...stylex.props(
+                styles.backgroundLayer,
+                // Use the theme backdrop while an image loads. Every named
+                // picture, including one that disappeared, gets this fallback.
+                !wallpaper && (background === 'default' || Wallpapers.names(background))
+                  ? styles.backdrop(palette.backdrop)
+                  : null,
+                wallpaper
+                  ? styles.wallpaper({
+                      attachment: wallpaper.spread === 'viewport' ? 'fixed' : 'scroll',
+                      source: wallpaper.source,
+                    })
+                  : null,
+              )}
+            />
+          </AnimatePresence>
           <div {...stylex.props(styles.window, styles.radius(radius), styles.windowShadow)}>
             <AnimatePresence initial={false}>
               {titleBar && (
@@ -347,7 +408,7 @@ export function Frame(props: Frame.Props) {
             min={widthMin}
             onChange={onWidthChange}
             step={16}
-            value={width}
+            value={value}
           />
           <Handle
             axis="x"
@@ -360,7 +421,7 @@ export function Frame(props: Frame.Props) {
             min={widthMin}
             onChange={onWidthChange}
             step={16}
-            value={width}
+            value={value}
           />
         </div>
         <div {...{ [ignore]: '' }} {...stylex.props(styles.handles, styles.handlesWindow(padding))}>
@@ -516,6 +577,10 @@ export declare namespace Frame {
     onRadiusChange: (radius: number) => void
     /** Corner radius of the code window, in pixels. */
     radius: number
+    /** Largest artwork width that fits in the live editor stage. */
+    maxWidth?: number | undefined
+    /** Constrains the live editor to the viewport. Export frames remain at their requested width. */
+    responsive?: boolean | undefined
     /** Title-bar text. Empty shows the placeholder. */
     title: string
     /** Shows the window chrome: traffic lights and the title field. */
@@ -527,22 +592,27 @@ export declare namespace Frame {
      * all a captured copy has.
      */
     wallpaper?: { source: string; spread: 'artwork' | 'viewport' } | undefined
-    /** Artwork width, in pixels. */
-    width: number
+    /** Artwork width in pixels, or intrinsic to the longest line when omitted. */
+    width?: number | undefined
   }
 }
 
 type Palette = {
-  angle: number
   background: string
   border: string
-  from: string
   title: string
-  to: string
 }
 
 /** The most padding the frame takes, however wide the artwork is. */
 const paddingCeiling = 160
+
+/** Largest fixed width the shared frame codec accepts. */
+const widthCeiling = 1600
+
+function gradient(background: string): [string, string] | undefined {
+  const match = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
+  return match?.[1] && match[2] ? [match[1], match[2]] : undefined
+}
 
 export namespace Frame {
   /**
@@ -554,6 +624,11 @@ export namespace Frame {
   /** The largest padding that still leaves the window a usable width. */
   export function maxPadding(width: number) {
     return Math.min(paddingCeiling, Math.max(0, Math.floor((width - 240) / 2)))
+  }
+
+  /** The largest padding that preserves a window width within an outer bound. */
+  export function maxPaddingFor(width: number, windowWidth: number) {
+    return Math.min(paddingCeiling, Math.max(0, Math.floor((width - windowWidth) / 2)))
   }
 
   /** The narrowest artwork the window stays usable in, at this padding. */
@@ -615,8 +690,8 @@ const code = stylex.create({
     lineHeight: '22px',
     // Ligatures would break the 1:1 metrics the editor relies on later.
     fontVariantLigatures: 'none',
-    // No scroller: the lines wrap, and one would clip the marks that reach past
-    // the code as well as leave a scrollbar in the picture.
+    // The frame owns overflow: fixed widths wrap, while an intrinsic frame
+    // expands to the longest line without adding a scrollbar to the picture.
     paddingBlock: 12,
     tabSize: 2,
   },

@@ -96,6 +96,11 @@ export type Response =
       version: number
     }
 
+/** Whether type acquisition still needs to resolve an imported package. */
+export function missingImports(result: Twoslash.Result): boolean {
+  return result.diagnostics.some((diagnostic) => diagnostic.code === 2307)
+}
+
 /**
  * Returns a run without diagnostics ignored in the editor.
  *

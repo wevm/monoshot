@@ -54,6 +54,27 @@ describe('build', () => {
     `)
   })
 
+  test('sets intrinsic source and annotation sizing when width is omitted', async () => {
+    const automatic = await frame.toDocument({
+      ...options,
+      twoslash: { code: options.code, nodes: [] },
+      width: undefined,
+    })
+    const fixed = await frame.toDocument(options)
+    expect({
+      automatic: automatic.includes('min-width: 320px;\n  width: max-content;'),
+      fixed: fixed.includes('width: 640px;'),
+    }).toMatchInlineSnapshot(`
+      {
+        "automatic": true,
+        "fixed": true,
+      }
+    `)
+    expect(automatic).toContain('--code-annotation-max-width: none;')
+    expect(automatic).toContain('max-width: var(--code-annotation-max-width, 64ch);')
+    expect(fixed).not.toContain('--code-annotation-max-width: none;')
+  })
+
   test('gives the window the depth the preview draws', async () => {
     const shadow = async (theme: 'vitesse-dark' | 'vitesse-light') => {
       const document = await frame.toDocument({ ...options, theme })
@@ -98,11 +119,13 @@ describe('build', () => {
     expect({
       custom: await shown('#101014'),
       default: await shown('default'),
+      gradient: await shown('gradient:#3f37c9:#8c87df'),
       none: await shown('none'),
     }).toMatchInlineSnapshot(`
       {
         "custom": "#101014",
         "default": "linear-gradient(140deg, oklch(0.34220370283599866 0.09235901076610567 356.5125502468221), oklch(0.28220370283599866 0.09235901076610567 46.512550246822116))",
+        "gradient": "linear-gradient(135deg, #3f37c9, #8c87df)",
         "none": "transparent",
       }
     `)

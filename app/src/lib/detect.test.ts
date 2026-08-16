@@ -39,6 +39,21 @@ export function render(code: string): string {
 }
 `
 
+const ambiguousTypescript = `class Client {
+  public async request() {
+    const result = await fetch('/api')
+    return new Response(result)
+  }
+}
+`
+
+const javascript = `const users = await fetch('/api/users').then((response) => response.json())
+
+export function activeUsers() {
+  return users.filter((user) => user.active)
+}
+`
+
 const go = `package main
 
 import "fmt"
@@ -98,6 +113,14 @@ describe('detect', () => {
     `)
   })
 
+  test('prefers TypeScript when another language has the same score', () => {
+    expect(detect(ambiguousTypescript)).toBe('typescript')
+  })
+
+  test('prefers TypeScript for compatible JavaScript', () => {
+    expect(detect(javascript)).toBe('typescript')
+  })
+
   test('declines a snippet too slight to call', () => {
     expect([detect(''), detect('x = 1'), detect('hello world')]).toMatchInlineSnapshot(`
       [
@@ -125,7 +148,18 @@ describe('typed', () => {
 describe('languages', () => {
   test('covers ray.so and names every id detection can return', () => {
     const titles = new Set(languages.map((language) => language.title))
-    const named = ['Astro', 'Elixir', 'Gleam', 'Nix', 'Prisma', 'Solidity', 'Svelte', 'Vue', 'Zig']
+    const named = [
+      'Astro',
+      'Elixir',
+      'Gleam',
+      'Nix',
+      'Prisma',
+      'Solidity',
+      'Svelte',
+      'Text',
+      'Vue',
+      'Zig',
+    ]
     expect({
       count: languages.length,
       // A detected id with no entry here would show as a raw id in the picker.
@@ -133,9 +167,9 @@ describe('languages', () => {
       unique: new Set(languages.map((language) => language.id)).size,
     }).toMatchInlineSnapshot(`
       {
-        "count": 60,
+        "count": 61,
         "missing": [],
-        "unique": 60,
+        "unique": 61,
       }
     `)
   })
@@ -143,11 +177,12 @@ describe('languages', () => {
 
 describe('title', () => {
   test('names a language id', () => {
-    expect([title('tsx'), title('html'), title('cpp')]).toMatchInlineSnapshot(`
+    expect([title('tsx'), title('html'), title('cpp'), title('text')]).toMatchInlineSnapshot(`
       [
         "TSX",
         "HTML",
         "C++",
+        "Text",
       ]
     `)
   })

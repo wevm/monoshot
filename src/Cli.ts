@@ -10,11 +10,12 @@ import * as z from 'zod'
 import * as Codec from './Codec.js'
 import type * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
+import * as Terminal from './internal/Terminal.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
 
 /** Default deployment for generated share links. */
-const site = 'https://monoshot.broken-thunder-fb8b.workers.dev'
+const site = 'https://monoshot.dev'
 
 /**
  * Default language when neither an option nor a file extension specifies one.
@@ -44,7 +45,7 @@ const settings = z.object({
   background: z
     .string()
     .optional()
-    .describe('Frame background: `default`, `none`, or a `#rrggbb` color.'),
+    .describe('Frame background: `default`, `none`, `#rrggbb`, or `gradient:#rrggbb:#rrggbb`.'),
   lang: z
     .string()
     .optional()
@@ -90,6 +91,9 @@ export function create() {
     mcp: {
       instructions:
         'Turn code into PNG or SVG images, or shareable links. Supports syntax highlighting, themes, and type annotations for JavaScript and TypeScript. Use `themes` to list available themes.',
+      // Four commands do not need a discovery gateway. Direct exposure also
+      // keeps `mcp doctor` identical to what MCP clients list.
+      tools: { discovery: 'direct' },
     },
     version,
   })
@@ -100,6 +104,11 @@ export function create() {
       examples: [
         { args: { file: 'app.ts' }, options: { out: 'app.png' } },
         { args: { file: 'app.ts' }, description: 'Render as SVG.', options: { type: 'svg' } },
+        {
+          args: { file: 'app.ts' },
+          description: 'Display an inline terminal preview.',
+          options: { preview: true },
+        },
         { description: 'Render inline source code.', options: { code: 'const a = 1' } },
         {
           args: { file: 'app.ts' },
@@ -114,6 +123,12 @@ export function create() {
           .optional()
           .describe('Extra flag for the browser, such as `--no-sandbox`. Repeatable.'),
         executable: z.string().optional().describe('Path to a Chrome or Chromium executable.'),
+        embed: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include the image as a data URL for clients without access to the output path.',
+          ),
         type: z
           .enum(['png', 'svg'])
           .optional()
@@ -122,6 +137,7 @@ export function create() {
           .string()
           .optional()
           .describe('Image output path. Defaults to a file beside the source.'),
+        preview: z.boolean().optional().describe('Display the rendered image in the terminal.'),
         scale: z
           .number()
           .positive()
@@ -137,9 +153,10 @@ export function create() {
       }),
       output: z.object({
         bytes: z.number().describe('Size of the image written.'),
+        dataUrl: z.string().optional().describe('The image as a data URL when `--embed` is set.'),
         path: z.string().describe('Where the image was written.'),
       }),
-      async run({ args, error, options }) {
+      async run({ args, error, formatExplicit, ok, options }) {
         const code = await read(args.file, options.code)
         if (code instanceof Error) return error({ code: 'no_snippet', message: code.message })
         const resolved = frame(args.file, code, options)
@@ -163,23 +180,59 @@ export function create() {
           })
         // `error` returns its result rather than throwing, so a failed render
         // has to come back as a value the handler can return through.
-        const image = await (async () => {
+        const rendered = await (async () => {
+          const renderer = Headless.create({
+            ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
+            ...(options.executable === undefined ? {} : { executable: options.executable }),
+          })
           try {
-            return await Headless.render({
+            const picture = await themedPicture(resolved.state)
+            const parameters = {
               ...resolved.state,
-              type,
+              ...(picture === undefined ? {} : { picture }),
               twoslash: options.twoslash ?? typed.has(resolved.state.lang),
-              ...(options.browserArg === undefined ? {} : { args: options.browserArg }),
-              ...(options.executable === undefined ? {} : { executable: options.executable }),
               ...(options.scale === undefined ? {} : { scale: options.scale }),
-            })
+            }
+            const image = await renderer.render({ ...parameters, type })
+            const preview =
+              options.preview === true && !formatExplicit
+                ? type === 'png'
+                  ? image
+                  : await renderer.render({ ...parameters, type: 'png' }).catch(() => undefined)
+                : undefined
+            return { image, preview }
           } catch (cause) {
             return cause instanceof Error ? cause : new Error(String(cause))
+          } finally {
+            await renderer.dispose()
           }
         })()
-        if (image instanceof Error) return error({ code: 'render_failed', message: image.message })
-        await fs.writeFile(out, image)
-        return { bytes: image.length, path: out }
+        if (rendered instanceof Error)
+          return error({ code: 'render_failed', message: rendered.message })
+        await fs.writeFile(out, rendered.image)
+        if (rendered.preview) await Terminal.preview(rendered.preview)
+        return ok(
+          {
+            bytes: rendered.image.length,
+            ...(options.embed
+              ? {
+                  dataUrl: `data:image/${type === 'svg' ? 'svg+xml' : 'png'};base64,${Buffer.from(rendered.image).toString('base64')}`,
+                }
+              : {}),
+            path: out,
+          },
+          {
+            cta: {
+              commands: [
+                {
+                  command: shareCommand(args.file, options),
+                  description: 'Create a matching editor link.',
+                },
+              ],
+              description: 'Next, create an editor link:',
+            },
+          },
+        )
       },
     })
     .command('share', {
@@ -227,6 +280,36 @@ export function create() {
     })
 }
 
+/** Builds a copy-ready POSIX command for a matching editor link. */
+function shareCommand(
+  file: string | undefined,
+  options: z.output<typeof settings> & z.output<typeof inline>,
+) {
+  const command = ['share']
+  if (options.titleBar) command.push('--title-bar')
+  if (file !== undefined) command.push(shellQuote(file))
+  for (const [name, value] of Object.entries({
+    background: options.background,
+    code: file === undefined ? options.code : undefined,
+    lang: options.lang,
+    padding: options.padding,
+    radius: options.radius,
+    theme: options.theme,
+    title: options.title,
+    width: options.width,
+  })) {
+    if (value === undefined) continue
+    command.push(`--${name}`, shellQuote(String(value)))
+  }
+  return command.join(' ')
+}
+
+/** Quotes one shell token without allowing interpolation or command substitution. */
+function shellQuote(value: string) {
+  if (/^[\w%+./:=,@-]+$/.test(value)) return value
+  return `'${value.replaceAll("'", `'\\''`)}'`
+}
+
 /** Command failure returned through the CLI error handler. */
 type Failure = { code: string; message: string }
 
@@ -259,7 +342,24 @@ function frame(
   const lang = language(state.lang, file)
   if (lang === undefined)
     return { code: 'unknown_language', message: `\`${state.lang}\` is not a bundled language.` }
-  return { state: { ...state, lang } }
+  return {
+    state: {
+      ...state,
+      lang,
+      // Tempo's artwork is rectangular. Keep an explicitly selected radius.
+      radius: options.radius === undefined && state.theme === 'tempo' ? 0 : state.radius,
+    },
+  }
+}
+
+/** Returns the artwork a composed theme owns when its default backdrop is selected. */
+async function themedPicture(state: Codec.State): Promise<string | undefined> {
+  if (state.background !== 'default' || !Theme.composed.some((theme) => theme.name === state.theme))
+    return undefined
+  const bytes = await fs.readFile(
+    new URL(`../app/public/wallpapers/${state.theme}.webp`, import.meta.url),
+  )
+  return `data:image/webp;base64,${bytes.toString('base64')}`
 }
 
 /**

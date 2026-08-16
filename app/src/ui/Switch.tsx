@@ -1,7 +1,7 @@
 import { Switch as Base } from '@base-ui/react/switch'
 import * as stylex from '@stylexjs/stylex'
 
-import { color, shadow } from '../theme/tokens.stylex.js'
+import { color, motion, shadow } from '../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   root: {
@@ -20,6 +20,9 @@ const styles = stylex.create({
     outline: 'none',
     padding: 0,
     position: 'relative',
+    transitionDuration: motion.fast,
+    transitionProperty: 'background-color',
+    transitionTimingFunction: motion.inOut,
     width: 36,
   },
   thumb: {
@@ -29,10 +32,17 @@ const styles = stylex.create({
     boxShadow: shadow.thumb,
     display: 'block',
     height: 16,
-    insetInlineStart: { default: 2, ':is([data-checked])': 18 },
+    insetInlineStart: 2,
     position: 'absolute',
     top: 2,
+    transform: { default: 'translateX(0)', ':is([data-checked])': 'translateX(16px)' },
+    transitionDuration: motion.fast,
+    transitionProperty: 'background-color, transform',
+    transitionTimingFunction: motion.inOut,
     width: 16,
+    '@media (prefers-reduced-motion: reduce)': {
+      transitionProperty: 'background-color',
+    },
   },
 })
 

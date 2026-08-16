@@ -8,6 +8,7 @@ const state = {
   lang: 'typescript',
   padding: 96,
   radius: 8,
+  syntax: 'github-dark',
   theme: 'github-dark',
   title: 'highlight.ts',
   titleBar: false,
@@ -28,11 +29,12 @@ describe('serialize', () => {
         "lang": "auto",
         "padding": 64,
         "radius": 12,
-        "theme": "vitesse-dark",
+        "syntax": "auto",
+        "theme": "golden-gate-dark",
         "title": "",
         "titleBar": false,
         "types": true,
-        "width": 640,
+        "width": undefined,
       }
     `)
   })
@@ -79,9 +81,9 @@ describe('deserialize', () => {
       Codec.deserialize(truncated).theme,
     ]).toMatchInlineSnapshot(`
       [
-        "vitesse-dark",
-        "vitesse-dark",
-        "vitesse-dark",
+        "golden-gate-dark",
+        "golden-gate-dark",
+        "golden-gate-dark",
       ]
     `)
   })
@@ -99,11 +101,12 @@ describe('deserialize', () => {
         "lang": "rust",
         "padding": 64,
         "radius": 12,
-        "theme": "vitesse-dark",
+        "syntax": "auto",
+        "theme": "golden-gate-dark",
         "title": "",
         "titleBar": false,
         "types": true,
-        "width": 640,
+        "width": undefined,
       }
     `)
   })
@@ -113,6 +116,7 @@ describe('deserialize', () => {
       lzString.compressToEncodedURIComponent(JSON.stringify({ b: background }))
     expect([
       Codec.deserialize(hash('#1c1c1e')).background,
+      Codec.deserialize(hash('gradient:#3f37c9:#8c87df')).background,
       Codec.deserialize(hash('none')).background,
       Codec.deserialize(hash('red')).background,
       Codec.deserialize(hash('#bogus')).background,
@@ -120,6 +124,7 @@ describe('deserialize', () => {
     ]).toMatchInlineSnapshot(`
       [
         "#1c1c1e",
+        "gradient:#3f37c9:#8c87df",
         "none",
         "default",
         "default",
@@ -170,8 +175,15 @@ describe('deserialize', () => {
     expect({ padding: negative.padding, width: wide.width }).toMatchInlineSnapshot(`
       {
         "padding": 64,
-        "width": 640,
+        "width": undefined,
       }
     `)
+  })
+
+  test('keeps the fixed width carried by an existing link', () => {
+    const hash = lzString.compressToEncodedURIComponent(
+      JSON.stringify({ c: 'const a = 1', w: 640 }),
+    )
+    expect(Codec.deserialize(hash).width).toBe(640)
   })
 })

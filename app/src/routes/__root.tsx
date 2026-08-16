@@ -5,17 +5,19 @@ import type { ReactNode } from 'react'
 
 import * as Scheme from '#/lib/scheme.js'
 import * as Site from '#/lib/site.js'
+import * as Opening from '#/lib/opening.js'
 import appCss from '#/styles.css?url'
 import { Tooltip } from '#/ui/Tooltip.js'
 import { motion } from '../theme/tokens.stylex.js'
 
 const title = 'monoshot'
-const description = 'Render code images with type-aware annotations.'
+const description =
+  'Create code images with syntax highlighting, customizable themes, and type-aware annotations.'
 /** Dimensions and path of the generated social card. */
 const card = { height: '630', path: '/og.jpg', width: '1200' } as const
 
 export const Route = createRootRoute({
-  head: () => ({
+  head: ({ matches }) => ({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
@@ -41,7 +43,26 @@ export const Route = createRootRoute({
     ],
     scripts: [{ children: schemeScript }],
     links: [
-      { rel: 'canonical', href: Site.origin },
+      {
+        rel: 'canonical',
+        href: (() => {
+          const shared = matches.find((match) => match.pathname.startsWith('/s/'))
+          return shared ? Site.url(shared.pathname) : Site.origin
+        })(),
+      },
+      { rel: 'alternate', href: '/SKILL.md', type: 'text/markdown' },
+      {
+        rel: 'icon',
+        href: '/icon-light.svg',
+        media: '(prefers-color-scheme: light)',
+        type: 'image/svg+xml',
+      },
+      {
+        rel: 'icon',
+        href: '/icon-dark.svg',
+        media: '(prefers-color-scheme: dark)',
+        type: 'image/svg+xml',
+      },
       { rel: 'stylesheet', href: appCss },
       // StyleX dev CSS is served by the unplugin's dev middleware; the built
       // CSS is appended to the styles.css asset, so prod needs no extra link.
@@ -65,8 +86,9 @@ function Layout() {
 }
 
 // Runs before first paint so a stored override never flashes the OS scheme.
-// Inlined rather than imported because module scripts are deferred.
-const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{}`
+// A fragment cannot reach the server, so its loading screen remains until the
+// client restores the complete shared state. Module scripts run too late here.
+const schemeScript = `try{var s=localStorage.getItem(${JSON.stringify(Scheme.storageKey)});if(s==='light'||s==='dark')document.documentElement.style.colorScheme=s}catch{};try{if(!location.hash&&sessionStorage.getItem(${JSON.stringify(Opening.storageKey)})==='true')document.documentElement.style.setProperty('--loading-screen-display','none')}catch{}`
 
 function Document({ children }: { children: ReactNode }) {
   return (

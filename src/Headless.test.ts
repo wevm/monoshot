@@ -84,17 +84,14 @@ describe('render', () => {
     })
     // The PNG signature, so a blank or truncated capture is not mistaken for
     // a rendered one.
-    expect({ png: png.slice(0, 4), sized: png.length > 5000 }).toMatchInlineSnapshot(`
+    expect({ png: Array.from(png.slice(0, 4)), sized: png.length > 5000 }).toMatchInlineSnapshot(`
       {
-        "png": {
-          "data": [
-            137,
-            80,
-            78,
-            71,
-          ],
-          "type": "Buffer",
-        },
+        "png": [
+          137,
+          80,
+          78,
+          71,
+        ],
         "sized": true,
       }
     `)
@@ -131,6 +128,45 @@ describe('render', () => {
       await browser.close()
     }
   })
+
+  test.skipIf(!chrome)(
+    'fits omitted width to a long rendered line',
+    { timeout: 120_000 },
+    async () => {
+      const renderer = Headless.create()
+      const code = `const value = "${'long'.repeat(40)}"\n`
+      const draw = async (width?: number) => {
+        const svg = new TextDecoder().decode(
+          await renderer.render({
+            code,
+            lang: 'ts',
+            theme: 'vitesse-dark',
+            type: 'svg',
+            ...(width === undefined ? {} : { width }),
+          }),
+        )
+        const match = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg)
+        if (!match?.[1] || !match[2]) throw new Error('The SVG has no measurable view box.')
+        return { height: Number(match[2]), width: Number(match[1]) }
+      }
+      try {
+        const [automatic, fixed] = await Promise.all([draw(), draw(640)])
+        expect({
+          automaticIsShorter: automatic.height < fixed.height,
+          automaticIsWider: automatic.width > fixed.width,
+          fixedWidth: fixed.width,
+        }).toMatchInlineSnapshot(`
+          {
+            "automaticIsShorter": true,
+            "automaticIsWider": true,
+            "fixedWidth": 640,
+          }
+        `)
+      } finally {
+        await renderer.dispose()
+      }
+    },
+  )
 
   test('says what is missing when there is no browser to use', async () => {
     await expect(

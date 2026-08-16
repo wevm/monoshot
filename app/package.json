@@ -46,8 +46,11 @@
   "devDependencies": {
     "@babel/core": "catalog:",
     "@cloudflare/vite-plugin": "catalog:",
+    "@iconify-json/simple-icons": "catalog:",
     "@rolldown/plugin-babel": "catalog:",
     "@stylexjs/unplugin": "catalog:",
+    "@svgr/core": "catalog:",
+    "@svgr/plugin-jsx": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@types/babel__core": "catalog:",
     "@types/culori": "catalog:",
@@ -58,6 +61,7 @@
     "babel-plugin-react-compiler": "catalog:",
     "typescript": "catalog:",
     "unplugin": "catalog:",
+    "unplugin-icons": "catalog:",
     "vite-plus": "catalog:",
     "wrangler": "catalog:"
   },

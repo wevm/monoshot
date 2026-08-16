@@ -12,10 +12,11 @@ import type ts from 'typescript'
  * instead. Everything after it is shared, so every surface resolves the same
  * types for the same imports.
  */
-export async function acquire(options: acquire.Options): Promise<void> {
+export async function acquire(options: acquire.Options): Promise<acquire.Result> {
   const { code, compiler, files, load, onProgress } = options
   const seen = new Set<string>()
-  let queue = references(compiler, code)
+  const ambient = new Set<string>()
+  let queue = inspect(code)
   let done = 0
 
   while (queue.length) {
@@ -23,7 +24,7 @@ export async function acquire(options: acquire.Options): Promise<void> {
     // one package, and filtering alone lets every copy through.
     const wanted = [...new Set(queue)].filter((name) => !seen.has(name))
     for (const name of wanted) seen.add(name)
-    if (!wanted.length) return
+    if (!wanted.length) break
 
     const packages = (await Promise.all(wanted.map((name) => read(name)))).filter(
       (value) => value !== undefined,
@@ -36,7 +37,8 @@ export async function acquire(options: acquire.Options): Promise<void> {
       const found: string[] = []
       for (const [path, source] of Object.entries(entry.files)) {
         files.set(`/node_modules/${entry.name}${path}`, source)
-        if (/\.d\.[cm]?ts$/.test(path)) found.push(...references(compiler, source))
+        if (/\.d\.[cm]?ts$/.test(path))
+          for (const reference of inspect(source)) found.push(reference)
       }
       return found
     })
@@ -44,6 +46,15 @@ export async function acquire(options: acquire.Options): Promise<void> {
     // require fetching: duplicate package names share one request, and a total
     // counting it twice never arrives at itself.
     onProgress?.(done, done + new Set(queue.filter((name) => !seen.has(name))).size)
+  }
+
+  return { types: [...ambient] }
+
+  /** Records ambient roots while returning the packages one source needs. */
+  function inspect(source: string) {
+    const found = references(compiler, source)
+    for (const name of found.types) ambient.add(name)
+    return found.packages
   }
 
   async function read(name: string): Promise<acquire.Package | undefined> {
@@ -75,6 +86,12 @@ export declare namespace acquire {
     onProgress?: ((loaded: number, total: number) => void) | undefined
   }
 
+  /** Compiler ambient roots required by the document and its declarations. */
+  type Result = {
+    /** Package names for `compilerOptions.types`, without the `@types/` prefix. */
+    types: readonly string[]
+  }
+
   /** A package's declarations, keyed by path relative to its root. */
   type Package = {
     files: Record<string, string>
@@ -85,20 +102,69 @@ export declare namespace acquire {
 /**
  * The packages a source file imports. Relative paths are already on disk once
  * their package arrives, and the compiler resolves its own lib references.
- * A `node:` specifier names a runtime builtin, which npm has no package for.
+ * A `node:` specifier names a runtime builtin, whose declarations come from
+ * `@types/node` rather than from a package with the specifier's name.
  */
 function references(compiler: typeof ts, code: string) {
   const info = compiler.preProcessFile(code, true, true)
-  const imported = info.importedFiles
-    .concat(info.referencedFiles)
-    .map((file) => file.fileName)
+  const references = info.importedFiles.concat(info.referencedFiles).map((file) => file.fileName)
+  const imported = references
     .filter((name) => !name.startsWith('.') && !name.startsWith('/') && !name.startsWith('node:'))
     .map(bare)
   // A `/// <reference types="node" />` names a DefinitelyTyped package, not an
   // import: `node` is a package of its own on npm and not the one meant. The
   // directive spells a scope out already, so `@types/` is all it needs.
-  const ambient = info.typeReferenceDirectives.map((file) => `@types/${file.fileName}`)
-  return [...imported, ...ambient]
+  const ambient = info.typeReferenceDirectives.map((file) => file.fileName)
+  if (references.some((name) => name.startsWith('node:')) || hasNodeGlobal(compiler, code))
+    ambient.push('node')
+  const types = [...new Set(ambient)]
+  return { packages: [...imported, ...types.map((name) => `@types/${name}`)], types }
+}
+
+/** Runtime names whose declarations are supplied by `@types/node`. */
+const nodeGlobals = new Set([
+  'Buffer',
+  'NodeJS',
+  '__dirname',
+  '__filename',
+  'clearImmediate',
+  'exports',
+  'gc',
+  'global',
+  'module',
+  'process',
+  'require',
+  'setImmediate',
+])
+
+/**
+ * Whether source contains a Node global identifier. Parsing keeps comments,
+ * strings, regular expressions, declaration names, and property names out.
+ */
+function hasNodeGlobal(compiler: typeof ts, code: string) {
+  const source = compiler.createSourceFile(
+    '/index.tsx',
+    code,
+    compiler.ScriptTarget.Latest,
+    true,
+    compiler.ScriptKind.TSX,
+  )
+  return visit(source)
+
+  function visit(node: ts.Node): boolean {
+    if (compiler.isIdentifier(node) && nodeGlobals.has(node.text) && isReference(node)) return true
+    return compiler.forEachChild(node, visit) ?? false
+  }
+
+  function isReference(node: ts.Identifier) {
+    const parent = node.parent
+    // A shorthand property reads its value from the identifier it names.
+    if ('name' in parent && parent.name === node && !compiler.isShorthandPropertyAssignment(parent))
+      return false
+    if (compiler.isPropertyAccessExpression(parent) && parent.name === node) return false
+    if (compiler.isQualifiedName(parent) && parent.right === node) return false
+    return true
+  }
 }
 
 /** `shiki/core` lives in the `shiki` package; a scope keeps two segments. */

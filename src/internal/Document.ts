@@ -17,8 +17,9 @@ export type Font = {
 export type Options = {
   /**
    * `default` paints the theme's gradient, `none` leaves it transparent, a
-   * `wallpaper:<id>` uses {@link picture} when provided and otherwise uses the
-   * theme gradient. Any other value becomes the canvas CSS background.
+   * `gradient:#rrggbb:#rrggbb` paints a custom gradient. `wallpaper:<id>` uses
+   * {@link picture} when provided and otherwise uses the theme gradient. Any
+   * other value becomes the canvas CSS background.
    */
   background: string
   /** The code, already highlighted. */
@@ -39,8 +40,11 @@ export type Options = {
   title: string
   /** Whether to draw the title bar above the code. */
   titleBar: boolean
-  /** Width of the backdrop in pixels, padding included. */
-  width: number
+  /**
+   * Width of the backdrop in pixels, padding included. Defaults to the rendered
+   * lines' width.
+   */
+  width?: number | undefined
   /**
    * Fonts to embed. The first family listed leads the code font stack, so a
    * document renders the same anywhere. Defaults to none.
@@ -62,13 +66,21 @@ export function build(options: Options): string {
   const fonts = options.fonts ?? []
   // Use the theme gradient when a wallpaper identifier has no embedded image.
   const named = background.startsWith('wallpaper:')
+  const gradient = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
   const backdrop = options.picture
     ? `url("${source(options.picture, 'picture')}") center / cover`
-    : background === 'none'
-      ? 'transparent'
-      : background === 'default' || named
-        ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
-        : css(background, 'background')
+    : gradient
+      ? `linear-gradient(135deg, ${gradient[1]}, ${gradient[2]})`
+      : background === 'none'
+        ? 'transparent'
+        : background === 'default' || named
+          ? `linear-gradient(${palette.backdrop.angle}deg, ${palette.backdrop.from}, ${palette.backdrop.to})`
+          : css(background, 'background')
+  const annotationWidth = width === undefined ? '  --code-annotation-max-width: none;\n' : ''
+  const canvasHeight =
+    options.height === undefined ? '' : `  height: ${options.height}px;\n  overflow: hidden;\n`
+  const canvasWidth =
+    width === undefined ? '  min-width: 320px;\n  width: max-content;' : `  width: ${width}px;`
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -81,7 +93,7 @@ ${fontFaces(fonts)}
   --code-line-height: ${DocumentLayout.metrics.code.line}px;
   --code-tab-size: ${DocumentLayout.metrics.code.tab};
   --code-annotation-size: ${DocumentLayout.metrics.annotation.size}px;
-  /* What the window insets its code by, so a marked line can reach past it. */
+${annotationWidth}  /* What the window insets its code by, so a marked line can reach past it. */
   --body-inset: ${DocumentLayout.metrics.body.inset}px;
   --window-background: ${palette.window.background};
   --window-border: ${palette.window.border};
@@ -94,9 +106,8 @@ body { -webkit-font-smoothing: antialiased; }
   align-items: center;
   background: ${backdrop};
   display: flex;
-  ${options.height === undefined ? '' : `height: ${options.height}px;\n  overflow: hidden;`}
-  padding: ${padding}px;
-  width: ${width}px;
+${canvasHeight}  padding: ${padding}px;
+${canvasWidth}
 }
 .window {
   background-color: var(--window-background);
@@ -229,9 +240,9 @@ export function annotations(palette: Theme.derive.Result): string {
   font-size: var(--code-annotation-size);
   /* Room for the block, which sits below the line it points at. */
   margin-bottom: 0.7em;
-  /* Real types run long, so they wrap at a readable measure rather than
-     stretching the window. */
-  max-width: 64ch;
+  /* Fixed frames wrap long types at a readable measure. An automatic frame
+     overrides the custom property to size itself from the rendered line. */
+  max-width: var(--code-annotation-max-width, 64ch);
   position: relative;
   transform: translateY(0.5em);
   white-space: pre-wrap;
@@ -364,6 +375,10 @@ ${mark(Theme.marks.remove)}
   gap: 6px;
   line-height: var(--code-line-height);
   min-height: var(--code-line-height);
+}
+.twoslash-tag-line + .twoslash-tag-line {
+  /* Consecutive tag rows form one block, matching their editor preview. */
+  margin-top: 0;
 }
 .twoslash-tag-icon {
   /* Color identifies the annotation type, so an additional glyph is redundant. */

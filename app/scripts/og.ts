@@ -22,10 +22,11 @@ const require = createRequire(import.meta.url)
 const font = await fs.readFile(
   require.resolve('@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2'),
 )
-// Remove the wordmark background so the card backdrop remains visible.
-const wordmark = (
-  await fs.readFile(path.join(import.meta.dirname, 'og-wordmark.svg'), 'utf8')
-).replace(/<rect[^>]*fill="black"[^>]*\/>/, '')
+// Use the white wordmark variant against the dark card backdrop.
+const wordmark = await fs.readFile(
+  path.join(import.meta.dirname, '../public/logo-dark.svg'),
+  'utf8',
+)
 
 const frame = Frame.create()
 const rendered = await frame.render({

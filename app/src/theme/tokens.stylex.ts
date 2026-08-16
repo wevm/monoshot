@@ -114,6 +114,7 @@ export const radius = stylex.defineVars({
 export const shadow = stylex.defineVars({
   border: '0 0 0 1px light-dark(#00000014, #ffffff25)',
   borderInset: 'inset 0 0 0 1px light-dark(#00000014, #ffffff1a)',
+  chromeBorder: '0 0 0 1px rgb(255 255 255 / 0.08)',
   small: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 2px 2px light-dark(#0000000a, #00000029)',
   menu: '0 0 0 1px light-dark(#00000014, #ffffff25), 0 1px 1px light-dark(#00000005, #00000038), 0 4px 8px -4px light-dark(#00000008, #0000001c), 0 16px 24px -12px light-dark(#0000000a, #0000001c)',
   // Floating chrome uses a hairline edge plus three shadow depths (contact, mid,
@@ -141,3 +142,9 @@ export const motion = stylex.defineConsts({
   medium: '260ms',
   slow: '420ms',
 })
+
+/** Motion equivalent of the medium in-out token, for interruptible crossfades. */
+export const crossfade = {
+  duration: 0.26,
+  ease: [0.86, 0, 0.07, 1],
+} as const

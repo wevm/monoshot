@@ -1,15 +1,18 @@
 import { zValidator } from '@hono/zod-validator'
-import { Hono } from 'hono'
+import { Hono, type Handler } from 'hono'
 import { bundledLanguages } from 'shiki'
 import * as z from 'zod'
 
 import * as Codec from './Codec.js'
 import * as Frame from './Frame.js'
-import * as Raster from './internal/Raster.js'
+import * as Browser from './internal/Browser.js'
 import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
 const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
+
+/** Shiki language IDs and aliases that Twoslash can compile. */
+const typed: ReadonlySet<string> = new Set(['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'])
 
 /** Every shape a request is read through, and the types they describe. */
 namespace schema {
@@ -42,7 +45,11 @@ namespace schema {
   export const document = z
     .object({
       background: z
-        .union([z.enum(['default', 'none']), z.string().regex(/^#[0-9a-f]{6}$/i)])
+        .union([
+          z.enum(['default', 'none']),
+          z.string().regex(/^#[0-9a-f]{6}$/i),
+          z.string().regex(/^gradient:#[0-9a-f]{6}:#[0-9a-f]{6}$/i),
+        ])
         .optional(),
       code: z.string().min(1).max(limit.code),
       lang: z.string(),
@@ -63,7 +70,12 @@ namespace schema {
         .optional(),
       title: z.string().max(200).optional(),
       titleBar: z.boolean().optional(),
-      twoslash: run.optional(),
+      twoslash: z
+        .union([z.boolean(), run])
+        .optional()
+        .describe(
+          'Whether to resolve Twoslash annotations, or a pre-resolved run. Defaults to enabled for JavaScript and TypeScript.',
+        ),
       width: z.number().int().min(320).max(1600).optional(),
     })
     .strict()
@@ -78,7 +90,7 @@ namespace schema {
    * other code, and its offsets would land in the wrong places here.
    */
   function resolved(request: Document, context: z.RefinementCtx) {
-    if (!request.twoslash) return
+    if (!request.twoslash || typeof request.twoslash === 'boolean') return
     const cuts = [...request.twoslash.meta.removals].sort((a, b) => a[0] - b[0])
     let compiled = ''
     let at = 0
@@ -119,6 +131,9 @@ namespace schema {
       type: z.union([z.literal('dark'), z.literal('light')]),
     }),
   )
+
+  /** Response returned by `/health`. */
+  export const health = z.object({ status: z.literal('ok') })
 }
 
 /**
@@ -157,9 +172,10 @@ export function create(options: create.Options = {}) {
         // Asserted through `unknown`: the run is validated structurally here,
         // and the renderer's node union declares positions this neither reads
         // nor requires a caller to send.
-        ...(request.twoslash
-          ? { twoslash: request.twoslash as unknown as Frame.render.Types }
-          : {}),
+        twoslash:
+          typeof request.twoslash === 'object'
+            ? (request.twoslash as unknown as Frame.render.Types)
+            : (request.twoslash ?? typed.has(state.lang)),
         ...(request.height === undefined ? {} : { height: request.height }),
         ...(request.picture === undefined ? {} : { picture: request.picture }),
         lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
@@ -172,6 +188,14 @@ export function create(options: create.Options = {}) {
   }
 
   const app = new Hono()
+    .get(
+      '/health',
+      OpenApi.operation((c) => c.json({ status: 'ok' } as const), {
+        description: 'Reports whether the API process can serve requests.',
+        responses: { 200: { description: 'The API is available.', schema: schema.health } },
+        summary: 'Check API health',
+      }),
+    )
     .post(
       '/document',
       OpenApi.validate('json', schema.body, {
@@ -269,71 +293,6 @@ export declare namespace create {
 }
 
 /**
- * Captures screenshots through Cloudflare Browser Rendering. The binding
- * provides an existing browser without starting a local process.
- */
-namespace Browser {
-  /** Browser Rendering binding that implements `fetch`. */
-  export type Endpoint = { fetch: typeof fetch }
-
-  /**
-   * Screenshots the frame a document draws.
-   *
-   * Imported here rather than at the top of the module: `@cloudflare/puppeteer`
-   * only resolves inside a Worker, and this module is what a Node consumer
-   * reaches through the root entrypoint.
-   */
-  export async function screenshot(
-    endpoint: Endpoint,
-    options: { html: string; scale: number },
-  ): Promise<Uint8Array> {
-    const { html, scale } = options
-    const puppeteer = await import('@cloudflare/puppeteer').catch(() => {
-      throw new Error('Image rendering requires `@cloudflare/puppeteer`.')
-    })
-    const browser = await open(puppeteer, endpoint)
-    try {
-      const page = await browser.newPage()
-      await page.setContent(html, { waitUntil: 'load' })
-      // The document embeds its fonts, so this resolves without the network.
-      await page.evaluate(() => document.fonts.ready)
-      const canvas = await page.$('.canvas')
-      if (!canvas) throw new Error('The document rendered no frame.')
-      const box = await canvas.boundingBox()
-      await page.setViewport({
-        deviceScaleFactor: Raster.fit(box, scale),
-        height: Math.ceil(box?.height ?? 1),
-        width: Math.ceil(box?.width ?? 1),
-      })
-      return await canvas.screenshot({ omitBackground: true, type: 'png' })
-    } finally {
-      // Disconnected rather than closed: the session outlives this request, so
-      // the next one skips a launch that costs seconds.
-      await browser.disconnect()
-    }
-  }
-
-  /**
-   * A browser to draw in: one already running where there is one, since a
-   * launch is the expensive part and a session is reusable.
-   */
-  async function open(
-    puppeteer: typeof import('@cloudflare/puppeteer'),
-    endpoint: Endpoint,
-  ): Promise<Awaited<ReturnType<typeof puppeteer.launch>>> {
-    const free = await puppeteer
-      .sessions(endpoint)
-      .then((all) => all.find((session) => !session.connectionId))
-      .catch(() => undefined)
-    if (free) {
-      const reused = await puppeteer.connect(endpoint, free.sessionId).catch(() => undefined)
-      if (reused) return reused
-    }
-    return await puppeteer.launch(endpoint)
-  }
-}
-
-/**
  * The description a route carries, and the reading of it. A route states what
  * it accepts and returns one response through the enforcing middleware.
  */
@@ -342,9 +301,17 @@ namespace OpenApi {
   export type Described = {
     description: string
     responses: Record<number, { description: string; media?: string; schema?: z.ZodType }>
-    schema: z.ZodType
+    schema?: z.ZodType | undefined
     summary: string
-    target: 'json' | 'query'
+    target?: 'json' | 'query' | undefined
+  }
+
+  /** Attaches OpenAPI metadata to a route that has no request parameters. */
+  export function operation<handler extends Handler>(
+    handler: handler,
+    described: Omit<Described, 'schema' | 'target'>,
+  ): handler {
+    return Object.assign(handler, described)
   }
 
   /**
@@ -390,11 +357,13 @@ namespace OpenApi {
     const paths: Record<string, Record<string, unknown>> = {}
     for (const route of app.routes) {
       const described = route.handler as Partial<Described>
-      if (!described.schema) continue
-      const schema = z.toJSONSchema(described.schema) as {
-        properties?: Record<string, unknown>
-        required?: string[]
-      }
+      if (!described.description || !described.responses || !described.summary) continue
+      const request = described.schema
+        ? (z.toJSONSchema(described.schema) as {
+            properties?: Record<string, unknown>
+            required?: string[]
+          })
+        : undefined
       const path = (paths[`${prefix}${route.path}`] ??= {})
       path[route.method.toLowerCase()] = {
         description: described.description,
@@ -407,19 +376,33 @@ namespace OpenApi {
           ),
           // Every validated route can turn a request away, so every one of
           // subsequent middleware returns this response.
-          400: content({ description: 'The request was not understood.', schema: schema_failure }),
+          ...(request
+            ? {
+                400: content({
+                  description: 'The request was not understood.',
+                  schema: schema_failure,
+                }),
+              }
+            : {}),
         },
         summary: described.summary,
-        ...(described.target === 'json'
-          ? { requestBody: { content: { 'application/json': { schema } }, required: true } }
-          : {
-              parameters: Object.entries(schema.properties ?? {}).map(([name, property]) => ({
-                in: 'query',
-                name,
-                required: schema.required?.includes(name) ?? false,
-                schema: property,
-              })),
-            }),
+        ...(request
+          ? described.target === 'json'
+            ? {
+                requestBody: {
+                  content: { 'application/json': { schema: request } },
+                  required: true,
+                },
+              }
+            : {
+                parameters: Object.entries(request.properties ?? {}).map(([name, property]) => ({
+                  in: 'query',
+                  name,
+                  required: request.required?.includes(name) ?? false,
+                  schema: property,
+                })),
+              }
+          : {}),
       }
     }
     return { info: { title: 'monoshot', version: '1' }, openapi: '3.1.0', paths }

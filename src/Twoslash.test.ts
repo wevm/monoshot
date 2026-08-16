@@ -79,6 +79,37 @@ describe('create', () => {
       ]
     `)
   })
+
+  test.each([
+    'process.env.NODE_ENV\n// ^?',
+    'import process from "node:process"\nprocess.env.NODE_ENV\n// ^?',
+  ])('resolves Node declarations for %s', async (code) => {
+    const registry = vi.spyOn(Twoslash.Registry, 'types').mockResolvedValue({
+      files: {
+        '/globals.d.ts': [
+          'declare namespace NodeJS {',
+          '  interface Process { env: Record<string, string | undefined> }',
+          '}',
+          'declare var process: NodeJS.Process',
+        ].join('\n'),
+        '/index.d.ts': [
+          '/// <reference path="globals.d.ts" />',
+          '/// <reference path="process.d.ts" />',
+        ].join('\n'),
+        '/package.json': JSON.stringify({ types: 'index.d.ts' }),
+        '/process.d.ts': 'declare module "node:process" { export = process }',
+      },
+      name: '@types/node',
+      version: '1.0.0',
+    })
+    try {
+      const result = await Twoslash.run(code)
+      expect(result.diagnostics).toEqual([])
+      expect(result.queries[0]?.text).toContain('NodeJS.Process')
+    } finally {
+      registry.mockRestore()
+    }
+  })
 })
 
 describe('run', () => {

@@ -1,5 +1,43 @@
 # monoshot
 
+## 0.0.8
+
+### Patch Changes
+
+- 0e281da: Fixed responsive editing, command suggestions, MCP render portability, CLI warning noise, and API health documentation.
+
+## 0.0.7
+
+### Patch Changes
+
+- 1df3813: Changed `Api.route` to return an independently owned route.
+
+  ```ts
+  const app = new Hono().route('/v1', Api.route())
+  ```
+
+## 0.0.6
+
+### Patch Changes
+
+- 430fe1d: Fixed local rendering to include the artwork for every composed theme.
+- 1b13474: Fixed package type acquisition with ordered metadata fallbacks for transient registry failures.
+
+## 0.0.5
+
+### Patch Changes
+
+- 789a0d2: The hosted API resolved Twoslash annotations for JavaScript and TypeScript by default.
+- f955b45: Fixed local Tempo artwork rendering, Node globals in type annotations, and omitted widths to fit the longest rendered line.
+
+## 0.0.4
+
+### Patch Changes
+
+- 841cb31: Updated Monoshot branding, documentation, and the default shared-link domain.
+- 8aa51d1: Added optional inline terminal previews to the `render` command.
+- 5d36293: Prevented large dependency graphs from clearing resolved types after acquisition.
+
 ## 0.0.3
 
 ### Patch Changes

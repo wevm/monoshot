@@ -5,6 +5,7 @@ import { bundledLanguages, bundledLanguagesInfo } from 'shiki'
 
 import * as Cli from './Cli.js'
 import * as Codec from './Codec.js'
+import * as Headless from './Headless.js'
 import * as Theme from './Theme.js'
 
 const code = 'export const greeting = "hello"\n'
@@ -109,6 +110,21 @@ describe('create', () => {
         {
           "code": "const a = 1",
           "lang": "typescript",
+        }
+      `)
+    })
+
+    test('applies Tempo framing unless the radius is explicit', async () => {
+      const source = await file('demo.ts')
+      const implicit = await run(['share', source, '--theme', 'tempo'])
+      const explicit = await run(['share', source, '--theme', 'tempo', '--radius', '8'])
+      expect({
+        explicit: settings((explicit.output as { url: string }).url).radius,
+        implicit: settings((implicit.output as { url: string }).url).radius,
+      }).toMatchInlineSnapshot(`
+        {
+          "explicit": 8,
+          "implicit": 0,
         }
       `)
     })
@@ -232,6 +248,173 @@ describe('create', () => {
   })
 
   describe('render', () => {
+    test('renders every composed theme on its artwork', async () => {
+      const source = await file('demo.ts')
+      const render = vi.fn((_options: Headless.render.Options) =>
+        Promise.resolve(new Uint8Array([1, 2, 3])),
+      )
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render,
+      } as never)
+      try {
+        const themes = [
+          'golden-gate-dark',
+          'golden-gate-light',
+          'mountain-lion',
+          'panther',
+          'sequoia-dark',
+          'sequoia-light',
+          'snow-leopard',
+          'tahoe-dark',
+          'tahoe-light',
+          'tempo',
+        ]
+        for (const theme of themes) await run(['render', source, '--theme', theme])
+        expect(
+          render.mock.calls.map(([options]) => ({
+            picture: options.picture?.startsWith('data:image/webp;base64,'),
+            radius: options.radius,
+            theme: options.theme,
+            width: options.width,
+          })),
+        ).toEqual(
+          themes.map((theme) => ({
+            picture: true,
+            radius: theme === 'tempo' ? 0 : 12,
+            theme,
+            width: undefined,
+          })),
+        )
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    test('preserves explicit Tempo frame settings', async () => {
+      const source = await file('demo.ts')
+      const render = vi.fn((_options: Headless.render.Options) =>
+        Promise.resolve(new Uint8Array([1, 2, 3])),
+      )
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render,
+      } as never)
+      try {
+        await run(['render', source, '--theme', 'tempo', '--background', 'none'])
+        await run(['render', source, '--theme', 'tempo', '--radius', '8'])
+        const background = render.mock.calls[0]?.[0]
+        const radius = render.mock.calls[1]?.[0]
+        expect({
+          background: {
+            background: background?.background,
+            picture: background?.picture,
+            radius: background?.radius,
+          },
+          radius: {
+            background: radius?.background,
+            picture: radius?.picture?.startsWith('data:image/webp;base64,'),
+            radius: radius?.radius,
+          },
+        }).toMatchInlineSnapshot(`
+          {
+            "background": {
+              "background": "none",
+              "picture": undefined,
+              "radius": 0,
+            },
+            "radius": {
+              "background": "default",
+              "picture": true,
+              "radius": 8,
+            },
+          }
+        `)
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    test('suggests creating a matching editor link', async () => {
+      const source = await file('demo.ts')
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+      } as never)
+      try {
+        const { output } = await run([
+          'render',
+          source,
+          '--theme',
+          'tempo',
+          '--title-bar',
+          '--width',
+          '720',
+          '--full-output',
+        ])
+        expect((output as { meta: { cta: unknown } }).meta.cta).toEqual({
+          commands: [
+            {
+              command: `monoshot share --title-bar ${source} --theme tempo --width 720`,
+              description: 'Create a matching editor link.',
+            },
+          ],
+          description: 'Next, create an editor link:',
+        })
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    test('shell-quotes inline code in the suggested editor link', async () => {
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+      } as never)
+      try {
+        const out = await file('quoted.png', '')
+        const { output } = await run([
+          'render',
+          '--code',
+          'const answer: number = 42',
+          '--lang',
+          'typescript',
+          '--out',
+          out,
+          '--full-output',
+        ])
+        expect((output as { meta: { cta: { commands: { command: string }[] } } }).meta.cta.commands)
+          .toMatchInlineSnapshot(`
+            [
+              {
+                "command": "monoshot share --code 'const answer: number = 42' --lang typescript",
+                "description": "Create a matching editor link.",
+              },
+            ]
+          `)
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    test('can return rendered bytes to clients without filesystem access', async () => {
+      const create = vi.spyOn(Headless, 'create').mockReturnValue({
+        dispose: () => Promise.resolve(),
+        render: () => Promise.resolve(new Uint8Array([1, 2, 3])),
+      } as never)
+      try {
+        const out = await file('render.png', '')
+        const { output } = await run(['render', '--code', 'a', '--embed', '--out', out])
+        expect(output).toMatchObject({
+          bytes: 3,
+          dataUrl: 'data:image/png;base64,AQID',
+          path: out,
+        })
+      } finally {
+        create.mockRestore()
+      }
+    })
+
     test('refuses a theme it does not have, before starting a browser', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['render', source, '--theme', 'nope'])

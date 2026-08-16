@@ -29,40 +29,56 @@ describe('summarize', () => {
   })
 })
 
-describe('page', () => {
-  test('carries the snippet as its own preview', () => {
-    const html = Links.page({
-      description: 'A typescript snippet, rendered by monoshot.',
-      id: 'abc123defg',
-      origin: 'https://example.com',
-      state: 'N4IgZg',
-      title: 'const a = 1',
-    })
-    expect(html).toContain(
-      '<meta property="og:image" content="https://example.com/s/abc123defg/og.png?v=2">',
+describe('card', () => {
+  test('renders the readable canvas at social-card dimensions', () => {
+    expect(Links.card).toMatchInlineSnapshot(`
+      {
+        "height": 420,
+        "padding": 80,
+        "scale": 1.5,
+        "version": 4,
+        "width": 800,
+      }
+    `)
+    expect(Links.card.width * Links.card.scale).toBe(1200)
+    expect(Links.card.height * Links.card.scale).toBe(630)
+  })
+})
+
+describe('withoutTypes', () => {
+  test('removes query rows without changing surrounding source', () => {
+    expect(Links.withoutTypes('const value = run()\n//    ^?\nvalue\n // ^?  ')).toBe(
+      'const value = run()\nvalue',
     )
-    expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
-    // Redirect to the editor with the encoded state in the URL fragment.
-    expect(html).toContain('content="0; url=https://example.com/#N4IgZg"')
   })
 
-  test('escapes a snippet that would otherwise close a tag', () => {
-    const html = Links.page({
-      description: 'd',
-      id: 'abc123defg',
-      origin: 'https://example.com',
-      state: 's',
-      title: '</title><script>alert(1)</script>',
-    })
-    expect(html).not.toContain('<script>alert(1)')
-    expect(html).toContain('&lt;/title&gt;&lt;script&gt;')
+  test('preserves comments that are not type queries', () => {
+    expect(Links.withoutTypes('// explain ^? here\nconst value = 1')).toBe(
+      '// explain ^? here\nconst value = 1',
+    )
+  })
+})
+
+describe('fade', () => {
+  const html = '<html><head></head><body><div class="body">code</div></body></html>'
+
+  test('leaves a document unchanged when nothing was clipped', () => {
+    expect(Links.fade(html, { horizontal: false, vertical: false })).toBe(html)
+  })
+
+  test('fades each clipped edge', () => {
+    const faded = Links.fade(html, { horizontal: true, vertical: true })
+    expect(faded).toContain('class="body preview-overflow-x preview-overflow-y"')
+    expect(faded).toContain('linear-gradient(to right')
+    expect(faded).toContain('linear-gradient(to bottom')
   })
 })
 
 describe('layout', () => {
   test('uses standard dimensions for a short snippet', () => {
-    const { code, ...shape } = Links.layout('const a = 1\n')
+    const { code, overflow, ...shape } = Links.layout('const a = 1\n')
     expect(code).toBe('const a = 1\n')
+    expect(overflow).toEqual({ horizontal: false, vertical: false })
     expect(shape).toMatchInlineSnapshot(`
       {
         "height": 420,
@@ -75,8 +91,9 @@ describe('layout', () => {
 
   test('preserves output dimensions as the canvas grows', () => {
     const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
-    const { code, ...grown } = Links.layout(fifteen)
+    const { code, overflow, ...grown } = Links.layout(fifteen)
     expect(code).toBe(fifteen)
+    expect(overflow).toEqual({ horizontal: false, vertical: false })
     expect(grown).toMatchInlineSnapshot(`
       {
         "height": 546,
@@ -95,6 +112,7 @@ describe('layout', () => {
     const grown = Links.layout(most)
     expect(grown.width).toBe(1600)
     expect(grown.code).toBe(most)
+    expect(grown.overflow.vertical).toBe(false)
   })
 
   test('drops the line past the last one the card holds', () => {
@@ -102,6 +120,7 @@ describe('layout', () => {
     const grown = Links.layout(over)
     expect(grown.width).toBe(1600)
     expect(grown.code).toBe(`${over.split('\n').slice(0, 29).join('\n')}\n`)
+    expect(grown.overflow.vertical).toBe(true)
   })
 
   test('grows the canvas when a long line wraps', () => {
@@ -112,6 +131,7 @@ describe('layout', () => {
     const grown = Links.layout('x'.repeat(10_000))
     expect(grown.code.length).toBeLessThan(10_000)
     expect(grown.width).toBe(1600)
+    expect(grown.overflow.vertical).toBe(true)
   })
 
   test('wraps a wide-character line at half the columns of a Latin one', () => {

@@ -22,9 +22,12 @@ import yaml from 'highlight.js/lib/languages/yaml'
 import type { AutoHighlightResult, LanguageFn } from 'highlight.js'
 import type { BundledLanguage } from 'shiki'
 
+/** A selectable bundled grammar or plain text. */
+export type LanguageId = BundledLanguage | 'text'
+
 /** A language the picker offers: shiki's id against the name shown. */
 type Language = {
-  id: BundledLanguage
+  id: LanguageId
   title: string
 }
 
@@ -85,6 +88,7 @@ export const languages: readonly Language[] = [
   { id: 'sql', title: 'SQL' },
   { id: 'svelte', title: 'Svelte' },
   { id: 'swift', title: 'Swift' },
+  { id: 'text', title: 'Text' },
   { id: 'toml', title: 'TOML' },
   { id: 'tsx', title: 'TSX' },
   { id: 'typescript', title: 'TypeScript' },
@@ -102,6 +106,9 @@ export const languages: readonly Language[] = [
  * contains all approximately 190 languages supported by highlight.js.
  */
 const detectable: readonly { grammar: LanguageFn; id: BundledLanguage; name: string }[] = [
+  // Highlight.js resolves equal scores by registration order. Prefer TypeScript
+  // for ambiguous C-family snippets.
+  { grammar: typescript, id: 'typescript', name: 'typescript' },
   { grammar: bash, id: 'bash', name: 'bash' },
   { grammar: c, id: 'c', name: 'c' },
   { grammar: cpp, id: 'cpp', name: 'cpp' },
@@ -119,7 +126,6 @@ const detectable: readonly { grammar: LanguageFn; id: BundledLanguage; name: str
   { grammar: rust, id: 'rust', name: 'rust' },
   { grammar: sql, id: 'sql', name: 'sql' },
   { grammar: swift, id: 'swift', name: 'swift' },
-  { grammar: typescript, id: 'typescript', name: 'typescript' },
   { grammar: xml, id: 'html', name: 'xml' },
   { grammar: yaml, id: 'yaml', name: 'yaml' },
 ]
@@ -137,13 +143,18 @@ for (const language of detectable) {
 const confident = 6
 
 /** Whether twoslash applies: only the TypeScript family carries types. */
-export function typed(id: BundledLanguage): boolean {
+export function typed(id: LanguageId): boolean {
   return id === 'javascript' || id === 'jsx' || id === 'tsx' || id === 'typescript'
 }
 
 /** The name shown for a language id. */
-export function title(id: BundledLanguage): string {
+export function title(id: LanguageId): string {
   return languages.find((language) => language.id === id)?.title ?? id
+}
+
+/** Prefer TypeScript whenever a known language uses JavaScript-compatible syntax. */
+export function preferred(id: BundledLanguage): BundledLanguage {
+  return id === 'javascript' ? 'typescript' : id
 }
 
 /**
@@ -163,5 +174,7 @@ function read(result: AutoHighlightResult | undefined, code: string) {
   // Highlight.js scores PHP without ever needing an open tag, so it wins on
   // other C-family languages written in their own syntax. Real PHP says so.
   if (!id || (id === 'php' && !/<\?(php|=)/.test(code))) return undefined
-  return id
+  // TypeScript accepts JavaScript syntax, and provides the richer default for
+  // compatible snippets without requiring explicit type annotations.
+  return preferred(id)
 }

@@ -23,9 +23,9 @@
   "[!start-pkg]": "",
   "name": "monoshot",
   "type": "module",
-  "version": "0.0.3",
+  "version": "0.0.8",
   "license": "MIT",
-  "description": "Render code images with type-aware Twoslash annotations.",
+  "description": "Create code images with syntax highlighting, customizable themes, and type-aware annotations.",
   "repository": {
     "type": "git",
     "url": "https://github.com/wevm/monoshot"
@@ -44,6 +44,7 @@
     "monoshot.src": "./src/bin.ts"
   },
   "files": [
+    "app/public/wallpapers",
     "dist",
     "src"
   ],
@@ -76,6 +77,7 @@
     "lz-string": "catalog:",
     "puppeteer-core": "catalog:",
     "shiki": "catalog:",
+    "terminal-image": "5.0.1",
     "twoslash": "catalog:",
     "twoslash-cdn": "catalog:",
     "unstorage": "catalog:",

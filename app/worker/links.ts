@@ -1,24 +1,22 @@
 import * as DocumentLayout from '../../src/internal/DocumentLayout.js'
 import * as Tags from '../../src/internal/Tags.js'
+import * as Shared from '../src/lib/shared.js'
 
 /** Size and retention limits for shared links. */
 export const limits = { size: 20_000, ttl: 60 * 60 * 24 * 90 } as const
 
-/** Revision shared by preview URLs and rendered-card caches. */
-export const cardRevision = 2
+/** Standard social-card canvas dimensions and cache version. */
+export const card = Shared.card
 
-/** Cache namespace for the current rendered-card revision. */
-export const cardCache = `og:${cardRevision}`
-
-/** Fixed social-card output dimensions in pixels, advertised by {@link page}. */
-const output = { height: 630, width: 1200 } as const
+/** Fixed social-card output dimensions in pixels. */
+const output = { height: card.height * card.scale, width: card.width * card.scale } as const
 
 /** Card-specific canvas bounds and increments in pixels. */
 const canvas = {
   /** Narrowest canvas width. */
-  narrowest: 800,
+  narrowest: card.width,
   /** Canvas space around the code window. */
-  padding: 80,
+  padding: card.padding,
   /** Canvas width increment. */
   step: 40,
   /** Widest canvas width. */
@@ -33,13 +31,14 @@ const canvas = {
  */
 export function layout(code: string): layout.Result {
   const shown = excerpt(code)
-  const measured = measure(codeLines(shown))
+  const measured = measure(codeLines(shown.code))
   let width = canvas.narrowest
   for (; width < canvas.widest; width += canvas.step)
     if (contentHeight(measured, width) <= room(width)) break
   return {
-    code: shown,
+    code: shown.code,
     height: canvasHeight(width),
+    overflow: { horizontal: false, vertical: shown.truncated },
     padding: canvas.padding,
     scale: output.width / width,
     width,
@@ -52,6 +51,8 @@ export declare namespace layout {
     code: string
     /** Canvas height in pixels, derived from `width` at the output ratio. */
     height: number
+    /** Clipped axes used to mark truncated source at the canvas edge. */
+    overflow: fade.Overflow
     /** Canvas space around the code window in pixels. */
     padding: number
     /** Device scale factor that maps the canvas to the output size. */
@@ -62,10 +63,11 @@ export declare namespace layout {
 }
 
 /** Truncates code to the rows available at the widest canvas. */
-function excerpt(code: string): string {
+function excerpt(code: string): { code: string; truncated: boolean } {
   const source = codeLines(code)
   const measured = measure(source)
-  if (contentHeight(measured, canvas.widest) <= room(canvas.widest)) return code
+  if (contentHeight(measured, canvas.widest) <= room(canvas.widest))
+    return { code, truncated: false }
   const available = columns(canvas.widest)
   const shown: string[] = []
   let remaining = room(canvas.widest)
@@ -73,7 +75,7 @@ function excerpt(code: string): string {
     const measuredLine = measured[at]!
     const needed = lineHeight(measuredLine, available)
     if (needed > remaining) {
-      const gap = measuredLine.tagged ? DocumentLayout.metrics.annotation.gap : 0
+      const gap = measuredLine.gap ? DocumentLayout.metrics.annotation.gap : 0
       const rows = Math.floor((remaining - gap) / DocumentLayout.metrics.code.line)
       if (rows > 0) shown.push(takeColumns(line, rows * available))
       break
@@ -81,7 +83,7 @@ function excerpt(code: string): string {
     shown.push(line)
     remaining -= needed
   }
-  return `${shown.join('\n')}\n`
+  return { code: `${shown.join('\n')}\n`, truncated: true }
 }
 
 /** Splits code into lines, ignoring a single trailing newline. */
@@ -89,12 +91,18 @@ function codeLines(code: string): string[] {
   return code.replace(/\n$/, '').split('\n')
 }
 
-/** A source line's width and transformed annotation state. */
-type Line = { columns: number; tagged: boolean }
+/** A source line's width and preceding annotation gap. */
+type Line = { columns: number; gap: boolean }
 
 /** Measures each line once before searching canvas widths. */
 function measure(source: readonly string[]): Line[] {
-  return source.map((line) => ({ columns: columnCount(line), tagged: Tags.tagged(line) }))
+  let previousTagged = false
+  return source.map((line) => {
+    const tagged = Tags.tagged(line)
+    const measured = { columns: columnCount(line), gap: tagged && !previousTagged }
+    previousTagged = tagged
+    return measured
+  })
 }
 
 /** Canvas height at a canvas width, held to the output ratio. */
@@ -124,7 +132,7 @@ function contentHeight(measured: readonly Line[], width: number): number {
 
 /** Vertical pixels that one measured line occupies. */
 function lineHeight(line: Line, available: number): number {
-  const annotation = line.tagged ? DocumentLayout.metrics.annotation.gap : 0
+  const annotation = line.gap ? DocumentLayout.metrics.annotation.gap : 0
   return span(line.columns, available) * DocumentLayout.metrics.code.line + annotation
 }
 
@@ -185,82 +193,60 @@ export function id(): string {
   return name
 }
 
-/**
- * Generates link-preview metadata and redirects to the editor.
- *
- * Metadata is included in the initial response for clients that do not execute JavaScript.
- */
-export function page(options: page.Options): string {
-  const { description, id, origin, state, title } = options
-  const target = `${origin}/#${state}`
-  const image = `${origin}/s/${id}/og.png?v=${cardRevision}`
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escape(title)}</title>
-<meta name="description" content="${escape(description)}">
-<meta property="og:type" content="article">
-<meta property="og:site_name" content="monoshot">
-<meta property="og:title" content="${escape(title)}">
-<meta property="og:description" content="${escape(description)}">
-<meta property="og:url" content="${escape(`${origin}/s/${id}`)}">
-<meta property="og:image" content="${escape(image)}">
-<meta property="og:image:width" content="${output.width}">
-<meta property="og:image:height" content="${output.height}">
-<meta property="og:image:alt" content="${escape(title)}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="${escape(title)}">
-<meta name="twitter:description" content="${escape(description)}">
-<meta name="twitter:image" content="${escape(image)}">
-<link rel="canonical" href="${escape(target)}">
-<meta http-equiv="refresh" content="0; url=${escape(target)}">
-</head>
-<body>
-<p>Opening <a href="${escape(target)}">this snippet</a>.</p>
-<script>location.replace(${script(target)})</script>
-</body>
-</html>
-`
+/** Removes Twoslash query rows from a preview that does not resolve types. */
+export function withoutTypes(code: string): string {
+  return code
+    .split('\n')
+    .filter((line) => !/^\s*\/\/\s*\^\?\s*$/.test(line))
+    .join('\n')
 }
 
-export declare namespace page {
-  type Options = {
-    /** Preview description of the snippet. */
-    description: string
-    /** Shared-link identifier used by the image route. */
-    id: string
-    /** Absolute deployment origin. */
-    origin: string
-    /** Encoded editor state. */
-    state: string
-    /** Preview title of the snippet. */
-    title: string
+/** Adds edge fades to a standalone document for each clipped code axis. */
+export function fade(html: string, overflow: fade.Overflow): string {
+  const classes = [
+    'body',
+    ...(overflow.horizontal ? ['preview-overflow-x'] : []),
+    ...(overflow.vertical ? ['preview-overflow-y'] : []),
+  ]
+  if (classes.length === 1) return html
+  return html.replace('<div class="body">', `<div class="${classes.join(' ')}">`).replace(
+    '</head>',
+    `<style>
+.preview-overflow-x,
+.preview-overflow-y { position: relative; }
+.preview-overflow-x::before,
+.preview-overflow-y::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+.preview-overflow-x::before {
+  background: linear-gradient(to right, transparent, var(--window-background));
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 48px;
+}
+.preview-overflow-y::after {
+  background: linear-gradient(to bottom, transparent, var(--window-background));
+  block-size: 44px;
+  inset-block-end: 0;
+  inset-inline: 0;
+}
+</style>
+</head>`,
+  )
+}
+
+export declare namespace fade {
+  type Overflow = {
+    horizontal: boolean
+    vertical: boolean
   }
 }
 
 /** Returns the first non-empty line, truncated for use as a preview title. */
-export function summarize(code: string, fallback: string): string {
-  const line = code.split('\n').find((entry) => entry.trim().length > 0)
-  if (!line) return fallback
-  const trimmed = line.trim()
-  return trimmed.length > 72 ? `${trimmed.slice(0, 71)}…` : trimmed
-}
-
-/** Serializes a value for an inline script and escapes HTML-opening characters. */
-function script(value: string) {
-  return JSON.stringify(value).replace(/</g, '\\u003c')
-}
-
-/** Escapes a value for an attribute or a text node. */
-function escape(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
+export const summarize = Shared.summarize
 
 /** Workers AI model used to generate snippet metadata. */
 const model = '@cf/meta/llama-3.2-3b-instruct'
@@ -367,30 +353,4 @@ export declare namespace describe {
 }
 
 /** Parses current and legacy shared-link records. */
-export function read(kept: string): read.Link {
-  try {
-    const parsed: unknown = JSON.parse(kept)
-    if (typeof parsed !== 'object' || parsed === null) return { state: kept }
-    const { description, state, title } = parsed as Record<string, unknown>
-    if (typeof state !== 'string') return { state: kept }
-    return {
-      ...(typeof description === 'string' ? { description } : {}),
-      ...(typeof title === 'string' ? { title } : {}),
-      state,
-    }
-  } catch {
-    return { state: kept }
-  }
-}
-
-export declare namespace read {
-  /** Stored editor state and optional generated metadata. */
-  type Link = {
-    /** Generated description, absent from legacy records. */
-    description?: string | undefined
-    /** The encoded state the editor opens. */
-    state: string
-    /** Generated title, absent from legacy records. */
-    title?: string | undefined
-  }
-}
+export const read = Shared.read

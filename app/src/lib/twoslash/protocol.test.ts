@@ -1,5 +1,22 @@
-import { without } from './protocol.js'
+import { missingImports, without } from './protocol.js'
 import type { Run } from './protocol.js'
+
+describe('missingImports', () => {
+  test('distinguishes an unresolved package from other diagnostics', () => {
+    const result = (code: number) => ({
+      diagnostics: [{ code, from: 0, level: 'error' as const, text: 'diagnostic', to: 1 }],
+      hovers: [],
+      queries: [],
+    })
+    expect({ missing: missingImports(result(2307)), other: missingImports(result(2322)) })
+      .toMatchInlineSnapshot(`
+        {
+          "missing": true,
+          "other": false,
+        }
+      `)
+  })
+})
 
 /** Twoslash run with one removed `^?` line and one diagnostic per source line. */
 const run: Run = {

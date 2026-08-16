@@ -1,8 +1,10 @@
 import handler from '@tanstack/react-start/server-entry'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { accepts } from 'hono/accepts'
 import { Api, Codec, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
+import * as Browser from '../../src/internal/Browser.js'
 import { detect } from '../src/lib/detect.js'
 import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
@@ -11,11 +13,13 @@ import * as Links from './links.js'
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
+const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
+
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
-  .get('/health', (c) => c.json({ status: 'ok' }))
+  .post('/document', (c) => apiRender(c, '/document'))
+  .post('/image', (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.
-  // Resolve the browser binding per request from the Worker environment.
-  .route('/', Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER }))
+  .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
   .post('/share', async (c) => {
     if (!c.env.LINKS)
@@ -108,12 +112,12 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     if (!kept) return c.redirect('/og.jpg', 302)
     // Named rather than `caches.default`, which shares its keyspace with the
     // asset cache in front of this Worker.
-    const cache = await caches.open(Links.cardCache)
+    const cache = await caches.open(`og:${Links.card.version}`)
     const hit = await cache.match(c.req.raw)
     if (hit) return hit
 
     // Read from KV because the Cache API entry may exist only in another data center.
-    const held = await c.env.LINKS?.get(`${Links.cardCache}:${id}`, 'arrayBuffer')
+    const held = await c.env.LINKS?.get(`og:${Links.card.version}:${id}`, 'arrayBuffer')
     if (held) {
       const response = pictured(held)
       c.executionCtx.waitUntil(cache.put(c.req.raw, response.clone()))
@@ -129,34 +133,147 @@ const app = new Hono<{ Bindings: Cloudflare.Env }>()
     c.executionCtx.waitUntil(keep(c.env, id, drawn))
     return response
   })
-  .get('/s/:id', async (c) => {
-    const id = c.req.param('id')
-    const kept = await c.env.LINKS?.get(id)
-    // Redirect expired links to an empty editor instead of returning an error page.
-    if (!kept) return c.redirect('/', 302)
-    const link = Links.read(kept)
-    const settings = Codec.deserialize(link.state)
-    const language = settings.lang === 'auto' ? (detect(settings.code) ?? 'code') : settings.lang
-    return c.html(
-      Links.page({
-        // Fall back to deterministic metadata when model-generated metadata is absent.
-        description: link.description ?? `A ${language} snippet, rendered by monoshot.`,
-        id,
-        origin: new URL(c.req.url).origin,
-        state: link.state,
-        title: link.title ?? Links.summarize(settings.code, 'A snippet on monoshot'),
-      }),
-    )
+  .get('/', async (c) => {
+    const type = accepts(c, {
+      default: 'text/html',
+      header: 'Accept',
+      supports: ['text/html', 'text/markdown'],
+    })
+    const userAgent = c.req.header('user-agent') ?? ''
+    const response =
+      type === 'text/markdown' || markdownUserAgents.some((agent) => userAgent.includes(agent))
+        ? await agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8')
+        : await handler.fetch(c.req.raw)
+    return varied(response)
   })
+  .on(['GET', 'HEAD'], ['/SKILL.md', '/md', '/skill', '/llms.txt'], (c) =>
+    agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
+  )
+  .on(['GET', 'HEAD'], ['/skills', '/.well-known/agent-skills'], (c) =>
+    agentAsset(c.env, c.req.url, skillIndexPath, 'application/json; charset=utf-8'),
+  )
+  .on(
+    ['GET', 'HEAD'],
+    ['/.well-known/agent-skills/monoshot', '/.well-known/skills/monoshot'],
+    (c) => agentAsset(c.env, c.req.url, skillPath, 'text/markdown; charset=utf-8'),
+  )
+  // Keep the earlier discovery path available for clients that still use it.
+  .on(['GET', 'HEAD'], '/.well-known/skills', (c) =>
+    agentAsset(c.env, c.req.url, skillIndexPath, 'application/json; charset=utf-8'),
+  )
   // Unmatched requests fall through to TanStack Start (SSR shell + assets).
   .all('*', (c) => handler.fetch(c.req.raw))
 
 export default app
 
+const skillPath = '/.well-known/agent-skills/monoshot/SKILL.md'
+const skillIndexPath = '/.well-known/agent-skills/index.json'
+const markdownUserAgents = [
+  'GPTBot',
+  'OAI-SearchBot',
+  'ChatGPT-User',
+  'ChatGPT-User/2.0',
+  'Claude-User',
+  'anthropic-ai',
+  'ClaudeBot',
+  'claude-web',
+  'PerplexityBot',
+  'Perplexity-User',
+  'Google-Extended',
+  'FacebookBot',
+  'meta-externalagent',
+  'meta-externalfetcher',
+  'Bytespider',
+  'cohere-ai',
+  'AI2Bot',
+  'CCBot',
+  'Diffbot',
+  'DuckAssistBot',
+  'omgili',
+  'Timpibot',
+  'MistralAI-User',
+  'GoogleAgent-Mariner',
+  'curl/',
+  'Wget/',
+  'HTTPie/',
+  'httpie-go/',
+  'xh/',
+]
+
+async function apiRender(
+  c: Context<{ Bindings: Cloudflare.Env }>,
+  path: '/document' | '/image',
+): Promise<Response> {
+  const text = await c.req.text()
+  const headers = new Headers(c.req.raw.headers)
+  headers.delete('content-length')
+  const send = (body: string) =>
+    renderer.request(path, { body, headers, method: 'POST' }, c.env, c.executionCtx)
+
+  let request: unknown
+  try {
+    request = JSON.parse(text)
+  } catch {
+    return send(text)
+  }
+  if (!request || typeof request !== 'object' || Array.isArray(request)) return send(text)
+
+  const input = request as Record<string, unknown>
+  const theme = typeof input['theme'] === 'string' ? input['theme'] : ''
+  const frame = Themes.frame(theme)
+  const wallpaper =
+    input['background'] === undefined || input['background'] === 'default'
+      ? Wallpapers.byId(theme)
+      : undefined
+  const picture =
+    wallpaper && input['picture'] === undefined
+      ? await inlined(c.env, new URL(c.req.url).origin, wallpaper.id)
+      : undefined
+  return send(
+    JSON.stringify({
+      ...input,
+      ...(picture ? { picture } : {}),
+      ...(input['radius'] === undefined && frame.radius !== undefined
+        ? { radius: frame.radius }
+        : {}),
+    }),
+  )
+}
+
+/** Reads an agent resource from the deployed static assets. */
+async function agentAsset(
+  env: Cloudflare.Env,
+  url: string,
+  path: string,
+  contentType: string,
+): Promise<Response> {
+  const response = await env.ASSETS.fetch(new URL(path, url))
+  const headers = new Headers(response.headers)
+  headers.set('access-control-allow-origin', '*')
+  headers.set('cache-control', 'public, max-age=300')
+  headers.set('content-type', contentType)
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  })
+}
+
+/** Marks the root response as dependent on request negotiation. */
+function varied(response: Response): Response {
+  const headers = new Headers(response.headers)
+  headers.append('vary', 'Accept, User-Agent')
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  })
+}
+
 /**
  * Renders a shared-link card from encoded editor state.
  *
- * Uses the image route to share validation and rendering behavior. Returns
+ * Uses the document route to share validation and rendering behavior. Returns
  * `undefined` when rendering fails so callers can serve the default card.
  */
 async function card(
@@ -173,9 +290,9 @@ async function card(
     (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
   const picture = named ? await inlined(env, origin, named.id) : undefined
   // Truncate source to the largest canvas, then size the canvas to what remains.
-  const shape = Links.layout(settings.code)
+  const shape = Links.layout(Links.withoutTypes(settings.code))
   const drawn = await api.request(
-    '/image',
+    '/document',
     {
       body: JSON.stringify({
         // Pass wallpaper content through `picture`, not the application identifier.
@@ -188,9 +305,10 @@ async function card(
         ...(picture ? { picture } : {}),
         // Apply the selected theme's frame radius override.
         radius: Themes.frame(settings.theme).radius ?? settings.radius,
-        scale: shape.scale,
         theme: settings.theme,
         titleBar: false,
+        // Preview crawlers cannot wait for package acquisition during Twoslash.
+        twoslash: false,
         width: shape.width,
       }),
       headers: { 'content-type': 'application/json' },
@@ -200,7 +318,15 @@ async function card(
     ctx,
   )
   if (!drawn.ok) return undefined
-  return drawn.arrayBuffer()
+  try {
+    const png = await Browser.screenshot(env.BROWSER, {
+      html: Links.fade(await drawn.text(), shape.overflow),
+      scale: shape.scale,
+    })
+    return png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer
+  } catch {
+    return undefined
+  }
 }
 
 /** Creates an immutable PNG response from rendered card data. */
@@ -215,7 +341,9 @@ function pictured(bytes: ArrayBuffer): Response {
 
 /** Stores a rendered card with the same retention period as its shared link. */
 function keep(env: Cloudflare.Env, id: string, bytes: ArrayBuffer): Promise<void> {
-  return env.LINKS.put(`${Links.cardCache}:${id}`, bytes, { expirationTtl: Links.limits.ttl })
+  return env.LINKS.put(`og:${Links.card.version}:${id}`, bytes, {
+    expirationTtl: Links.limits.ttl,
+  })
 }
 
 /**

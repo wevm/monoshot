@@ -24,7 +24,7 @@ describe('serialize', () => {
 })
 
 describe('deserialize', () => {
-  test('returns every field, none of them optional', () => {
+  test('returns every setting, with width absent for an automatically sized frame', () => {
     expectTypeOf(Codec.deserialize('')).toEqualTypeOf<Codec.State>()
     expectTypeOf<Codec.State>().toEqualTypeOf<{
       background: string
@@ -32,11 +32,12 @@ describe('deserialize', () => {
       lang: string
       padding: number
       radius: number
+      syntax: 'auto' | Theme.Name
       theme: Theme.Name
       title: string
       titleBar: boolean
       types: boolean
-      width: number
+      width?: number | undefined
     }>()
   })
 })

@@ -1,0 +1,15 @@
+/SKILL.md
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/md
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/skill
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/.well-known/agent-skills/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300

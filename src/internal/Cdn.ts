@@ -49,14 +49,17 @@ export function create(): create.ReturnType {
   }
 
   async function start(): Promise<Cdn> {
-    const compiler = (await import('typescript')).default
+    const compiler = await loadCompiler()
     const lib = await bundled(compiler)
     // Read compiler libraries from disk in Node to avoid network-dependent type resolution.
     if (lib) {
       for (const [path, source] of lib) files.set(path, source)
       const { createTwoslasher } = await import('twoslash')
       const twoslasher = createTwoslasher({ ...overrides, fsMap: files })
-      return { compiler, run: (code, lang) => twoslasher(code, lang) }
+      return {
+        compiler,
+        run: (code, lang, types) => twoslasher(code, lang, runOptions(types)),
+      }
     }
     // Fetch compiler libraries when the runtime has no filesystem access.
     const { createTwoslashFromCDN } = await import('twoslash-cdn')
@@ -68,7 +71,10 @@ export function create(): create.ReturnType {
     })
     // Only the lib files. Acquiring a document's packages is the second stage.
     await twoslash.init()
-    return { compiler, run: (code, lang) => twoslash.runSync(code, lang) }
+    return {
+      compiler,
+      run: (code, lang, types) => twoslash.runSync(code, lang, runOptions(types)),
+    }
   }
 
   return {
@@ -79,14 +85,38 @@ export function create(): create.ReturnType {
         started = undefined
         throw cause
       }))
-      await acquire({
+      const acquired = await acquire({
         code,
         compiler: cdn.compiler,
         files,
         load: (name) => read(name),
       })
-      return (source, lang) => cdn.run(source, lang)
+      return (source, lang) => cdn.run(source, lang, acquired.types)
     },
+  }
+}
+
+/**
+ * Loads TypeScript without its Node filesystem in workerd. Node compatibility
+ * exposes `process` and a bundler `require` stub, which otherwise makes the
+ * compiler select its Node path and call the unusable stub during import.
+ */
+async function loadCompiler(): Promise<typeof import('typescript')> {
+  const runtime =
+    typeof navigator !== 'undefined' &&
+    navigator.userAgent === 'Cloudflare-Workers' &&
+    typeof process !== 'undefined'
+      ? (process as typeof process & { browser?: boolean | undefined })
+      : undefined
+  if (!runtime) return (await import('typescript')).default
+
+  const previous = runtime.browser
+  runtime.browser = true
+  try {
+    return (await import('typescript')).default
+  } finally {
+    if (previous === undefined) delete runtime.browser
+    else runtime.browser = previous
   }
 }
 
@@ -112,7 +142,12 @@ function cache() {
 /** Initialized compiler and Twoslash runner. */
 type Cdn = {
   compiler: typeof import('typescript')
-  run: create.Twoslasher
+  run: (code: string, lang: string | undefined, types: readonly string[]) => TwoslashReturn
+}
+
+/** Adds only the ambient roots this document acquired to a Twoslash run. */
+function runOptions(types: readonly string[]) {
+  return types.length ? { compilerOptions: { types: [...types] } } : undefined
 }
 
 /**

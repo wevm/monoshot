@@ -134,7 +134,6 @@ const defaults = {
   radius: 12,
   title: '',
   titleBar: false,
-  width: 640,
 } as const satisfies render.Defaults
 
 /** Captures the rendered frame from a standalone document, as PNG or SVG. */
@@ -213,7 +212,7 @@ export declare namespace render {
   /** Default frame options applied by {@link render}. */
   type Defaults = Pick<
     Frame.toDocument.Options,
-    'background' | 'padding' | 'radius' | 'title' | 'titleBar' | 'width'
+    'background' | 'padding' | 'radius' | 'title' | 'titleBar'
   >
 }
 

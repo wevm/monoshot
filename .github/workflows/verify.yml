@@ -3,6 +3,11 @@ on:
   workflow_call:
   workflow_dispatch:
 
+concurrency:
+  # Called workflows inherit `github.workflow` from the caller, so use the file's identity.
+  group: verify-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.ref_type }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 permissions: {}
 
 jobs:

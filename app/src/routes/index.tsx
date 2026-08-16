@@ -1,31 +1,41 @@
 import * as stylex from '@stylexjs/stylex'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
+import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import type { BundledLanguage } from 'shiki'
 import { flushSync } from 'react-dom'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import { detect, languages } from '#/lib/detect.js'
+import { detect, languages, preferred } from '#/lib/detect.js'
+import type { LanguageId } from '#/lib/detect.js'
+import * as Backgrounds from '#/lib/backgrounds.js'
+import { bare } from '#/lib/editor/notations.js'
 import * as Export from '#/lib/export.js'
 import * as Links from '#/lib/links.js'
+import * as Opening from '#/lib/opening.js'
 import * as Twoslash from '#/lib/twoslash/client.js'
 import { without } from '#/lib/twoslash/protocol.js'
 import type { Run } from '#/lib/twoslash/protocol.js'
 import { dialects } from '#/lib/twoslash/options.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import * as Sample from '#/lib/twoslash/sample.gen.js'
-import * as Warm from '#/lib/warm.js'
 import { sample } from '#/lib/sample.js'
 import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
-import { font, motion } from '../theme/tokens.stylex.js'
-import { ExportMenu } from './-components/ExportMenu.js'
+import { color, crossfade, font, motion } from '../theme/tokens.stylex.js'
 import { Editor } from './-components/Editor.js'
 import { Frame } from './-components/Frame.js'
-import { Toolbar } from './-components/Toolbar.js'
+import { Drawer } from './-components/Drawer.js'
 
 export const Route = createFileRoute('/')({
   component: Page,
+})
+
+const bareSample = bare(sample)
+
+const loadingReveal = stylex.keyframes({
+  from: { clipPath: 'inset(0 100% 0 0)', opacity: 0.7 },
+  to: { clipPath: 'inset(0)', opacity: 1 },
 })
 
 const styles = stylex.create({
@@ -33,9 +43,11 @@ const styles = stylex.create({
     // In the document so it lays out at its real size, off the page so it is
     // never seen. Not `display: none`, which would give it no box at all.
     insetBlockStart: 0,
-    insetInlineStart: -20000,
+    insetInlineStart: 0,
     pointerEvents: 'none',
     position: 'fixed',
+    transform: 'translateX(calc(-100% - 1px))',
+    width: 'max-content',
   },
   page: {
     display: 'flex',
@@ -43,6 +55,7 @@ const styles = stylex.create({
     fontFamily: font.mono,
     minHeight: '100dvh',
     transitionDuration: motion.medium,
+    paddingInlineEnd: { default: 0, '@media (min-width: 800px)': 352 },
     transitionProperty: 'background-color, color',
     transitionTimingFunction: motion.out,
   },
@@ -51,26 +64,39 @@ const styles = stylex.create({
     backgroundColor: surface.background,
     color: surface.foreground,
   }),
-  // Extend the artwork image across the page under a color overlay that keeps
-  // the artwork boundary visible.
-  canvasPicture: (picture: { scrim: string; source: string }) => ({
-    // Held to the viewport, which the artwork's own copy is held to as well: one
-    // picture across both, rather than each covering its own box with a
-    // different part of it.
-    backgroundAttachment: 'fixed',
-    backgroundImage: `linear-gradient(${picture.scrim}, ${picture.scrim}), url("${picture.source}")`,
+  // One full-page picture sits behind the transparent live artwork. Keeping a
+  // single copy prevents the seams caused by independently covered boxes.
+  canvasPicture: {
     backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
     backgroundSize: 'cover',
-  }),
+    insetBlock: 0,
+    insetInlineStart: 0,
+    insetInlineEnd: { default: 0, '@media (min-width: 800px)': 352 },
+    pointerEvents: 'none',
+    position: 'fixed',
+    zIndex: 0,
+  },
+  canvasPictureSource: (source: string) => ({ backgroundImage: `url("${source}")` }),
   header: {
     alignItems: 'center',
     display: 'flex',
     height: 56,
     justifyContent: 'space-between',
-    paddingInline: 20,
+    paddingInline: { default: 16, '@media (min-width: 800px)': 20 },
+    position: 'relative',
+    zIndex: 2,
   },
-  wordmark: { fontFamily: font.mono },
-  actions: { alignItems: 'center', display: 'flex', gap: 12 },
+  wordmark: {
+    backgroundColor: 'currentColor',
+    blockSize: 26,
+    display: 'block',
+    inlineSize: 101,
+    maskImage: 'url("/logo-light.svg")',
+    maskPosition: 'center',
+    maskRepeat: 'no-repeat',
+    maskSize: 'contain',
+  },
   // Beside the menu that started the export, quiet enough to read as a note on
   // the action rather than a failure of the page.
   notice: { opacity: 0.7 },
@@ -78,18 +104,35 @@ const styles = stylex.create({
     alignItems: 'center',
     display: 'flex',
     flex: 1,
-    justifyContent: 'center',
-    // Room for the floating toolbar.
+    justifyContent: 'safe center',
+    minWidth: 0,
+    overflowX: 'auto',
     paddingBlock: 24,
-    paddingBottom: 120,
-    paddingInline: 24,
+    paddingInline: { default: 10, '@media (min-width: 800px)': 24 },
+    position: 'relative',
+    zIndex: 2,
   },
-  canvas: { maxWidth: '100%' },
+  canvas: { flexShrink: 0, maxWidth: '100%' },
+  scrim: { inset: 0, pointerEvents: 'none', position: 'fixed', zIndex: 0 },
+  scrimBlock: (box: {
+    color: string
+    height: number
+    left: number
+    top: number
+    width: number
+  }) => ({
+    backgroundColor: box.color,
+    height: Math.max(0, box.height),
+    left: box.left,
+    position: 'absolute',
+    top: box.top,
+    width: Math.max(0, box.width),
+  }),
   // Crop guides: dashed lines continuing the artwork's edges across the
   // viewport. Fixed and measured, so they never add to the page's own size.
   // The page stacks in three layers: guides over the artwork (a solid fill
   // would otherwise paint over them, which is exactly when the crop edge is
-  // hardest to see), then the theme arrows, then the toolbar and its panels.
+  // hardest to see), then the drawer.
   guides: { inset: 0, pointerEvents: 'none', position: 'fixed', zIndex: 1 },
   // A hairline drawn as a background rather than a border, so it stays exactly
   // one device-independent pixel and the dashes keep an even rhythm.
@@ -117,74 +160,44 @@ const styles = stylex.create({
     justifyContent: 'center',
     minHeight: 320,
   },
-  // Half the region beside the artwork is the target, taken from the page's own
-  // edge where its contents sit: chevron outboard, destination name inboard. The
-  // half nearer the artwork is left alone, so reaching past the frame's width
-  // handle is not also reaching for another theme.
-  arrow: {
+  loadingScreen: {
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    borderStyle: 'none',
-    color: 'inherit',
-    cursor: 'pointer',
-    display: 'flex',
-    opacity: { default: 0.35, ':hover': 1, ':focus-visible': 1 },
-    outline: 'none',
-    paddingInline: 28,
+    backgroundColor: color.background,
+    color: color.gray1000,
+    display: 'var(--loading-screen-display, flex)',
+    inset: 0,
+    justifyContent: 'center',
+    opacity: 1,
     position: 'fixed',
-    transitionDuration: motion.fast,
+    transitionDuration: motion.medium,
     transitionProperty: 'opacity',
     transitionTimingFunction: motion.out,
-    zIndex: 2,
+    zIndex: 100,
   },
-  arrowAt: (box: { height: number; top: number; width: number }) => ({
-    height: box.height,
-    top: box.top,
-    width: box.width,
-  }),
-  arrowStart: { justifyContent: 'flex-start', left: 0 },
-  arrowEnd: { justifyContent: 'flex-end', right: 0 },
-  // A band this large cannot scale on press, so the press lands on its
-  // contents. `:active` never reaches a child and arrow keys never raise it at
-  // all, so both pointer and key presses drive the same state instead.
-  arrowInner: {
-    alignItems: 'center',
-    display: 'flex',
-    gap: 6,
-    transform: 'scale(1)',
-    transitionDuration: motion.fast,
-    transitionProperty: 'transform',
-    transitionTimingFunction: motion.out,
+  loadingScreenReady: { opacity: 0, pointerEvents: 'none' },
+  loadingMark: { blockSize: 48, inlineSize: 184, position: 'relative' },
+  loadingLogo: {
+    backgroundColor: 'currentColor',
+    inset: 0,
+    maskImage: 'url("/logo-light.svg")',
+    maskPosition: 'center',
+    maskRepeat: 'no-repeat',
+    maskSize: 'contain',
+    position: 'absolute',
   },
-  arrowInnerEnd: { flexDirection: 'row-reverse' },
-  arrowInnerPressed: { transform: 'scale(0.92)' },
-  // Display the corresponding arrow key using colors derived from the page theme.
-  arrowKey: {
-    alignItems: 'center',
-    backgroundColor: 'color-mix(in oklab, currentColor 14%, transparent)',
-    borderColor: 'color-mix(in oklab, currentColor 30%, transparent)',
-    borderRadius: 4,
-    borderStyle: 'solid',
-    borderWidth: 1,
-    display: 'flex',
-    height: 15,
-    justifyContent: 'center',
-    minWidth: 15,
-    paddingInline: 3,
+  loadingLogoBase: { opacity: 0.16 },
+  loadingLogoReveal: {
+    animationDirection: 'alternate',
+    animationDuration: motion.slow,
+    animationIterationCount: 'infinite',
+    animationName: loadingReveal,
+    animationTimingFunction: motion.inOut,
+    '@media (prefers-reduced-motion: reduce)': {
+      animationName: 'none',
+      clipPath: 'inset(0)',
+      opacity: 0.7,
+    },
   },
-  arrowName: { whiteSpace: 'nowrap' },
-  // Floats over the artwork so opening a taller panel never reflows the page.
-  controls: {
-    bottom: 24,
-    zIndex: 3,
-    display: 'flex',
-    insetInline: 0,
-    justifyContent: 'center',
-    paddingInline: 20,
-    pointerEvents: 'none',
-    position: 'fixed',
-  },
-  controlsInner: { pointerEvents: 'auto' },
 })
 
 /** Held still so the editor is not reconfigured with a fresh array each render. */
@@ -196,7 +209,7 @@ const emptyOffsets: readonly number[] = []
 const quiet: Editor.Props['diagnostics'] = []
 
 /** Everything on screen that a shared link carries, less the code and title. */
-type Settings = Toolbar.State & { padding: number; radius: number; width: number }
+type Settings = Drawer.State
 
 /**
  * Snapshot of offscreen export content. Captures span asynchronous operations,
@@ -222,21 +235,23 @@ type Capture = {
   code: string
   /** The run the frame draws its annotations from, when one is current. */
   types: Run | undefined
-  language: BundledLanguage
+  language: LanguageId
   options: Export.capture.Options
   settings: Settings
   title: string
+  /** The backdrop as it stood when export began, including a local image. */
+  wallpaper: string | undefined
 }
 
 const fallback: Settings = {
-  background: 'default',
+  background: 'wallpaper:golden-gate-dark',
   language: 'auto',
   padding: 64,
   radius: 12,
+  syntax: 'auto',
   theme: 'golden-gate-dark',
   titleBar: false,
   types: true,
-  width: 640,
 }
 
 /**
@@ -259,6 +274,7 @@ function restore(hash: string) {
       language,
       padding: state.padding,
       radius: state.radius,
+      syntax: state.syntax,
       theme,
       titleBar: state.titleBar,
       types: state.types,
@@ -275,28 +291,26 @@ function merged(current: Settings, next: Partial<Settings>): Settings {
   return { ...settings, ...Themes.reframe(current.theme, next.theme) }
 }
 
-/**
- * The picture the artwork stands on: the one chosen as a backdrop, or the one a
- * theme is made of. `default` is the theme's own backdrop, and a theme made
- * from a picture has that picture for one.
- */
+/** The wallpaper explicitly selected as the artwork backdrop. */
 function backdrop(settings: Settings) {
-  return (
-    Wallpapers.at(settings.background) ??
-    (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
-  )
+  return Wallpapers.at(settings.background)
 }
 
 /** The fragment a link carries for the state on screen. */
 function share(parameters: { code: string; settings: Settings; title: string }) {
   const { code, settings, title } = parameters
   return Codec.serialize({
-    background: settings.background,
+    // Custom images stay local; a shared link falls back to the selected theme gradient.
+    background: settings.background === 'image' ? 'default' : settings.background,
     code,
     lang: settings.language,
     padding: settings.padding,
     radius: settings.radius,
-    theme: settings.theme,
+    syntax: settings.syntax,
+    theme:
+      settings.background === 'image' && settings.syntax === 'auto'
+        ? Backgrounds.syntax('default')
+        : settings.theme,
     title,
     titleBar: settings.titleBar,
     types: settings.types,
@@ -306,8 +320,7 @@ function share(parameters: { code: string; settings: Settings; title: string }) 
 
 // One renderer for the page: it caches the themes and languages already loaded.
 const renderer = Core.create({ langs: ['tsx'] })
-const themes = Theme.list()
-const names = themes.map((entry) => entry.name)
+const names = Theme.list().map((entry) => entry.name)
 
 /**
  * The resolved types, tokenized so they are painted in the theme's colors
@@ -346,23 +359,36 @@ function resolvedSample(): Twoslash.Resolved {
   }
 }
 
-function Page() {
+/** Interactive editor initialized from an optional server-visible shared state. */
+export function Page({ state }: { state?: string | undefined } = {}) {
   const navigate = useNavigate()
-  const [settings, setSettings] = useState<Settings>(fallback)
-  const [title, setTitle] = useState('')
-  const [code, setCode] = useState(sample)
+  const initial = state ? restore(state) : { code: sample, settings: fallback, title: '' }
+  const [settings, setSettings] = useState<Settings>(initial.settings)
+  const [syntaxPreview, setSyntaxPreview] = useState<Theme.Info['name']>()
+  const [mobile, setMobile] = useState(false)
+  const [title, setTitle] = useState(initial.title)
+  const [code, setCode] = useState(initial.code)
+
+  useEffect(() => {
+    const query = matchMedia('(max-width: 799px)')
+    const update = () => setMobile(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
 
   // A fragment is never sent to the server, so it is applied after mount
   // rather than during render, which could not match what was served. Before
   // paint, so a shared link never shows the defaults first.
   useLayoutEffect(() => {
+    if (state) return
     // Retain application defaults when the fragment is absent or unreadable.
     if (!Codec.readable(window.location.hash)) return
     const shared = restore(window.location.hash)
     setCode(shared.code)
     setSettings(shared.settings)
     setTitle(shared.title)
-  }, [])
+  }, [state])
   const [frame, setFrame] = useState<{
     palette: Theme.derive.Result
     tokens: Editor.Props['tokens']
@@ -390,42 +416,55 @@ function Page() {
   // Held as data rather than drawn from its URL: the copy an export captures is
   // read as it stands, and a fetch it started would not have landed by then.
   const [wallpaper, setWallpaper] = useState<Wallpapers.Picture>()
+  const [image, setImage] = useState<string>()
+  // Gate only the opening visual assets; type resolution remains progressive.
+  const [pictureReady, setPictureReady] = useState(false)
+  const [fontsReady, setFontsReady] = useState(false)
+  const [opening, setOpening] = useState(true)
   const stage = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
   const attempt = useRef(0)
-  const [detected, setDetected] = useState<BundledLanguage>('tsx')
+  const [detected, setDetected] = useState<BundledLanguage>(() => {
+    const source = bare(code)
+    return source === bareSample ? preferred(Sample.language) : (detect(source) ?? 'tsx')
+  })
 
   // Under `auto` the language is read from the code, debounced: reading the
   // whole document on every keystroke would recolor the frame mid-word, and a
   // guess that cannot be made leaves the language where it is.
   useEffect(() => {
     if (settings.language !== 'auto') return
-    const timer = setTimeout(() => setDetected((current) => detect(code) ?? current), 400)
+    const source = bare(code)
+    if (source === bareSample) {
+      setDetected(preferred(Sample.language))
+      return
+    }
+    const timer = setTimeout(() => setDetected((current) => detect(source) ?? current), 400)
     return () => clearTimeout(timer)
   }, [code, settings.language])
 
-  // The sample was resolved as one language at build time, and reads as that
-  // one regardless of detection. Detection still controls every other
-  // document, including one it cannot place, which stays TypeScript.
-  const language =
-    settings.language !== 'auto' ? settings.language : code === sample ? Sample.language : detected
+  const language = settings.language !== 'auto' ? settings.language : detected
+  const syntaxTheme = syntaxPreview ?? settings.theme
 
   // The fragment is the only place state is kept, so it is written on every
   // change, debounced: a keystroke should not push a history entry, and the
   // router owns the address bar rather than `history.replaceState`.
   useEffect(() => {
     const timer = setTimeout(() => {
-      void navigate({ hash: share({ code, settings, title }), replace: true, resetScroll: false })
+      const hash = share({ code, settings, title })
+      // Preserve the immutable short URL until the editor diverges from it.
+      if (state === hash) return
+      void navigate({ to: '/', hash, replace: true, resetScroll: false })
     }, 500)
     return () => clearTimeout(timer)
-  }, [code, navigate, settings, title])
+  }, [code, navigate, settings, state, title])
 
   // Tokens are the editor's colors, so this reruns on every edit as well as
   // every theme change. Shiki tokenizes synchronously once a theme is loaded.
   useEffect(() => {
     let active = true
-    renderer.tokens({ code, lang: language, theme: settings.theme }).then(
+    renderer.tokens({ code, lang: language, theme: syntaxTheme }).then(
       (result) => {
         if (!active) return
         setError(undefined)
@@ -438,7 +477,7 @@ function Page() {
     return () => {
       active = false
     }
-  }, [code, language, settings.theme])
+  }, [code, language, syntaxTheme])
 
   // The language service runs in a worker: it carries the TypeScript compiler,
   // which would block typing on this thread. Debounced, because resolving a
@@ -458,7 +497,10 @@ function Page() {
     // for a document that needs no resolving, because a caret asking for
     // completions reaches through it and the worker inside is what is lazy.
     resolver.current ??= Twoslash.create({
-      onError: () => setResolved(undefined),
+      onError: (message) => {
+        console.error('Type resolution failed.', message)
+        setResolved(undefined)
+      },
       onResult: setResolved,
     })
     // Already resolved, and by something other than the worker: an untouched
@@ -475,35 +517,79 @@ function Page() {
   const picture = backdrop(settings)?.id
 
   useEffect(() => {
-    // Cleared first: the artwork would otherwise keep the picture it is holding
-    // while the next one loads, which is the last theme's backdrop under this
-    // theme's colors.
-    setWallpaper(undefined)
-    if (!picture) return
+    if (settings.background === 'image') {
+      setWallpaper(image ? { source: image } : undefined)
+      setPictureReady(true)
+      if (image) {
+        let active = true
+        void Wallpapers.analyze(image).then(
+          (colors) => {
+            if (!active) return
+            setWallpaper({ color: colors[0], colors, source: image })
+            setSettings((current) =>
+              current.background === 'image' && current.syntax === 'auto'
+                ? merged(current, { theme: Backgrounds.syntax('image', colors) })
+                : current,
+            )
+          },
+          () => {},
+        )
+        return () => {
+          active = false
+        }
+      }
+      return
+    }
+    setPictureReady(!picture)
+    if (!picture) {
+      setWallpaper(undefined)
+      return
+    }
     let active = true
-    void Wallpapers.embed(picture).then(
-      (source) => {
-        if (active) setWallpaper({ source })
+    void Promise.all([Wallpapers.embed(picture), Wallpapers.palette(picture)]).then(
+      ([source, colors]) => {
+        if (!active) return
+        setWallpaper({ color: colors[0], colors, source })
+        setSettings((current) =>
+          backdrop(current)?.id === picture && current.syntax === 'auto'
+            ? merged(current, { theme: Backgrounds.syntax(current.background, colors) })
+            : current,
+        )
+        setPictureReady(true)
       },
       (cause: Error) => {
-        if (active) setNotice(cause.message)
+        if (!active) return
+        setNotice(cause.message)
+        setPictureReady(true)
       },
-    )
-    // Behind the picture rather than before it: the shell takes the picture's
-    // color once it has been read, and stands on the theme's own until then.
-    // A picture that will not decode still hangs on the wall.
-    void Wallpapers.color(picture).then(
-      (color) => {
-        if (active) setWallpaper((current) => (current ? { ...current, color } : current))
-      },
-      () => {},
     )
     return () => {
       active = false
     }
     // The picture is what this loads; every other setting leaves it alone, and
     // a drag on the padding would otherwise reload it on every frame.
-  }, [picture])
+  }, [image, picture, settings.background])
+
+  useEffect(() => {
+    void Wallpapers.preload()
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void document.fonts.ready.then(() => {
+      if (active) setFontsReady(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    // Latch open so later theme loads never bring the screen back.
+    if (!fontsReady || !(error || (frame && pictureReady))) return
+    setOpening(false)
+    Opening.remember()
+  }, [error, fontsReady, frame, pictureReady])
 
   useEffect(() => () => resolver.current?.dispose(), [])
 
@@ -527,20 +613,20 @@ function Page() {
       return
     setDiagnostics(resolved.result.diagnostics)
     let active = true
-    void paint(settings.theme, resolved.result.hovers).then((painted) => {
+    void paint(syntaxTheme, resolved.result.hovers).then((painted) => {
       if (active) setAnnotations(painted)
     })
     return () => {
       active = false
     }
-  }, [code, resolved, settings.theme])
+  }, [code, resolved, syntaxTheme])
 
   /**
    * Renders the frame away from the page and captures that, so an export
    * carries the artwork rather than the editor's caret, selection, and handles.
    */
   async function draw(capture: Capture) {
-    const { code, language, options, settings, title, types } = capture
+    const { code, language, options, settings, title, types, wallpaper } = capture
     const { theme } = settings
     // The frame draws the annotations itself, from the run the worker already
     // resolved: the export and the command line then produce the same markup
@@ -552,7 +638,7 @@ function Page() {
       ...(types ? { twoslash: types } : {}),
     })
     const named = backdrop(settings)
-    const picture = named ? await Wallpapers.embed(named.id) : undefined
+    const picture = wallpaper ?? (named ? await Wallpapers.embed(named.id) : undefined)
     // Synchronous, so the copy is in the document before it is measured.
     flushSync(() =>
       setArtwork({
@@ -599,7 +685,15 @@ function Page() {
     const found = resolved?.document === code ? resolved.types : undefined
     // What the editor stopped reporting is not in the picture either.
     const types = found && without(found, ignored)
-    const capture: Capture = { code, language, options, settings, title, types }
+    const capture: Capture = {
+      code,
+      language,
+      options,
+      settings,
+      title,
+      types,
+      wallpaper: wallpaper?.source,
+    }
     const run = Promise.resolve(pending.current)
       .catch(() => {})
       .then(() => draw(capture))
@@ -655,67 +749,23 @@ function Page() {
   }
 
   const [measure, rect] = useEdges()
+  const frameWidthMax = Math.max(360, (rect?.width ?? 1600) - (mobile ? 20 : 400))
 
-  // The list wraps at both ends, so every step lands on a theme.
-  const themeIndex = themes.findIndex((entry) => entry.name === settings.theme)
-  const at = (direction: number) => themes[(themeIndex + direction + themes.length) % themes.length]
-  const previousTheme = at(-1)
-  const nextTheme = at(1)
-
-  // Reads the theme off current state, so the key listener never goes stale.
-  function step(direction: number) {
+  useEffect(() => {
     setSettings((current) => {
-      const index = themes.findIndex((entry) => entry.name === current.theme)
-      const entry = themes[(index + direction + themes.length) % themes.length]
-      return entry ? merged(current, { theme: entry.name }) : current
+      const padding = Math.min(current.padding, mobile ? 16 : Frame.maxPadding(frameWidthMax))
+      const width =
+        current.width === undefined
+          ? undefined
+          : Math.min(frameWidthMax, Math.max(Frame.minWidth(padding), current.width))
+      if (padding === current.padding && width === current.width) return current
+      return { ...current, padding, width }
     })
-  }
+  }, [frameWidthMax, mobile])
 
-  const previousArrow = useRef<HTMLButtonElement>(null)
-  const nextArrow = useRef<HTMLButtonElement>(null)
-  const [pressed, setPressed] = useState<number>()
-  const release = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  // Themes load their own chunk on first use, so an unvisited one costs a
-  // round trip. Warming the list outward from the opening theme keeps every
-  // switch after the page settles instant. Runs once: the sweep covers the
-  // whole list wherever it starts.
-  useEffect(() => {
-    const controller = new AbortController()
-    void Warm.themes({
-      from: settings.theme,
-      // The full sweep is a couple of megabytes of chunks, so a metered
-      // connection preloads only adjacent themes.
-      limit: metered() ? 4 : names.length,
-      list: names,
-      load: (theme) => renderer.load({ lang: 'tsx', theme }),
-      signal: controller.signal,
-    })
-    return () => controller.abort()
-  }, [])
-
-  useEffect(() => {
-    function walk(event: KeyboardEvent) {
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-      const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
-      if (!direction || !(event.target instanceof Element)) return
-      // A field or a frame handle owns its own arrow keys.
-      if (event.target.closest('input, textarea, [role="slider"], [contenteditable]')) return
-      event.preventDefault()
-      step(direction)
-      // Focus the corresponding control and show brief pressed feedback.
-      const arrow = direction === -1 ? previousArrow : nextArrow
-      arrow.current?.focus()
-      setPressed(direction)
-      clearTimeout(release.current)
-      release.current = setTimeout(() => setPressed(undefined), 140)
-    }
-    window.addEventListener('keydown', walk)
-    return () => {
-      clearTimeout(release.current)
-      window.removeEventListener('keydown', walk)
-    }
-  }, [])
+  // The wallpaper and its cutout enter together. Before the artwork has bounds,
+  // showing the picture would briefly brighten the whole page without a scrim.
+  const visibleWallpaper = rect ? wallpaper : undefined
 
   // Override browser defaults for shortcuts advertised by the export menu.
   useEffect(() => {
@@ -742,9 +792,11 @@ function Page() {
 
   // A dark fill lands on the same near-black the shell mixes to, leaving no
   // visible artwork edge, so the guides carry the crop the whole way across.
+  const customGradient = gradient(settings.background)
   const bleed =
     settings.background === 'none' ||
-    (settings.background.startsWith('#') && lightness(settings.background) < 0.2)
+    (settings.background.startsWith('#') && lightness(settings.background) < 0.2) ||
+    (customGradient?.every((color) => lightness(color) < 0.2) ?? false)
 
   // With no backdrop the window is the whole artwork, so the shell takes the
   // window's own colors and the two read as one surface.
@@ -758,6 +810,11 @@ function Page() {
         background: `color-mix(in oklab, ${settings.background} 22%, #08080a)`,
         foreground: frame.palette.page.foreground,
       }
+    if (customGradient)
+      return {
+        background: `color-mix(in oklab, ${customGradient[0]} 22%, #08080a)`,
+        foreground: frame.palette.page.foreground,
+      }
     // A picture owns the surface the same way, in the strongest color it holds.
     if (wallpaper?.color)
       return {
@@ -766,212 +823,250 @@ function Page() {
       }
     return frame.palette.page
   })()
+  const scrim =
+    canvas && visibleWallpaper
+      ? `color-mix(in oklab, ${canvas.background} 82%, transparent)`
+      : undefined
 
   return (
-    <main
-      {...stylex.props(
-        styles.page,
-        canvas ? styles.canvasColor(canvas) : null,
-        canvas && wallpaper
-          ? styles.canvasPicture({
-              scrim: `color-mix(in oklab, ${canvas.background} 82%, transparent)`,
-              source: wallpaper.source,
-            })
-          : null,
-      )}
-    >
-      {rect && (
-        // Constrain guides to artwork bounds when a backdrop defines visible edges.
-        <div aria-hidden {...stylex.props(styles.guides)}>
-          {[rect.top, rect.bottom].map((top) =>
-            (bleed
-              ? [{ from: 0, to: rect.width }]
-              : [
-                  { from: 0, to: rect.left },
-                  { from: rect.right, to: rect.width },
-                ]
-            ).map((span) => (
-              <span
-                key={`row-${top}-${span.from}`}
-                {...stylex.props(styles.guide, styles.guideRow({ ...span, top }))}
-              />
-            )),
-          )}
-          {[rect.left, rect.right].map((left) =>
-            (bleed
-              ? [{ from: 0, to: rect.height }]
-              : [
-                  { from: 0, to: rect.top },
-                  { from: rect.bottom, to: rect.height },
-                ]
-            ).map((span) => (
-              <span
-                key={`column-${left}-${span.from}`}
-                {...stylex.props(styles.guide, styles.guideColumn({ ...span, left }))}
-              />
-            )),
-          )}
+    <MotionConfig reducedMotion="user">
+      <main
+        aria-busy={opening}
+        {...stylex.props(styles.page, canvas ? styles.canvasColor(canvas) : null)}
+      >
+        <div
+          aria-hidden
+          data-loading-screen
+          {...stylex.props(styles.loadingScreen, !opening && styles.loadingScreenReady)}
+        >
+          <div {...stylex.props(styles.loadingMark)}>
+            <span {...stylex.props(styles.loadingLogo, styles.loadingLogoBase)} />
+            <span {...stylex.props(styles.loadingLogo, styles.loadingLogoReveal)} />
+          </div>
         </div>
-      )}
 
-      {rect && (
-        <>
-          <button
-            aria-keyshortcuts="ArrowLeft"
-            aria-label={`Previous theme: ${previousTheme?.displayName}`}
-            onClick={() => step(-1)}
-            onPointerCancel={() => setPressed(undefined)}
-            onPointerDown={() => setPressed(-1)}
-            onPointerLeave={() => setPressed(undefined)}
-            onPointerUp={() => setPressed(undefined)}
-            ref={previousArrow}
-            type="button"
-            {...stylex.props(
-              styles.arrow,
-              styles.arrowStart,
-              styles.arrowAt({
-                height: rect.bottom - rect.top,
-                top: rect.top,
-                width: Math.max(0, rect.left - 12) / 2,
-              }),
-            )}
-          >
-            <span {...stylex.props(styles.arrowInner, pressed === -1 && styles.arrowInnerPressed)}>
-              <kbd {...stylex.props(styles.arrowKey, text.label10)}>←</kbd>
-              <span aria-hidden {...stylex.props(styles.arrowName, text.label12)}>
-                {previousTheme?.displayName}
-              </span>
-            </span>
-          </button>
-          <button
-            aria-keyshortcuts="ArrowRight"
-            aria-label={`Next theme: ${nextTheme?.displayName}`}
-            onClick={() => step(1)}
-            onPointerCancel={() => setPressed(undefined)}
-            onPointerDown={() => setPressed(1)}
-            onPointerLeave={() => setPressed(undefined)}
-            onPointerUp={() => setPressed(undefined)}
-            ref={nextArrow}
-            type="button"
-            {...stylex.props(
-              styles.arrow,
-              styles.arrowEnd,
-              styles.arrowAt({
-                height: rect.bottom - rect.top,
-                top: rect.top,
-                width: Math.max(0, rect.width - rect.right - 12) / 2,
-              }),
-            )}
-          >
-            <span
+        <AnimatePresence initial={false}>
+          {visibleWallpaper && (
+            <m.div
+              animate={{ opacity: 1 }}
+              aria-hidden
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              key={visibleWallpaper.source}
+              transition={crossfade}
               {...stylex.props(
-                styles.arrowInner,
-                styles.arrowInnerEnd,
-                pressed === 1 && styles.arrowInnerPressed,
+                styles.canvasPicture,
+                styles.canvasPictureSource(visibleWallpaper.source),
               )}
-            >
-              <kbd {...stylex.props(styles.arrowKey, text.label10)}>→</kbd>
-              <span aria-hidden {...stylex.props(styles.arrowName, text.label12)}>
-                {nextTheme?.displayName}
-              </span>
-            </span>
-          </button>
-        </>
-      )}
+            />
+          )}
+        </AnimatePresence>
 
-      <header {...stylex.props(styles.header)}>
-        <span {...stylex.props(styles.wordmark, text.heading16)}>monoshot</span>
-        {/* Inert rather than `aria-hidden`: the copy carries a title field and
-            the frame's handles, which stay tabbable while a capture runs. */}
-        <div inert ref={stage} {...stylex.props(styles.offscreen)}>
-          {artwork ? (
-            <Frame
-              background={artwork.settings.background}
-              onPaddingChange={() => {}}
-              onWidthChange={() => {}}
-              padding={artwork.settings.padding}
-              onRadiusChange={() => {}}
-              palette={artwork.palette}
-              radius={artwork.settings.radius}
-              title={artwork.title}
-              titleBar={artwork.settings.titleBar}
-              wallpaper={
-                artwork.wallpaper ? { source: artwork.wallpaper, spread: 'artwork' } : undefined
-              }
-              width={artwork.settings.width}
+        <AnimatePresence initial={false}>
+          {rect && scrim && visibleWallpaper && (
+            <m.div
+              animate={{ opacity: 1 }}
+              aria-hidden
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              key={`${visibleWallpaper.source}:${scrim}`}
+              transition={crossfade}
+              {...stylex.props(styles.scrim)}
             >
-              <Frame.Code css={artwork.css} html={artwork.html} />
-            </Frame>
-          ) : null}
-        </div>
-        <div {...stylex.props(styles.actions)}>
+              {[
+                { height: rect.top, left: 0, top: 0, width: rect.width },
+                {
+                  height: rect.bottom - rect.top,
+                  left: 0,
+                  top: rect.top,
+                  width: rect.left,
+                },
+                {
+                  height: rect.bottom - rect.top,
+                  left: rect.right,
+                  top: rect.top,
+                  width: rect.width - rect.right,
+                },
+                {
+                  height: rect.height - rect.bottom,
+                  left: 0,
+                  top: rect.bottom,
+                  width: rect.width,
+                },
+              ].map((box) => (
+                <span
+                  key={`${box.left}-${box.top}`}
+                  {...stylex.props(styles.scrimBlock({ ...box, color: scrim }))}
+                />
+              ))}
+            </m.div>
+          )}
+        </AnimatePresence>
+
+        {rect && (
+          // Constrain guides to artwork bounds when a backdrop defines visible edges.
+          <div aria-hidden {...stylex.props(styles.guides)}>
+            {[rect.top, rect.bottom].map((top) =>
+              (bleed
+                ? [{ from: 0, to: rect.width }]
+                : [
+                    { from: 0, to: rect.left },
+                    { from: rect.right, to: rect.width },
+                  ]
+              ).map((span) => (
+                <span
+                  key={`row-${top}-${span.from}`}
+                  {...stylex.props(styles.guide, styles.guideRow({ ...span, top }))}
+                />
+              )),
+            )}
+            {[rect.left, rect.right].map((left) =>
+              (bleed
+                ? [{ from: 0, to: rect.height }]
+                : [
+                    { from: 0, to: rect.top },
+                    { from: rect.bottom, to: rect.height },
+                  ]
+              ).map((span) => (
+                <span
+                  key={`column-${left}-${span.from}`}
+                  {...stylex.props(styles.guide, styles.guideColumn({ ...span, left }))}
+                />
+              )),
+            )}
+          </div>
+        )}
+
+        <header {...stylex.props(styles.header)}>
+          <span aria-label="Monoshot" role="img" {...stylex.props(styles.wordmark)} />
+          {/* Inert rather than `aria-hidden`: the copy carries a title field and
+            the frame's handles, which stay tabbable while a capture runs. */}
+          <div inert ref={stage} {...stylex.props(styles.offscreen)}>
+            {artwork ? (
+              <Frame
+                background={artwork.settings.background}
+                onPaddingChange={() => {}}
+                onWidthChange={() => {}}
+                padding={artwork.settings.padding}
+                onRadiusChange={() => {}}
+                palette={artwork.palette}
+                radius={artwork.settings.radius}
+                title={artwork.title}
+                titleBar={artwork.settings.titleBar}
+                wallpaper={
+                  artwork.wallpaper ? { source: artwork.wallpaper, spread: 'artwork' } : undefined
+                }
+                width={artwork.settings.width}
+              >
+                <Frame.Code css={artwork.css} html={artwork.html} />
+              </Frame>
+            ) : null}
+          </div>
           {notice && (
             <span role="status" {...stylex.props(styles.notice, text.copy14)}>
               {notice}
             </span>
           )}
-          <ExportMenu onCopyImage={copyImage} onCopyUrl={copyUrl} onSave={save} />
-        </div>
-      </header>
+        </header>
 
-      <div {...stylex.props(styles.stage)}>
-        <div {...stylex.props(styles.canvas)}>
-          {error ? (
-            <div role="alert" {...stylex.props(styles.fallback, text.copy14)}>
-              Could not highlight this snippet.
-            </div>
-          ) : frame ? (
-            <div ref={measure}>
-              <Frame
-                background={settings.background}
-                onPaddingChange={(padding) => setSettings((current) => ({ ...current, padding }))}
-                onTitleChange={setTitle}
-                onWidthChange={(width) => setSettings((current) => ({ ...current, width }))}
-                padding={settings.padding}
-                onRadiusChange={(radius) => setSettings((current) => ({ ...current, radius }))}
-                palette={frame.palette}
-                radius={settings.radius}
-                title={title}
-                titleBar={settings.titleBar}
-                wallpaper={wallpaper ? { source: wallpaper.source, spread: 'viewport' } : undefined}
-                width={settings.width}
-              >
-                <Editor
-                  code={code}
-                  diagnostics={diagnostics}
-                  language={language}
-                  onCodeChange={setCode}
-                  onIgnore={setIgnored}
-                  // Return no completions for unsupported languages or before resolver creation.
-                  onComplete={async (document, position) => {
-                    const dialect = settings.types
-                      ? dialects[language as keyof typeof dialects]
-                      : undefined
-                    if (!dialect) return []
-                    return (await resolver.current?.complete(document, dialect, position)) ?? []
-                  }}
+        <div {...stylex.props(styles.stage)}>
+          <div {...stylex.props(styles.canvas)}>
+            {error ? (
+              <div role="alert" {...stylex.props(styles.fallback, text.copy14)}>
+                Could not highlight this snippet.
+              </div>
+            ) : frame ? (
+              <div ref={measure}>
+                <Frame
+                  background={
+                    wallpaper || (picture && !pictureReady) ? 'none' : settings.background
+                  }
+                  maxWidth={frameWidthMax}
+                  onPaddingChange={(padding) =>
+                    setSettings((current) => {
+                      const width = Math.min(
+                        current.width ?? (rect ? Math.round(rect.right - rect.left) : 808),
+                        frameWidthMax,
+                      )
+                      const windowWidth = width - current.padding * 2
+                      const next = Math.min(
+                        padding,
+                        mobile ? 16 : Number.POSITIVE_INFINITY,
+                        Frame.maxPaddingFor(frameWidthMax, windowWidth),
+                      )
+                      return {
+                        ...current,
+                        padding: next,
+                        width: width + (next - current.padding) * 2,
+                      }
+                    })
+                  }
+                  onTitleChange={setTitle}
+                  onWidthChange={(width) => setSettings((current) => ({ ...current, width }))}
+                  padding={settings.padding}
+                  onRadiusChange={(radius) => setSettings((current) => ({ ...current, radius }))}
                   palette={frame.palette}
-                  tokens={frame.tokens}
-                  types={annotations}
-                />
-              </Frame>
-            </div>
-          ) : (
-            <div {...stylex.props(styles.fallback)} />
-          )}
+                  radius={settings.radius}
+                  responsive
+                  title={title}
+                  titleBar={settings.titleBar}
+                  width={settings.width}
+                >
+                  <Editor
+                    code={code}
+                    diagnostics={diagnostics}
+                    language={language}
+                    onCodeChange={setCode}
+                    onIgnore={setIgnored}
+                    // Return no completions for unsupported languages or before resolver creation.
+                    onComplete={async (document, position) => {
+                      const dialect = settings.types
+                        ? dialects[language as keyof typeof dialects]
+                        : undefined
+                      if (!dialect) return []
+                      return (await resolver.current?.complete(document, dialect, position)) ?? []
+                    }}
+                    palette={frame.palette}
+                    tokens={frame.tokens}
+                    types={annotations}
+                  />
+                </Frame>
+              </div>
+            ) : (
+              <div {...stylex.props(styles.fallback)} />
+            )}
+          </div>
         </div>
-      </div>
 
-      <div {...stylex.props(styles.controls)}>
-        <div {...stylex.props(styles.controlsInner)}>
-          <Toolbar
-            resolved={language}
-            {...settings}
-            onChange={(next) => setSettings((current) => merged(current, next))}
-          />
-        </div>
-      </div>
-    </main>
+        <Drawer
+          image={image}
+          maxWidth={frameWidthMax}
+          mobile={mobile}
+          onCopyImage={copyImage}
+          onCopyUrl={copyUrl}
+          onImageChange={setImage}
+          onSave={save}
+          onSyntaxPreview={setSyntaxPreview}
+          resolved={language}
+          {...settings}
+          width={Math.min(
+            settings.width ?? (rect ? Math.round(rect.right - rect.left) : frameWidthMax),
+            frameWidthMax,
+          )}
+          onChange={(next) =>
+            setSettings((current) => {
+              const syntax = next.syntax ?? current.syntax
+              const background = next.background ?? current.background
+              const theme =
+                syntax === 'auto' && (next.background !== undefined || next.syntax === 'auto')
+                  ? Backgrounds.syntax(background, background === 'image' ? wallpaper?.colors : [])
+                  : next.theme
+              return merged(current, { ...next, ...(theme ? { theme } : {}) })
+            })
+          }
+        />
+      </main>
+    </MotionConfig>
   )
 }
 
@@ -1036,15 +1131,6 @@ function copying(event: KeyboardEvent) {
   return getSelection()?.isCollapsed === false
 }
 
-/** Whether the connection indicates reduced data usage. */
-function metered() {
-  const { connection } = navigator as Navigator & {
-    connection?: { effectiveType?: string; saveData?: boolean } | undefined
-  }
-  if (!connection) return false
-  return connection.saveData === true || /^(slow-)?2g$/.test(connection.effectiveType ?? '')
-}
-
 /** Rough perceptual lightness of a `#rrggbb` color, from 0 to 1. */
 function lightness(hex: string) {
   if (hex.length !== 7) return 1
@@ -1053,4 +1139,9 @@ function lightness(hex: string) {
   return (
     (0.299 * ((value >> 16) & 255) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255
   )
+}
+
+function gradient(background: string): [string, string] | undefined {
+  const match = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
+  return match?.[1] && match[2] ? [match[1], match[2]] : undefined
 }

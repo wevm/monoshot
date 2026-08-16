@@ -10,17 +10,15 @@ export type Types = Record<string, string>
  */
 export async function types(options: types.Options): Promise<types.Result> {
   const { name, version } = options
-  const meta = await json({
-    name,
-    url: `${registry}/${encodeName(name)}/${encodeURIComponent(version)}`,
-    version,
-  })
+  const meta = await metadata(name, version)
   const resolved = typeof meta['version'] === 'string' ? meta['version'] : version
   const dist = meta['dist']
   const tarball =
     typeof dist === 'object' && dist !== null && 'tarball' in dist
       ? (dist as { tarball: unknown }).tarball
-      : undefined
+      : resolved === version && version === 'latest'
+        ? undefined
+        : `${registry}/${encodeName(name)}/-/${encodeURIComponent(basename(name))}-${encodeURIComponent(resolved)}.tgz`
   // Absent rather than failed: a version that ships no tarball ships none on
   // every later attempt too.
   if (typeof tarball !== 'string')
@@ -45,9 +43,18 @@ export async function types(options: types.Options): Promise<types.Result> {
 export function extract(tar: Uint8Array): Types {
   const decoder = new TextDecoder()
   const files: Types = {}
-  for (const entry of untar(tar)) {
-    // npm wraps every tarball in a single `package/` directory.
-    const path = entry.name.replace(/^package\//, '')
+  const entries = [...untar(tar)]
+  // npm tarballs have one top-level directory. Most call it `package`, while
+  // DefinitelyTyped packages use their own name, such as `node`.
+  const wrappers = new Set(
+    entries.map((entry) => {
+      const slash = entry.name.indexOf('/')
+      return slash === -1 ? '' : entry.name.slice(0, slash + 1)
+    }),
+  )
+  const wrapper = wrappers.size === 1 ? (wrappers.values().next().value ?? '') : ''
+  for (const entry of entries) {
+    const path = entry.name.startsWith(wrapper) ? entry.name.slice(wrapper.length) : entry.name
     if (!/\.d\.[cm]?ts$/.test(path) && path !== 'package.json') continue
     files[`/${path}`] = decoder.decode(entry.body)
   }
@@ -73,6 +80,35 @@ export declare namespace types {
 }
 
 const registry = 'https://registry.npmjs.org'
+const metadataSources = [
+  (name: string, version: string) =>
+    `${registry}/${encodeName(name)}/${encodeURIComponent(version)}`,
+  (name: string, version: string) =>
+    `https://cdn.jsdelivr.net/npm/${encodeName(name)}@${encodeURIComponent(version)}/package.json`,
+  (name: string, version: string) =>
+    `https://unpkg.com/${encodeName(name)}@${encodeURIComponent(version)}/package.json`,
+] as const
+
+/** Resolves a package version even when npm rate-limits shared Worker egress. */
+async function metadata(name: string, version: string) {
+  let failure: unknown
+  for (const [at, source] of metadataSources.entries()) {
+    try {
+      return await json({ name, url: source(name, version), version })
+    } catch (cause) {
+      // npm is authoritative when a package or version does not exist. Mirrors
+      // are only fallbacks for a source that could not answer reliably.
+      if (at === 0 && cause instanceof RegistryError && cause.absent) throw cause
+      failure = cause
+    }
+  }
+  throw failure
+}
+
+/** Tarballs name a scoped package by its final segment. */
+function basename(name: string) {
+  return name.slice(name.lastIndexOf('/') + 1)
+}
 
 /** A scope's `/` is part of the name, so only the scope separator survives. */
 function encodeName(name: string) {
