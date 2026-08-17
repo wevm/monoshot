@@ -11,5 +11,6 @@ scratch
 .wrangler
 
 # Generated agent integrations
+.agents/dogfood.md
 .agents/skills
 .claude/skills
