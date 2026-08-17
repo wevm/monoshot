@@ -1,3 +1,6 @@
+/assets/*
+  Cache-Control: public, max-age=31556952, immutable
+
 /SKILL.md
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=300

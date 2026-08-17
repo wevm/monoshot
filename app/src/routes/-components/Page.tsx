@@ -791,6 +791,10 @@ const empty: Editor.Props['types'] = []
 const emptyOffsets: readonly number[] = []
 const quiet: Editor.Props['diagnostics'] = []
 const renderer = Core.create({ langs: ['tsx'] })
+const highlighterReady =
+  typeof window === 'undefined'
+    ? Promise.resolve()
+    : renderer.load({ lang: 'tsx', theme: fallback.theme }).catch(() => undefined)
 
 function restore(hash: string): DocumentState {
   const state = Codec.deserialize(hash)
@@ -972,16 +976,18 @@ function useCodeRendering(parameters: {
 
   useEffect(() => {
     let active = true
-    renderer.tokens({ code, lang: language, theme: syntaxTheme }).then(
-      (result) => {
-        if (!active) return
-        setError(undefined)
-        setFrame({ palette: palette(syntaxTheme, result.theme), tokens: result.tokens })
-      },
-      (cause: Error) => {
-        if (active) setError(cause)
-      },
-    )
+    highlighterReady
+      .then(() => renderer.tokens({ code, lang: language, theme: syntaxTheme }))
+      .then(
+        (result) => {
+          if (!active) return
+          setError(undefined)
+          setFrame({ palette: palette(syntaxTheme, result.theme), tokens: result.tokens })
+        },
+        (cause: Error) => {
+          if (active) setError(cause)
+        },
+      )
     return () => {
       active = false
     }
