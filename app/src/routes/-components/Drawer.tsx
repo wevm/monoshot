@@ -70,8 +70,24 @@ const styles = stylex.create({
     position: 'fixed',
     right: 0,
     top: 0,
+    transitionDuration: {
+      default: motion.medium,
+      '@media (prefers-reduced-motion: reduce)': '0s',
+    },
+    transitionProperty: 'opacity, transform, visibility',
+    transitionTimingFunction: motion.out,
     width: { default: '100vw', '@media (min-width: 800px)': 352 },
     zIndex: 4,
+  },
+  rootClosed: {
+    opacity: { default: 0, '@media (min-width: 800px)': 1 },
+    pointerEvents: { default: 'none', '@media (min-width: 800px)': 'auto' },
+    transform: {
+      default: 'translateX(100%)',
+      '@media (prefers-reduced-motion: reduce)': 'none',
+      '@media (min-width: 800px)': 'none',
+    },
+    visibility: { default: 'hidden', '@media (min-width: 800px)': 'visible' },
   },
   surface: {
     backdropFilter: 'blur(32px) saturate(180%)',
@@ -86,6 +102,38 @@ const styles = stylex.create({
     flexDirection: 'column',
     minWidth: 0,
     overflow: 'hidden',
+  },
+  mobileHeader: {
+    alignItems: 'center',
+    display: { default: 'flex', '@media (min-width: 800px)': 'none' },
+    flexShrink: 0,
+    height: 64,
+    justifyContent: 'space-between',
+    paddingInline: 16,
+  },
+  mobileWordmark: {
+    backgroundColor: 'currentColor',
+    blockSize: 22,
+    inlineSize: 86,
+    maskImage: 'url("/logo-light.svg")',
+    maskPosition: 'center',
+    maskRepeat: 'no-repeat',
+    maskSize: 'contain',
+  },
+  mobileIcon: {
+    fill: 'none',
+    height: 20,
+    stroke: 'currentColor',
+    strokeLinecap: 'round',
+    strokeWidth: 1.75,
+    width: 20,
+  },
+  mobileButton: {
+    backgroundColor: {
+      default: 'transparent',
+      ':active': 'transparent',
+      ':hover': 'transparent',
+    },
   },
   scroll: {
     display: 'flex',
@@ -109,6 +157,7 @@ const styles = stylex.create({
             : 'none',
   }),
   section: { display: 'flex', flexDirection: 'column', gap: 10, scrollMarginTop: 16 },
+  desktopSection: { display: { default: 'none', '@media (min-width: 800px)': 'flex' } },
   sectionHeading: {
     alignItems: 'center',
     color: color.onChromeSecondary,
@@ -136,7 +185,7 @@ const styles = stylex.create({
   tabs: {
     display: 'grid',
     gap: 10,
-    gridTemplateColumns: 'max-content max-content repeat(2, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
   },
   panel: { paddingTop: 8 },
   tab: { isolation: 'isolate', position: 'relative' },
@@ -283,7 +332,9 @@ export function Drawer(props: Drawer.Props) {
     language,
     maxWidth,
     mobile,
+    open,
     onChange,
+    onClose,
     onCopyImage,
     onCopyUrl,
     onImageChange,
@@ -422,6 +473,7 @@ export function Drawer(props: Drawer.Props) {
       )
         return
       const shortcut = event.key.toLowerCase()
+      if (mobile && shortcut === shortcuts.export) return
       const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
       if (direction && activeShortcut) setPressedKey(shortcut as PressedKey)
 
@@ -540,7 +592,7 @@ export function Drawer(props: Drawer.Props) {
     function clearPressedKey() {
       setPressedKey(undefined)
     }
-  }, [activeShortcut, checkable, mode, onChange, titleBar, types])
+  }, [activeShortcut, checkable, mobile, mode, onChange, titleBar, types])
 
   useEffect(() => {
     if (!activeShortcut) return
@@ -557,8 +609,29 @@ export function Drawer(props: Drawer.Props) {
   }, [activeShortcut])
 
   return (
-    <aside aria-label="Editor controls" {...stylex.props(styles.root)}>
+    <aside
+      aria-hidden={!open}
+      aria-label="Editor controls"
+      id="editor-controls"
+      inert={!open}
+      {...stylex.props(styles.root, !open && styles.rootClosed)}
+    >
       <div {...stylex.props(styles.surface)}>
+        <header {...stylex.props(styles.mobileHeader)}>
+          <span aria-label="Monoshot" role="img" {...stylex.props(styles.mobileWordmark)} />
+          <Button
+            aria-label="Close controls"
+            onClick={onClose}
+            size="large"
+            square
+            style={styles.mobileButton}
+            variant="tertiary"
+          >
+            <svg aria-hidden viewBox="0 0 24 24" {...stylex.props(styles.mobileIcon)}>
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </Button>
+        </header>
         <div
           ref={scroll}
           {...stylex.props(styles.scroll, styles.scrollMask(scrollFade.top, scrollFade.bottom))}
@@ -566,7 +639,7 @@ export function Drawer(props: Drawer.Props) {
           <section
             data-section={shortcuts.export}
             data-shortcut={shortcuts.export}
-            {...stylex.props(styles.section)}
+            {...stylex.props(styles.section, styles.desktopSection)}
           >
             <SectionHeading
               active={activeShortcut === shortcuts.export}
@@ -1116,8 +1189,12 @@ export declare namespace Drawer {
     image?: string | undefined
     /** Whether the editor is using its compact mobile constraints. */
     mobile: boolean
+    /** Whether the controls are visible. */
+    open: boolean
     /** Receives only the settings that changed. */
     onChange: (next: Partial<State>) => void
+    /** Hides the controls on compact screens. */
+    onClose: () => void
     /** Puts the artwork on the clipboard as a PNG. */
     onCopyImage: () => void
     /** Puts a link to the state on screen on the clipboard. */

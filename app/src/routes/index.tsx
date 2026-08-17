@@ -22,6 +22,8 @@ import * as Sample from '#/lib/twoslash/sample.gen.js'
 import { sample } from '#/lib/sample.js'
 import * as Themes from '#/lib/themes.js'
 import { text } from '#/theme/text.js'
+import { Button } from '#/ui/Button.js'
+import { Menu } from '#/ui/Menu.js'
 import { color, crossfade, font, motion } from '../theme/tokens.stylex.js'
 import { Editor } from './-components/Editor.js'
 import { Frame } from './-components/Frame.js'
@@ -81,7 +83,7 @@ const styles = stylex.create({
   header: {
     alignItems: 'center',
     display: 'flex',
-    height: 56,
+    height: { default: 64, '@media (min-width: 800px)': 56 },
     justifyContent: 'space-between',
     paddingInline: { default: 16, '@media (min-width: 800px)': 20 },
     position: 'relative',
@@ -89,9 +91,9 @@ const styles = stylex.create({
   },
   wordmark: {
     backgroundColor: 'currentColor',
-    blockSize: 26,
+    blockSize: { default: 22, '@media (min-width: 800px)': 26 },
     display: 'block',
-    inlineSize: 101,
+    inlineSize: { default: 86, '@media (min-width: 800px)': 101 },
     maskImage: 'url("/logo-light.svg")',
     maskPosition: 'center',
     maskRepeat: 'no-repeat',
@@ -113,6 +115,30 @@ const styles = stylex.create({
     zIndex: 2,
   },
   canvas: { flexShrink: 0, maxWidth: '100%' },
+  mobileActions: {
+    alignItems: 'center',
+    display: { default: 'flex', '@media (min-width: 800px)': 'none' },
+    insetBlockStart: 8,
+    insetInlineEnd: 16,
+    position: 'fixed',
+    zIndex: 5,
+  },
+  mobileExport: { height: 48 },
+  mobileToggle: {
+    backgroundColor: {
+      default: 'transparent',
+      ':active': 'transparent',
+      ':hover': 'transparent',
+    },
+  },
+  mobileToggleIcon: {
+    fill: 'none',
+    height: 20,
+    stroke: 'currentColor',
+    strokeLinecap: 'round',
+    strokeWidth: 1.75,
+    width: 20,
+  },
   scrim: { inset: 0, pointerEvents: 'none', position: 'fixed', zIndex: 0 },
   scrimBlock: (box: {
     color: string
@@ -366,6 +392,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const [settings, setSettings] = useState<Settings>(initial.settings)
   const [syntaxPreview, setSyntaxPreview] = useState<Theme.Info['name']>()
   const [mobile, setMobile] = useState(false)
+  const [controlsOpen, setControlsOpen] = useState(true)
   const [title, setTitle] = useState(initial.title)
   const [code, setCode] = useState(initial.code)
 
@@ -422,6 +449,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const [fontsReady, setFontsReady] = useState(false)
   const [opening, setOpening] = useState(true)
   const stage = useRef<HTMLDivElement>(null)
+  const mobileActions = useRef<HTMLDivElement>(null)
   const pending = useRef<Promise<unknown> | undefined>(undefined)
   // Which export the notice on screen belongs to.
   const attempt = useRef(0)
@@ -795,6 +823,17 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     return () => window.removeEventListener('keydown', shortcut)
   }, [])
 
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      if (!mobile || controlsOpen || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key.toLowerCase() !== 'e' || copying(event)) return
+      event.preventDefault()
+      mobileActions.current?.querySelector<HTMLButtonElement>('button')?.click()
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [controlsOpen, mobile])
+
   // A dark fill lands on the same near-black the shell mixes to, leaving no
   // visible artwork edge, so the guides carry the crop the whole way across.
   const customGradient = Backgrounds.gradient(settings.background)
@@ -1039,8 +1078,10 @@ export function Page({ state }: { state?: string | undefined } = {}) {
           image={image}
           maxWidth={frameWidthMax}
           mobile={mobile}
+          open={!mobile || controlsOpen}
           onCopyImage={copyImage}
           onCopyUrl={copyUrl}
+          onClose={() => setControlsOpen(false)}
           onImageChange={setImage}
           onSave={save}
           onSyntaxPreview={setSyntaxPreview}
@@ -1062,6 +1103,30 @@ export function Page({ state }: { state?: string | undefined } = {}) {
             })
           }
         />
+        {mobile && !controlsOpen && (
+          <div ref={mobileActions} {...stylex.props(styles.mobileActions)}>
+            <Menu label="Export" style={styles.mobileExport}>
+              <Menu.Item onClick={() => save({ scale: 6, type: 'png' })}>PNG</Menu.Item>
+              <Menu.Item onClick={() => save({ scale: 1, type: 'svg' })}>SVG</Menu.Item>
+              <Menu.Item onClick={copyImage}>Copy image</Menu.Item>
+              <Menu.Item onClick={copyUrl}>Copy URL</Menu.Item>
+            </Menu>
+            <Button
+              aria-controls="editor-controls"
+              aria-expanded={false}
+              aria-label="Open controls"
+              onClick={() => setControlsOpen(true)}
+              size="large"
+              square
+              style={styles.mobileToggle}
+              variant="tertiary"
+            >
+              <svg aria-hidden viewBox="0 0 24 24" {...stylex.props(styles.mobileToggleIcon)}>
+                <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" />
+              </svg>
+            </Button>
+          </div>
+        )}
       </main>
     </MotionConfig>
   )
