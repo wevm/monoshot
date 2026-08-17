@@ -1,10 +1,11 @@
 # monoshot
 
 ## 0.0.9
+
 ### Patch Changes
 
 - 55ba337: Added gradient backgrounds, automatic syntax themes, and grammar-free languages to shared rendering interfaces.
-  
+
   ```ts
   const html = await Frame.create().toDocument({
     background: 'gradient:#3F37C9:#8C87DF',
@@ -18,6 +19,7 @@
     width: 640,
   })
   ```
+
 - fbdf430: Moved a frame's radius, bounds, and type metrics onto the modules that own them, and published `Theme.info` framing, `Codec.bounds`, `Frame.metrics`, and `Browser`.
 
 ## 0.0.8
