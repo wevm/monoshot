@@ -129,7 +129,7 @@ ${canvasWidth}
 .title-bar {
   align-items: center;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
   padding: 12px 16px;
 }
 .lights { display: flex; gap: 8px; }
@@ -143,7 +143,11 @@ ${canvasWidth}
   color: var(--window-title);
   font-family: var(--code-font-family);
   font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .body {
   color: ${palette.window.foreground};

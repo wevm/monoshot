@@ -3,7 +3,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import * as Shared from '#/lib/shared.functions.js'
 import { card } from '#/lib/shared.js'
 import * as Site from '#/lib/site.js'
-import { Page } from './index.js'
+import { Page } from './-components/Page.js'
 
 export const Route = createFileRoute('/s/$id')({
   loader: async ({ params }) => {
