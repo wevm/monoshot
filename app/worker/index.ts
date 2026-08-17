@@ -250,8 +250,11 @@ async function card(
   // composed theme owns is filled by the renderer's own loader.
   const named = Wallpapers.at(settings.background)
   const picture = named ? await inlined(env, origin, named.id) : undefined
-  // Truncate source to the largest canvas, then size the canvas to what remains.
-  const shape = Links.layout(Links.withoutTypes(settings.code))
+  // Preserve the editor window width, then size the surrounding card to its rows.
+  const shape = Links.layout(Links.withoutTypes(settings.code), {
+    padding: settings.padding,
+    width: settings.width,
+  })
   const drawn = await api.request(
     '/document',
     {
@@ -283,7 +286,7 @@ async function card(
   if (!drawn.ok) return undefined
   try {
     const png = await Browser.screenshot(env.BROWSER, {
-      html: await drawn.text(),
+      html: Links.windowed(await drawn.text(), shape.windowWidth),
       scale: shape.scale,
     })
     return png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer

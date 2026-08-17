@@ -37,7 +37,7 @@ describe('card', () => {
         "height": 420,
         "padding": 80,
         "scale": 1.5,
-        "version": 4,
+        "version": 5,
         "width": 800,
       }
     `)
@@ -61,16 +61,17 @@ describe('withoutTypes', () => {
 })
 
 describe('layout', () => {
-  test('uses standard dimensions for a short snippet', () => {
+  test('uses intrinsic editor geometry for a short snippet', () => {
     const { code, ...shape } = Links.layout('const a = 1\n')
     expect(code).toBe('const a = 1\n')
     expect(shape).toMatchInlineSnapshot(`
       {
-        "height": 420,
+        "height": 231,
         "padding": 80,
-        "scale": 1.5,
+        "scale": 2.727272727272727,
         "truncated": false,
-        "width": 800,
+        "width": 440,
+        "windowWidth": 240,
       }
     `)
   })
@@ -86,6 +87,7 @@ describe('layout', () => {
         "scale": 1.1538461538461537,
         "truncated": false,
         "width": 1040,
+        "windowWidth": 240,
       }
     `)
     // Verify that scaling produces the fixed social-card dimensions.
@@ -122,10 +124,25 @@ describe('layout', () => {
 
   test('wraps a wide-character line at half the columns of a Latin one', () => {
     // East Asian wide characters occupy two display columns, so the same count wraps sooner.
-    const wide = Links.layout('あ'.repeat(400))
-    const latin = Links.layout('a'.repeat(400))
+    const options = { padding: 80, width: 800 }
+    const wide = Links.layout('あ'.repeat(400), options)
+    const latin = Links.layout('a'.repeat(400), options)
     expect(latin.width).toBe(800)
     expect(wide.width).toBeGreaterThan(latin.width)
+  })
+
+  test('preserves the editor window width as the surrounding canvas grows', () => {
+    const code = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
+    const shape = Links.layout(code, { padding: 64, width: 469 })
+    expect(shape.windowWidth).toBe(341)
+    expect(shape.width).toBe(960)
+    expect(Math.round(shape.height * shape.scale)).toBe(630)
+    expect(shape.padding).toBe(64)
+  })
+
+  test('centers the editor window independently from the card canvas', () => {
+    const html = '<html><head></head><body></body></html>'
+    expect(Links.windowed(html, 341)).toContain('.window { flex: 0 0 341px; width: 341px; }')
   })
 
   test('keeps single-column Unicode without truncating it as wide text', () => {

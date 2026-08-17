@@ -3,7 +3,7 @@ export const card = {
   height: 420,
   padding: 80,
   scale: 1.5,
-  version: 4,
+  version: 5,
   width: 800,
 } as const
 

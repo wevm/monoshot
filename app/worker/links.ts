@@ -1,4 +1,4 @@
-import { Frame, Twoslash } from 'monoshot'
+import { Codec, Frame, Twoslash } from 'monoshot'
 
 import * as Shared from '../src/lib/shared.js'
 
@@ -13,8 +13,6 @@ const output = { height: card.height * card.scale, width: card.width * card.scal
 
 /** Card-specific canvas bounds and increments in pixels. */
 const canvas = {
-  /** Narrowest canvas width. */
-  narrowest: card.width,
   /** Canvas space around the code window. */
   padding: card.padding,
   /** Canvas width increment. */
@@ -24,28 +22,62 @@ const canvas = {
 } as const
 
 /**
- * Truncates code to what the widest canvas shows, then sizes a canvas to fit it.
+ * Truncates code to what the widest canvas shows, then sizes a canvas around
+ * the editor's code window.
  *
- * Width grows in fixed increments at the output ratio before scaling to the
- * output size, leaving a short snippet larger on the card than a long one.
+ * The window width remains fixed while the surrounding canvas grows at the
+ * output ratio, leaving a short snippet larger on the card than a long one.
  */
-export function layout(code: string): layout.Result {
-  const shown = excerpt(code)
-  const measured = shown.measured ?? measure(codeLines(shown.code))
-  let width = canvas.narrowest
-  for (; width < canvas.widest; width += canvas.step)
-    if (contentHeight(measured, width) <= room(width)) break
+export function layout(code: string, options: layout.Options = {}): layout.Result {
+  const padding = Math.min(
+    Codec.bounds.padding.max,
+    Math.max(Codec.bounds.padding.min, options.padding ?? canvas.padding),
+  )
+  const measured = measure(codeLines(code))
+  const frameWidth = Math.min(
+    Codec.bounds.width.max,
+    options.width === undefined
+      ? Math.max(360, intrinsicWidth(measured) + padding * 2, padding * 2 + 240)
+      : Math.max(options.width, padding * 2 + 240),
+  )
+  const windowWidth = frameWidth - padding * 2
+  const shown = excerpt(code, { padding, windowWidth })
+  const visible = shown.measured ?? measure(codeLines(shown.code))
+  // Whole steps keep the ratio-derived height integral for the document API.
+  let width = Math.min(Math.ceil(frameWidth / canvas.step) * canvas.step, canvas.widest)
+  for (; width < canvas.widest; width = Math.min(width + canvas.step, canvas.widest))
+    if (contentHeight(visible, windowWidth) <= room(width, padding)) break
   return {
     code: shown.code,
     height: canvasHeight(width),
-    padding: canvas.padding,
+    padding,
     scale: output.width / width,
     truncated: shown.truncated,
+    windowWidth,
     width,
   }
 }
 
+/** Centers a code window independently from the social-card canvas width. */
+export function windowed(html: string, width: number): string {
+  return html.replace(
+    '</head>',
+    `<style>
+.canvas { justify-content: center; }
+.window { flex: 0 0 ${width}px; width: ${width}px; }
+</style>
+</head>`,
+  )
+}
+
 export declare namespace layout {
+  type Options = {
+    /** Space around the code window in the editor. */
+    padding?: number | undefined
+    /** Artwork width in the editor, including its padding. */
+    width?: number | undefined
+  }
+
   type Result = {
     /** Source code, truncated to the rows the widest canvas shows. */
     code: string
@@ -57,22 +89,27 @@ export declare namespace layout {
     scale: number
     /** Whether rows were dropped, which the card marks at its bottom edge. */
     truncated: boolean
+    /** Code-window width preserved from the editor. */
+    windowWidth: number
     /** Canvas width in pixels. */
     width: number
   }
 }
 
 /** Truncates code to the rows available at the widest canvas. */
-function excerpt(code: string): { code: string; measured?: Line[]; truncated: boolean } {
+function excerpt(
+  code: string,
+  frame: { padding: number; windowWidth: number },
+): { code: string; measured?: Line[]; truncated: boolean } {
   const source = codeLines(code)
   const measured = measure(source)
   // Hand the measurement back when the source survives whole, so `layout` does
   // not walk every grapheme a second time to learn what this already knows.
-  if (contentHeight(measured, canvas.widest) <= room(canvas.widest))
+  if (contentHeight(measured, frame.windowWidth) <= room(canvas.widest, frame.padding))
     return { code, measured, truncated: false }
-  const available = columns(canvas.widest)
+  const available = columns(frame.windowWidth)
   const shown: string[] = []
-  let remaining = room(canvas.widest)
+  let remaining = room(canvas.widest, frame.padding)
   for (const [at, line] of source.entries()) {
     const measuredLine = measured[at]!
     const needed = lineHeight(measuredLine, available)
@@ -113,23 +150,32 @@ function canvasHeight(width: number): number {
 }
 
 /** Code columns available at a canvas width. */
-function columns(width: number): number {
+function columns(windowWidth: number): number {
   const { advance, size } = Frame.metrics.code
   const { inset } = Frame.metrics.body
-  return Math.max(1, Math.floor((width - canvas.padding * 2 - inset * 2) / (size * advance)))
+  return Math.max(1, Math.floor((windowWidth - inset * 2) / (size * advance)))
 }
 
 /** Vertical pixels available to source and annotation rows. */
-function room(width: number): number {
-  const { padding } = Frame.metrics.body
-  const window = padding.plain * 2 + Frame.metrics.source.padding * 2
-  return canvasHeight(width) - canvas.padding * 2 - window
+function room(width: number, framePadding: number): number {
+  const bodyPadding = Frame.metrics.body.padding.plain * 2
+  const window = bodyPadding + Frame.metrics.source.padding * 2
+  return canvasHeight(width) - framePadding * 2 - window
 }
 
 /** Vertical pixels that measured lines occupy at a canvas width. */
-function contentHeight(measured: readonly Line[], width: number): number {
-  const available = columns(width)
+function contentHeight(measured: readonly Line[], windowWidth: number): number {
+  const available = columns(windowWidth)
   return measured.reduce((height, line) => height + lineHeight(line, available), 0)
+}
+
+/** Intrinsic code-window width used when the editor has no fixed width. */
+function intrinsicWidth(measured: readonly Line[]): number {
+  const columns = Math.max(0, ...measured.map((line) => line.columns))
+  return (
+    Math.ceil(columns * Frame.metrics.code.size * Frame.metrics.code.advance) +
+    Frame.metrics.body.inset * 2
+  )
 }
 
 /** Vertical pixels that one measured line occupies. */
