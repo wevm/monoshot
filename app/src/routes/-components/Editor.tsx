@@ -6,7 +6,7 @@ import { EditorView, keymap } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
 import type { Twoslash } from 'monoshot'
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { completions } from '#/lib/editor/completions.js'
 import { highlight, setTokens } from '#/lib/editor/highlight.js'
@@ -16,7 +16,7 @@ import { indent } from '#/lib/editor/indent.js'
 import { bare, notations, syntax } from '#/lib/editor/notations.js'
 import { rail } from '#/lib/editor/rail.js'
 import { overlooked, pins, problems } from '#/lib/editor/problems.js'
-import { query as queries } from '#/lib/editor/query.js'
+import { query as queries, setPending } from '#/lib/editor/query.js'
 import { theme } from '#/lib/editor/theme.js'
 import * as Types from '#/lib/editor/types.js'
 import type { Completion } from '#/lib/twoslash/protocol.js'
@@ -45,6 +45,7 @@ export function Editor(props: Editor.Props) {
     palette,
     tokens,
     types,
+    typesPending,
   } = props
 
   const host = useRef<HTMLDivElement>(null)
@@ -98,7 +99,7 @@ export function Editor(props: Editor.Props) {
               found.filter((diagnostic) => !Types.over(state, diagnostic)),
           }),
           rails.of(rail({ container: aside, syntax: syntax(language) })),
-          queries,
+          queries(typesPending),
           hover,
           completions((document, position) => complete.current(document, position)),
           palettes.of(theme(palette)),
@@ -140,6 +141,12 @@ export function Editor(props: Editor.Props) {
   useEffect(() => {
     view.current?.dispatch({ effects: Types.setTypes.of(types) })
   }, [types])
+
+  // A layout effect prevents the source query flashing for one frame while a
+  // newly edited document waits for compiler-backed types.
+  useLayoutEffect(() => {
+    view.current?.dispatch({ effects: setPending.of(typesPending) })
+  }, [typesPending])
 
   // After the document below would be wrong: a diagnostic clamped against the
   // previous text would land on the wrong words for a frame.
@@ -185,6 +192,8 @@ export declare namespace Editor {
     palette: Theme.derive.Result
     /** Types by identifier, shown on hover and under a pinned `^?` caret. */
     types: Types.Types
+    /** Whether pinned type queries are waiting for compiler-backed results. */
+    typesPending: boolean
     /** Shiki tokens for the current document, one array per line. */
     tokens: readonly (readonly Token[])[]
   }

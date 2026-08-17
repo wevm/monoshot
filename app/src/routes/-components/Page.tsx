@@ -246,6 +246,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     language,
     resolved,
     setIgnored,
+    typesPending,
   } = useCodeRendering({
     code,
     language: settings.language,
@@ -540,6 +541,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
                     palette={frame.palette}
                     tokens={frame.tokens}
                     types={annotations}
+                    typesPending={typesPending}
                   />
                 </Frame>
               </div>
@@ -961,6 +963,9 @@ function useCodeRendering(parameters: {
   const [resolved, setResolved] = useState<Twoslash.Resolved | undefined>(() =>
     code === sample ? resolvedSample() : undefined,
   )
+  const [typesPending, setTypesPending] = useState(() =>
+    Boolean(types && dialects[language as keyof typeof dialects] && code !== sample),
+  )
   const resolver = useRef<ReturnType<typeof Twoslash.create>>(null)
 
   useEffect(() => {
@@ -998,19 +1003,25 @@ function useCodeRendering(parameters: {
     const dialect = types ? dialects[language as keyof typeof dialects] : undefined
     if (!dialect) {
       setResolved(undefined)
+      setTypesPending(false)
       return
     }
     resolver.current ??= Twoslash.create({
       onError: (message) => {
         console.error('Type resolution failed.', message)
         setResolved(undefined)
+        setTypesPending(false)
       },
-      onResult: setResolved,
+      onResult: (result) => {
+        setResolved(result)
+      },
     })
     if (code === sample && dialect === Sample.lang) {
       setResolved(resolvedSample())
+      setTypesPending(false)
       return
     }
+    setTypesPending(true)
     const timer = setTimeout(() => resolver.current?.resolve(code, dialect), 300)
     return () => clearTimeout(timer)
   }, [code, language, types])
@@ -1028,7 +1039,9 @@ function useCodeRendering(parameters: {
     setDiagnostics(resolved.result.diagnostics)
     let active = true
     void paint(syntaxTheme, resolved.result.hovers).then((painted) => {
-      if (active) setAnnotations(painted)
+      if (!active) return
+      setAnnotations(painted)
+      setTypesPending(false)
     })
     return () => {
       active = false
@@ -1049,6 +1062,7 @@ function useCodeRendering(parameters: {
     language: language as LanguageId,
     resolved,
     setIgnored,
+    typesPending,
   }
 }
 

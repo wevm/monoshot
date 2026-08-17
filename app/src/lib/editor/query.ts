@@ -1,4 +1,4 @@
-import { StateField } from '@codemirror/state'
+import { StateEffect, StateField } from '@codemirror/state'
 import type { EditorState, Extension } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
@@ -7,18 +7,24 @@ import * as Annotation from './annotation.js'
 import * as Identifier from './identifier.js'
 import * as Types from './types.js'
 
+/** Carries type-resolution status into the pinned query presentation. */
+export const setPending = StateEffect.define<boolean>()
+
 const field = StateField.define<Value>({
-  create: () => ({ decorations: Decoration.none, lines: [] }),
+  create: () => ({ decorations: Decoration.none, lines: [], pending: false }),
   update(value, transaction) {
     // A caret line can appear or move with any edit, so the set is rebuilt
     // rather than mapped. The types are read from the shared field rather than
     // a copy taken when they arrived, so an edit reaches them too.
+    let pending = value.pending
+    for (const effect of transaction.effects) if (effect.is(setPending)) pending = effect.value
     if (
       !transaction.docChanged &&
-      transaction.state.field(Types.types) === transaction.startState.field(Types.types)
+      transaction.state.field(Types.types) === transaction.startState.field(Types.types) &&
+      pending === value.pending
     )
       return value
-    return build(transaction.state)
+    return build(transaction.state, pending)
   },
   provide: (self) => [
     EditorView.decorations.from(self, (value) => value.decorations),
@@ -33,15 +39,19 @@ const field = StateField.define<Value>({
  * code, so it is replaced rather than decorated, and the block sits in flow so
  * an export carries it the same way the editor shows it.
  */
-export const query: Extension = [Types.types, field]
+export function query(pending = false): Extension {
+  return [Types.types, field.init((state) => build(state, pending)), field]
+}
 
 type Value = {
   decorations: DecorationSet
   /** Document lines a pinned type replaced, in order. */
   lines: readonly number[]
+  /** Whether compiler-backed types are being resolved. */
+  pending: boolean
 }
 
-function build(state: EditorState): Value {
+function build(state: EditorState, pending: boolean): Value {
   const { doc } = state
   const ranges = []
   const lines = []
@@ -49,6 +59,11 @@ function build(state: EditorState): Value {
     const text = doc.line(line)
     const column = Identifier.caretColumn(text.text)
     if (column === undefined) continue
+    if (pending) {
+      lines.push(line)
+      ranges.push(Decoration.replace({}).range(text.from, text.to))
+      continue
+    }
     // Preserve a caret comment when no identifier exists at its target.
     // collapsing into an empty box.
     // The caret addresses the line above, which is where the type belongs.
@@ -65,7 +80,7 @@ function build(state: EditorState): Value {
       ),
     )
   }
-  return { decorations: Decoration.set(ranges, true), lines }
+  return { decorations: Decoration.set(ranges, true), lines, pending }
 }
 
 class Block extends WidgetType {
