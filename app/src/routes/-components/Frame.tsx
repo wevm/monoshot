@@ -191,7 +191,6 @@ const styles = stylex.create({
     minWidth: 0,
     outline: 'none',
     overflow: 'hidden',
-    boxShadow: { default: null, ':focus-visible': shadow.focusRing },
     textAlign: 'center',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
