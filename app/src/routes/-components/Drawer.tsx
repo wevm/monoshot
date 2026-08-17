@@ -36,7 +36,6 @@ const tabSlide = { bounce: 0, duration: 0.22, type: 'spring' } as const
 /** The key that reaches each setting from anywhere on the page. */
 const shortcuts = {
   background: 'b',
-  export: 'e',
   language: 'a',
   padding: 'p',
   radius: 'r',
@@ -51,7 +50,6 @@ type PressedKey = Shortcut | 'arrowleft' | 'arrowright'
 /** The settings the arrow keys step once their shortcut has opened them. */
 const arrowShortcuts = [
   shortcuts.background,
-  shortcuts.export,
   shortcuts.padding,
   shortcuts.radius,
   shortcuts.width,
@@ -323,6 +321,8 @@ const styles = stylex.create({
     width: 16,
   },
   exports: { display: 'grid', gap: 6, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
+  exportButton: { justifyContent: 'space-between' },
+  exportLabel: { alignItems: 'center', display: 'inline-flex', gap: 6 },
 })
 
 /** A slide-away settings drawer that keeps every editor control beside the artwork. */
@@ -475,7 +475,6 @@ export function Drawer(props: Drawer.Props) {
       )
         return
       const shortcut = event.key.toLowerCase()
-      if (mobile && shortcut === shortcuts.export) return
       const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
       if (direction && activeShortcut) setPressedKey(shortcut as PressedKey)
 
@@ -503,18 +502,6 @@ export function Drawer(props: Drawer.Props) {
             if (option) selectBackgroundOption(option)
           })
         }
-        event.preventDefault()
-        return
-      }
-
-      if (direction && activeShortcut === shortcuts.export) {
-        const buttons = [
-          ...(scroll.current?.querySelectorAll<HTMLButtonElement>(
-            `[data-shortcut="${shortcuts.export}"] button`,
-          ) ?? []),
-        ]
-        const selected = buttons.indexOf(document.activeElement as HTMLButtonElement)
-        buttons[(selected + direction + buttons.length) % buttons.length]?.focus()
         event.preventDefault()
         return
       }
@@ -548,13 +535,11 @@ export function Drawer(props: Drawer.Props) {
           )
         })
       } else if (arrows(shortcut)) {
-        // `background` is the one arrow-driven shortcut handled above, so what
-        // reaches here is the export menu and the three sliders.
+        // `background` is handled above, so only the three sliders reach here.
         activate(shortcut)
         requestAnimationFrame(() => {
-          const selector = shortcut === shortcuts.export ? 'button' : 'input[type="range"]'
           const control = scroll.current?.querySelector<HTMLElement>(
-            `[data-shortcut="${shortcut}"] ${selector}`,
+            `[data-shortcut="${shortcut}"] input[type="range"]`,
           )
           control?.focus()
         })
@@ -638,58 +623,64 @@ export function Drawer(props: Drawer.Props) {
           ref={scroll}
           {...stylex.props(styles.scroll, styles.scrollMask(scrollFade.top, scrollFade.bottom))}
         >
-          <section
-            data-section={shortcuts.export}
-            data-shortcut={shortcuts.export}
-            {...stylex.props(styles.section, styles.desktopSection)}
-          >
-            <SectionHeading
-              active={activeShortcut === shortcuts.export}
-              pressed={pressedKey}
-              shortcut={shortcuts.export}
-            >
-              Export
-            </SectionHeading>
+          <section {...stylex.props(styles.section, styles.desktopSection)}>
+            <SectionHeading>Export</SectionHeading>
             <div {...stylex.props(styles.exports)}>
               <Button
                 aria-busy={exporting.has('png')}
                 disabled={exporting.has('png')}
                 onClick={() => onSave({ scale: 6, type: 'png' })}
                 size="small"
+                style={styles.exportButton}
                 variant="chrome"
               >
-                {exporting.has('png') && <Spinner />}
-                {exporting.has('png') ? 'Exporting' : 'PNG'}
+                <span {...stylex.props(styles.exportLabel)}>
+                  {exporting.has('png') && <Spinner />}
+                  {exporting.has('png') ? 'Exporting' : 'PNG'}
+                </span>
+                <kbd {...stylex.props(styles.key)}>⌘S</kbd>
               </Button>
               <Button
                 aria-busy={exporting.has('svg')}
                 disabled={exporting.has('svg')}
                 onClick={() => onSave({ scale: 1, type: 'svg' })}
                 size="small"
+                style={styles.exportButton}
                 variant="chrome"
               >
-                {exporting.has('svg') && <Spinner />}
-                {exporting.has('svg') ? 'Exporting' : 'SVG'}
+                <span {...stylex.props(styles.exportLabel)}>
+                  {exporting.has('svg') && <Spinner />}
+                  {exporting.has('svg') ? 'Exporting' : 'SVG'}
+                </span>
+                <kbd {...stylex.props(styles.key)}>⇧⌘S</kbd>
               </Button>
               <Button
                 aria-busy={exporting.has('image')}
                 disabled={exporting.has('image')}
                 onClick={onCopyImage}
                 size="small"
+                style={styles.exportButton}
                 variant="chrome"
               >
-                {exporting.has('image') && <Spinner />}
-                {exporting.has('image') ? 'Copying' : 'Copy image'}
+                <span {...stylex.props(styles.exportLabel)}>
+                  {exporting.has('image') && <Spinner />}
+                  {exporting.has('image') ? 'Copying' : 'Copy image'}
+                </span>
+                <kbd {...stylex.props(styles.key)}>⌘C</kbd>
               </Button>
               <Button
                 aria-busy={exporting.has('url')}
                 disabled={exporting.has('url')}
                 onClick={onCopyUrl}
                 size="small"
+                style={styles.exportButton}
                 variant="chrome"
               >
-                {exporting.has('url') && <Spinner />}
-                {exporting.has('url') ? 'Copying' : 'Copy URL'}
+                <span {...stylex.props(styles.exportLabel)}>
+                  {exporting.has('url') && <Spinner />}
+                  {exporting.has('url') ? 'Copying' : 'Copy URL'}
+                </span>
+                <kbd {...stylex.props(styles.key)}>⇧⌘C</kbd>
               </Button>
             </div>
           </section>

@@ -235,7 +235,6 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const [controlsOpen, setControlsOpen] = useState(false)
   const [notice, setNotice] = useState<string>()
   const mobile = useMobile()
-  const mobileActions = useRef<HTMLDivElement>(null)
   const syntaxTheme = syntaxPreview ?? settings.theme
   const {
     annotations,
@@ -290,16 +289,19 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const exports = useRef({ copyImage, copyUrl, save })
   exports.current = { copyImage, copyUrl, save }
 
-  // Override browser defaults for shortcuts advertised by the export menu.
+  // Override browser defaults for shortcuts advertised by the export controls.
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
       if (event.altKey || !(event.ctrlKey || event.metaKey)) return
       const key = event.key.toLowerCase()
-      if (key === 's' && !event.shiftKey) {
+      if (key === 's') {
         event.preventDefault()
-        exports.current.save({ scale: 2, type: 'png' })
+        exports.current.save({
+          scale: event.shiftKey ? 1 : 2,
+          type: event.shiftKey ? 'svg' : 'png',
+        })
       } else if (key === 'c' && event.shiftKey) {
-        // ⌘ only, as the menu advertises it. Ctrl+Shift+C is the element
+        // ⌘ only, as the controls advertise it. Ctrl+Shift+C is the element
         // picker on Windows and Linux, which the page has no business taking.
         if (!event.metaKey) return
         event.preventDefault()
@@ -312,17 +314,6 @@ export function Page({ state }: { state?: string | undefined } = {}) {
     window.addEventListener('keydown', shortcut)
     return () => window.removeEventListener('keydown', shortcut)
   }, [])
-
-  useEffect(() => {
-    function shortcut(event: KeyboardEvent) {
-      if (!mobile || controlsOpen || event.altKey || event.ctrlKey || event.metaKey) return
-      if (event.key.toLowerCase() !== 'e' || copying(event)) return
-      event.preventDefault()
-      mobileActions.current?.querySelector<HTMLButtonElement>('button')?.click()
-    }
-    window.addEventListener('keydown', shortcut)
-    return () => window.removeEventListener('keydown', shortcut)
-  }, [controlsOpen, mobile])
 
   // A dark fill lands on the same near-black the shell mixes to, leaving no
   // visible artwork edge, so the guides carry the crop the whole way across.
@@ -589,7 +580,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
           }
         />
         {mobile && !controlsOpen && (
-          <div ref={mobileActions} {...stylex.props(styles.mobileActions)}>
+          <div {...stylex.props(styles.mobileActions)}>
             <Menu
               label={
                 exporting.size ? (
