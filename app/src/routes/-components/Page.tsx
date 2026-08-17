@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Codec, Frame as Core, Theme } from 'monoshot'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
 import type { BundledLanguage } from 'shiki'
+import { Toaster, toast } from 'sonner'
 import { flushSync } from 'react-dom'
 import type { Dispatch, SetStateAction } from 'react'
 import {
@@ -32,7 +33,7 @@ import { text } from '#/theme/text.js'
 import { Button } from '#/ui/Button.js'
 import { Menu } from '#/ui/Menu.js'
 import { Spinner } from '#/ui/Spinner.js'
-import { color, crossfade, font, motion } from '../../theme/tokens.stylex.js'
+import { color, crossfade, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
 import { Drawer } from './Drawer.js'
 import { Editor } from './Editor.js'
 import { Frame } from './Frame.js'
@@ -101,9 +102,31 @@ const styles = stylex.create({
     maskRepeat: 'no-repeat',
     maskSize: 'contain',
   },
-  // Beside the menu that started the export, quiet enough to read as a note on
-  // the action rather than a failure of the page.
-  notice: { opacity: 0.7 },
+  toastAnchor: {
+    height: 32,
+    insetBlockStart: { default: 64, '@media (min-width: 800px)': 12 },
+    insetInlineEnd: { default: 16, '@media (min-width: 800px)': 20 },
+    maxWidth: 'calc(100vw - 32px)',
+    pointerEvents: 'none',
+    position: 'absolute',
+    width: 356,
+    zIndex: 6,
+  },
+  toast: {
+    alignItems: 'center',
+    backdropFilter: 'blur(32px) saturate(180%)',
+    backgroundColor: {
+      default: color.chromeTranslucent,
+      '@media (prefers-reduced-transparency: reduce)': color.chrome,
+    },
+    borderRadius: radius.control,
+    boxShadow: shadow.floating,
+    color: color.onChrome,
+    display: 'flex',
+    fontFamily: font.mono,
+    height: 32,
+    paddingInline: 10,
+  },
   stage: {
     alignItems: 'center',
     display: 'flex',
@@ -233,7 +256,10 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const { code, setCode, settings, setSettings, setTitle, title } = useDocumentState(state)
   const [syntaxPreview, setSyntaxPreview] = useState<Theme.Info['name']>()
   const [controlsOpen, setControlsOpen] = useState(false)
-  const [notice, setNotice] = useState<string>()
+  const notice = useCallback((message: string | undefined) => {
+    if (message) toast(message, { id: noticeId })
+    else toast.dismiss(noticeId)
+  }, [])
   const mobile = useMobile()
   const syntaxTheme = syntaxPreview ?? settings.theme
   const {
@@ -255,7 +281,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   })
 
   const { image, picture, pictureReady, setImage, wallpaper } = useBackground({
-    onError: setNotice,
+    onError: notice,
     settings,
     setSettings,
   })
@@ -263,7 +289,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
 
   const { artwork, copyImage, copyUrl, exporting, save, stage } = useExports(
     { code, ignored, language, resolved, settings, title, wallpaper },
-    setNotice,
+    notice,
   )
 
   const [measure, rect] = useEdges()
@@ -480,11 +506,27 @@ export function Page({ state }: { state?: string | undefined } = {}) {
               </Frame>
             ) : null}
           </div>
-          {notice && (
-            <span role="status" {...stylex.props(styles.notice, text.copy14)}>
-              {notice}
-            </span>
-          )}
+          <div {...stylex.props(styles.toastAnchor)}>
+            <Toaster
+              position="top-right"
+              style={{
+                bottom: 'auto',
+                left: 'auto',
+                maxWidth: '100%',
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                width: '100%',
+              }}
+              toastOptions={{
+                classNames: {
+                  toast: stylex.props(styles.toast, text.copy13).className ?? '',
+                },
+                style: { left: 'auto', maxWidth: '100%', right: 0, width: 'fit-content' },
+                unstyled: true,
+              }}
+            />
+          </div>
         </header>
 
         <div {...stylex.props(styles.stage)}>
@@ -797,6 +839,7 @@ const highlighterReady =
   typeof window === 'undefined'
     ? Promise.resolve()
     : renderer.load({ lang: 'tsx', theme: fallback.theme }).catch(() => undefined)
+const noticeId = 'export-notice'
 
 function restore(hash: string): DocumentState {
   const state = Codec.deserialize(hash)
@@ -1181,7 +1224,7 @@ function useExports(
     title: string
     wallpaper: Wallpapers.Picture | undefined
   },
-  setNotice: Dispatch<SetStateAction<string | undefined>>,
+  notice: (message: string | undefined) => void,
 ) {
   const { code, ignored, language, resolved, settings, title, wallpaper } = parameters
   const [exporting, setExporting] = useState<ReadonlySet<ExportAction>>(() => new Set())
@@ -1227,7 +1270,7 @@ function useExports(
 
   function take(options: Export.capture.Options) {
     const id = (attempt.current += 1)
-    setNotice(undefined)
+    notice(undefined)
     const found = resolved?.document === code ? resolved.types : undefined
     const types = found && without(found, ignored)
     const capture: Capture = {
@@ -1245,10 +1288,10 @@ function useExports(
     pending.current = run.catch(() => {})
     return {
       complete(message: string) {
-        if (attempt.current === id) setNotice(message)
+        if (attempt.current === id) notice(message)
       },
       report(cause: Error) {
-        if (attempt.current === id) setNotice(cause.message)
+        if (attempt.current === id) notice(cause.message)
       },
       run,
     }
@@ -1296,7 +1339,7 @@ function useExports(
 
   function copyUrl() {
     const id = (attempt.current += 1)
-    setNotice(undefined)
+    notice(undefined)
     const state = share({ code, settings, title })
     const long = new URL(window.location.href)
     long.hash = state
@@ -1316,10 +1359,10 @@ function useExports(
       'url',
       written
         .then(() => {
-          if (attempt.current === id) setNotice('Link copied.')
+          if (attempt.current === id) notice('Link copied.')
         })
         .catch(() => {
-          if (attempt.current === id) setNotice('The link could not be copied.')
+          if (attempt.current === id) notice('The link could not be copied.')
         }),
     )
   }

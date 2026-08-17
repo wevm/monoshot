@@ -37,6 +37,7 @@
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "sonner": "catalog:",
     "twoslash-cdn": "catalog:",
     "typescript": "catalog:",
     "unstorage": "catalog:",
