@@ -395,10 +395,14 @@ async function link(
   if (code.trim() === '') return { code: 'empty_snippet', message: 'The snippet is empty.' }
   const resolved = frame(file, code, options)
   if ('message' in resolved) return resolved
-  const fragment = Codec.serialize(resolved.state)
+  const state =
+    resolved.state.background === 'default' && Theme.info(resolved.state.theme)?.artwork === true
+      ? { ...resolved.state, background: `wallpaper:${resolved.state.theme}` }
+      : resolved.state
+  const fragment = Codec.serialize(state)
   // The decoder drops a fragment it considers oversized and restores defaults,
   // so reject links that cannot preserve the source through a round trip.
-  if (Codec.deserialize(fragment).code !== resolved.state.code)
+  if (Codec.deserialize(fragment).code !== state.code)
     return {
       code: 'snippet_too_large',
       message: 'The snippet is too large to carry in a link. Render it to an image instead.',

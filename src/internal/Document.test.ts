@@ -105,6 +105,12 @@ describe('build', () => {
     )
   })
 
+  test('keeps a narrow title clear of the window controls', async () => {
+    const document = await frame.toDocument({ ...options, width: 320 })
+    expect(document).toContain('grid-template-columns: 64px minmax(0, 1fr) 64px;')
+    expect(document).toContain('text-overflow: ellipsis;')
+  })
+
   test('drops the title bar when it is turned off', async () => {
     const document = await frame.toDocument({ ...options, titleBar: false })
     // The markup, not the stylesheet: the rule is always there.

@@ -129,6 +129,23 @@ describe('create', () => {
       `)
     })
 
+    test('preserves composed theme artwork in shared links', async () => {
+      const source = await file('demo.ts')
+      const themed = await run(['share', source, '--theme', 'golden-gate-dark'])
+      const explicit = await run([
+        'share',
+        source,
+        '--theme',
+        'golden-gate-dark',
+        '--background',
+        'none',
+      ])
+      expect({
+        explicit: settings((explicit.output as { url: string }).url).background,
+        themed: settings((themed.output as { url: string }).url).background,
+      }).toEqual({ explicit: 'none', themed: 'wallpaper:golden-gate-dark' })
+    })
+
     test('refuses a file and a snippet together', async () => {
       const source = await file('demo.ts')
       const { exit, output } = await run(['share', source, '--code', 'const a = 1'])

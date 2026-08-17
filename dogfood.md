@@ -2,7 +2,7 @@
 
 Date: 2026-08-17
 
-Revision: `f7cda8272a0c57d0702cd443a5ee897bb9c16df8`
+Revision: `11aa96520a63b64a3f749d4ee9ac16179d10e620` plus the working-tree fixes described below
 
 Environment: macOS, Node.js 25.9.0, local development server and hosted API
 
@@ -10,12 +10,12 @@ Environment: macOS, Node.js 25.9.0, local development server and hosted API
 
 All public entrypoints were exercised with TypeScript and Twoslash content. App states and generated HTML, SVG, and PNG artifacts were reviewed visually at desktop and mobile sizes.
 
-| Entrypoint | Result                                                                                              | Visual review                                                                                             |
-| ---------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| App        | Works; the mobile blocker is fixed and two minor frictions remain                                   | Desktop editor, settings, background changes, title bar, padding, PNG action, and 390 × 844 mobile layout |
-| CLI        | Render, share, themes, and validation paths work; share does not preserve composed wallpaper themes | Golden Gate Dark PNG and SVG, Twoslash output, and the returned share URL                                 |
-| MCP        | Doctor and all four tools work; share inherits the CLI mismatch                                     | PNG render, embedded Tempo SVG, and editor URL                                                            |
-| API        | Local and hosted document, image, themes, health, and validation paths work                         | Local and hosted PNG responses plus the standalone HTML document                                          |
+| Entrypoint | Result                                                                      | Visual review                                                                                             |
+| ---------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| App        | Works; all observed frictions are resolved                                  | Desktop editor, settings, background changes, title bar, padding, PNG action, and 390 × 844 mobile layout |
+| CLI        | Render, share, themes, and validation paths work                            | Golden Gate Dark PNG and SVG, Twoslash output, and the returned share URL                                 |
+| MCP        | Doctor and all four tools work                                              | PNG render, embedded Tempo SVG, and editor URL                                                            |
+| API        | Local and hosted document, image, themes, health, and validation paths work | Local and hosted PNG responses plus the standalone HTML document                                          |
 
 ## Findings
 
@@ -35,11 +35,13 @@ Reproduce:
 
 Resolved friction log: `20260817130111-mobile-drawer-hides`
 
-### Major: Share links drop composed-theme wallpapers
+### Resolved: Share links dropped composed-theme wallpapers
 
 `render --theme golden-gate-dark` produces the Golden Gate wallpaper, but the matching `share` URL opens the editor on the Gradient tab with the default gradient. The generated image and shared editor state do not match. MCP `share` uses the same path and has the same behavior.
 
 Expected: restore the same syntax theme, background mode, wallpaper, and frame settings used by render.
+
+Resolution: share links now encode a composed theme's wallpaper when its default artwork is active. Explicit background choices still take precedence, and MCP share inherits the corrected behavior.
 
 Reproduce:
 
@@ -47,31 +49,37 @@ Reproduce:
 2. Run the matching `share` command suggested by the render result.
 3. Open the returned URL and compare it with the rendered image.
 
-Friction log: `20260817130311-cli-share-link`
+Resolved friction log: `20260817130311-cli-share-link`
 
-### Minor: Narrow title bars overlap window controls
+### Resolved: Narrow title bars overlapped window controls
 
 A narrow frame with the title bar enabled places `MCP dogfood` over the third window light.
 
 Expected: reserve space for the window controls or truncate the title before the regions overlap.
 
-Friction log: `20260817130826-narrow-frame-title`
+Resolution: interactive and standalone title bars now reserve equal control gutters and truncate long titles within the center track.
 
-### Minor: PNG export has no progress feedback
+Resolved friction log: `20260817130826-narrow-frame-title`
+
+### Resolved: PNG export had no progress feedback
 
 The App's only PNG export is a 6x capture and can take more than eight seconds. The button shows no progress, completion, or failure state during capture.
 
 Expected: acknowledge the active export and report completion or failure.
 
-Friction log: `20260817130052-png-export-has`
+Resolution: every export action now enters a disabled loading state immediately and reports completion or failure through the editor status region.
 
-### Minor: Local App reports a hydration mismatch
+Resolved friction log: `20260817130052-png-export-has`
+
+### Resolved: Local App reported a hydration mismatch
 
 The local browser console reports a React hydration mismatch because StyleX `data-style-src` line numbers differ between server and client output. TanStack Router also warns that the route's `Page` export cannot be code split.
 
 Expected: local development should hydrate without console errors so application failures remain easy to identify.
 
-Friction log: `20260817125855-local-app-reports`
+Resolution: the reusable editor page moved out of the route module. A fresh server load now hydrates without the StyleX mismatch or route code-splitting warning.
+
+Resolved friction log: `20260817125855-local-app-reports`
 
 ## Coverage
 
@@ -109,5 +117,4 @@ Friction log: `20260817125855-local-app-reports`
 
 ## Notes
 
-- The App's PNG action did not expose a detectable in-app browser download event during the observation window. The finding is limited to missing feedback; CLI and API PNG generation both completed successfully.
-- The mobile blocker was fixed after this pass. Detailed records for the remaining findings are in `.agents/friction-log/`.
+- The mobile blocker and all remaining findings were fixed after this pass. Their resolved records remain summarized above.

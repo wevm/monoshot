@@ -20,6 +20,7 @@ import { text } from '#/theme/text.js'
 import { Button } from '#/ui/Button.js'
 import { Input } from '#/ui/Input.js'
 import { PaletteSelect } from '#/ui/PaletteSelect.js'
+import { Spinner } from '#/ui/Spinner.js'
 import { Switch } from '#/ui/Switch.js'
 import { color, font, motion, shadow } from '../../theme/tokens.stylex.js'
 import { Frame } from './Frame.js'
@@ -333,6 +334,7 @@ export function Drawer(props: Drawer.Props) {
     maxWidth,
     mobile,
     open,
+    exporting,
     onChange,
     onClose,
     onCopyImage,
@@ -650,24 +652,44 @@ export function Drawer(props: Drawer.Props) {
             </SectionHeading>
             <div {...stylex.props(styles.exports)}>
               <Button
+                aria-busy={exporting.has('png')}
+                disabled={exporting.has('png')}
                 onClick={() => onSave({ scale: 6, type: 'png' })}
                 size="small"
                 variant="chrome"
               >
-                PNG
+                {exporting.has('png') && <Spinner />}
+                {exporting.has('png') ? 'Exporting' : 'PNG'}
               </Button>
               <Button
+                aria-busy={exporting.has('svg')}
+                disabled={exporting.has('svg')}
                 onClick={() => onSave({ scale: 1, type: 'svg' })}
                 size="small"
                 variant="chrome"
               >
-                SVG
+                {exporting.has('svg') && <Spinner />}
+                {exporting.has('svg') ? 'Exporting' : 'SVG'}
               </Button>
-              <Button onClick={onCopyImage} size="small" variant="chrome">
-                Copy image
+              <Button
+                aria-busy={exporting.has('image')}
+                disabled={exporting.has('image')}
+                onClick={onCopyImage}
+                size="small"
+                variant="chrome"
+              >
+                {exporting.has('image') && <Spinner />}
+                {exporting.has('image') ? 'Copying' : 'Copy image'}
               </Button>
-              <Button onClick={onCopyUrl} size="small" variant="chrome">
-                Copy URL
+              <Button
+                aria-busy={exporting.has('url')}
+                disabled={exporting.has('url')}
+                onClick={onCopyUrl}
+                size="small"
+                variant="chrome"
+              >
+                {exporting.has('url') && <Spinner />}
+                {exporting.has('url') ? 'Copying' : 'Copy URL'}
               </Button>
             </div>
           </section>
@@ -1191,6 +1213,8 @@ export declare namespace Drawer {
     mobile: boolean
     /** Whether the controls are visible. */
     open: boolean
+    /** Export actions currently in progress. */
+    exporting: ReadonlySet<'image' | 'png' | 'svg' | 'url'>
     /** Receives only the settings that changed. */
     onChange: (next: Partial<State>) => void
     /** Hides the controls on compact screens. */
