@@ -187,3 +187,26 @@ describe('deserialize', () => {
     expect(Codec.deserialize(hash).width).toBe(640)
   })
 })
+
+describe('strict', () => {
+  test('reads a whole frame that leaves its width to the rendered lines', () => {
+    // The shape `deserialize` returns for a link carrying no width.
+    const read = Codec.strict.safeParse({ ...state, width: undefined })
+    expect({ success: read.success, width: read.data?.width }).toMatchInlineSnapshot(`
+      {
+        "success": true,
+        "width": undefined,
+      }
+    `)
+  })
+
+  test('refuses a value the lenient reading would replace', () => {
+    const read = Codec.strict.safeParse({ ...state, radius: 99 })
+    expect(read.success ? [] : read.error.issues.map((issue) => issue.path.join('.')))
+      .toMatchInlineSnapshot(`
+      [
+        "radius",
+      ]
+    `)
+  })
+})

@@ -3,21 +3,22 @@ import { Theme } from 'monoshot'
 import { swatches } from './swatches.js'
 import * as Wallpapers from './wallpapers.js'
 
-/** Frame overrides applied when a theme is selected. */
-const framing: Record<string, Framing> = {
-  // Match the rectangular geometry of the Tempo artwork.
-  tempo: { radius: 0 },
-}
-
 /** Theme-specific frame properties. */
 export type Framing = { radius: number }
 
 /** Default frame properties. */
 const plain: Framing = { radius: 12 }
 
-/** Returns the frame overrides for a theme. */
-export function frame(name: string): Partial<Framing> {
-  return framing[name] ?? {}
+/**
+ * Returns the frame overrides a theme asks for.
+ *
+ * Read off the theme rather than listed here: a theme composed from artwork
+ * states the geometry that artwork wants, and the CLI and the card renderer
+ * read the same statement.
+ */
+function frame(name: string): Partial<Framing> {
+  const radius = Theme.info(name)?.radius
+  return radius === undefined ? {} : { radius }
 }
 
 /**
@@ -27,8 +28,9 @@ export function frame(name: string): Partial<Framing> {
  * between themes without overrides preserve the current frame settings.
  */
 export function reframe(from: string, to: string): Partial<Framing> {
-  if (framing[to]) return framing[to]
-  return framing[from] ? plain : {}
+  const entering = frame(to)
+  if (entering.radius !== undefined) return entering
+  return frame(from).radius === undefined ? {} : plain
 }
 
 /** Theme preview colors and background. */
@@ -54,7 +56,7 @@ export function swatch(name: string): Swatch {
 
 /** Returns whether a theme is derived from curated artwork. */
 export function curated(name: string): boolean {
-  return Wallpapers.byId(name) !== undefined
+  return Theme.info(name)?.artwork === true
 }
 
 const drawn = new Map<string, Swatch>(

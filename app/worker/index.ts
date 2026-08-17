@@ -1,23 +1,25 @@
 import handler from '@tanstack/react-start/server-entry'
-import { Hono, type Context } from 'hono'
+import { Hono } from 'hono'
 import { accepts } from 'hono/accepts'
-import { Api, Codec, Twoslash } from 'monoshot'
+import { Api, Browser, Codec, Theme, Twoslash } from 'monoshot'
 import * as z from 'zod'
 
-import * as Browser from '../../src/internal/Browser.js'
 import { detect } from '../src/lib/detect.js'
-import * as Themes from '../src/lib/themes.js'
 import * as Wallpapers from '../src/lib/wallpapers.js'
 import * as Links from './links.js'
 
 // Register the English locale explicitly to preserve field-specific validation messages.
 z.config(z.locales.en())
 
-const renderer = Api.create({ browser: (c) => (c.env as Cloudflare.Env).BROWSER })
+const renderer = Api.create({
+  browser: (c) => (c.env as Cloudflare.Env).BROWSER,
+  // The wallpaper a composed theme was made from lives in this deployment's
+  // assets, which only this Worker can reach.
+  picture: ({ context, theme }) =>
+    inlined(context.env as Cloudflare.Env, new URL(context.req.url).origin, theme),
+})
 
 const api = new Hono<{ Bindings: Cloudflare.Env }>()
-  .post('/document', (c) => apiRender(c, '/document'))
-  .post('/image', (c) => apiRender(c, '/image'))
   // Use the shared API routes so every consumer applies the same frame validation.
   .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
@@ -200,46 +202,6 @@ const markdownUserAgents = [
   'xh/',
 ]
 
-async function apiRender(
-  c: Context<{ Bindings: Cloudflare.Env }>,
-  path: '/document' | '/image',
-): Promise<Response> {
-  const text = await c.req.text()
-  const headers = new Headers(c.req.raw.headers)
-  headers.delete('content-length')
-  const send = (body: string) =>
-    renderer.request(path, { body, headers, method: 'POST' }, c.env, c.executionCtx)
-
-  let request: unknown
-  try {
-    request = JSON.parse(text)
-  } catch {
-    return send(text)
-  }
-  if (!request || typeof request !== 'object' || Array.isArray(request)) return send(text)
-
-  const input = request as Record<string, unknown>
-  const theme = typeof input['theme'] === 'string' ? input['theme'] : ''
-  const frame = Themes.frame(theme)
-  const wallpaper =
-    input['background'] === undefined || input['background'] === 'default'
-      ? Wallpapers.byId(theme)
-      : undefined
-  const picture =
-    wallpaper && input['picture'] === undefined
-      ? await inlined(c.env, new URL(c.req.url).origin, wallpaper.id)
-      : undefined
-  return send(
-    JSON.stringify({
-      ...input,
-      ...(picture ? { picture } : {}),
-      ...(input['radius'] === undefined && frame.radius !== undefined
-        ? { radius: frame.radius }
-        : {}),
-    }),
-  )
-}
-
 /** Reads an agent resource from the deployed static assets. */
 async function agentAsset(
   env: Cloudflare.Env,
@@ -284,10 +246,9 @@ async function card(
   state: string,
 ): Promise<ArrayBuffer | undefined> {
   const settings = Codec.deserialize(state)
-  // Embed wallpaper data because the standalone renderer performs no requests.
-  const named =
-    Wallpapers.at(settings.background) ??
-    (settings.background === 'default' ? Wallpapers.byId(settings.theme) : undefined)
+  // A `wallpaper:` background names a picture this deployment holds. Artwork a
+  // composed theme owns is filled by the renderer's own loader.
+  const named = Wallpapers.at(settings.background)
   const picture = named ? await inlined(env, origin, named.id) : undefined
   // Truncate source to the largest canvas, then size the canvas to what remains.
   const shape = Links.layout(Links.withoutTypes(settings.code))
@@ -303,10 +264,12 @@ async function card(
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
         padding: shape.padding,
         ...(picture ? { picture } : {}),
-        // Apply the selected theme's frame radius override.
-        radius: Themes.frame(settings.theme).radius ?? settings.radius,
+        // Artwork states the geometry it wants, as it does in the editor.
+        radius: Theme.info(settings.theme)?.radius ?? settings.radius,
         theme: settings.theme,
         titleBar: false,
+        // The renderer fades the last rows when the source was cut short.
+        truncated: shape.truncated,
         // Preview crawlers cannot wait for package acquisition during Twoslash.
         twoslash: false,
         width: shape.width,
@@ -320,7 +283,7 @@ async function card(
   if (!drawn.ok) return undefined
   try {
     const png = await Browser.screenshot(env.BROWSER, {
-      html: Links.fade(await drawn.text(), shape.overflow),
+      html: await drawn.text(),
       scale: shape.scale,
     })
     return png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer

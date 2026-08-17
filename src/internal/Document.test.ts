@@ -211,4 +211,40 @@ describe('build', () => {
       }
     `)
   })
+
+  test('takes the radius a theme states, and the one a caller pins over it', async () => {
+    // `tempo` is composed here rather than bundled, so it loads on first use.
+    const drawn = async (radius?: number) =>
+      /border-radius: (\d+)px/.exec(
+        await frame.toDocument({
+          ...options,
+          theme: 'tempo',
+          ...(radius === undefined ? { radius: undefined } : { radius }),
+        }),
+      )?.[1]
+    expect({ pinned: await drawn(8), stated: await drawn() }).toMatchInlineSnapshot(`
+      {
+        "pinned": "8",
+        "stated": "0",
+      }
+    `)
+  })
+
+  test('fades the last rows only when the source was cut short', async () => {
+    const faded = async (truncated: boolean) => {
+      const document = await frame.toDocument({ ...options, truncated })
+      return /\.body::after/.test(document)
+    }
+    expect({
+      cut: await faded(true),
+      unset: /\.body::after/.test(await frame.toDocument(options)),
+      whole: await faded(false),
+    }).toMatchInlineSnapshot(`
+      {
+        "cut": true,
+        "unset": false,
+        "whole": false,
+      }
+    `)
+  })
 })

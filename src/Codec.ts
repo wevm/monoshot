@@ -6,43 +6,83 @@ import * as z from 'zod'
 import * as Theme from './Theme.js'
 
 /**
- * Everything a shared link carries. Every field falls back rather than
- * failing, so a truncated or hand-edited link still opens something usable.
+ * The range each sized field accepts, in pixels.
+ *
+ * Stated as data because a surface drawing a control for one of these needs the
+ * numbers, not a schema: a slider that offers more than this is offering a value
+ * the frame refuses. {@link strict} is built from these.
  */
-export const schema = z.object({
+export const bounds = {
+  padding: { max: 256, min: 0 },
+  radius: { max: 24, min: 0 },
+  width: { max: 1600, min: 320 },
+} as const
+
+/**
+ * Everything a frame carries, held to the bounds it must satisfy and nothing
+ * else: a value outside them is an issue rather than a default.
+ *
+ * This is where a bound is stated. {@link schema} reads the same fields
+ * leniently by falling each one back, and a caller that must refuse a value
+ * rather than replace it reads with this instead of restating the bounds.
+ */
+export const strict = z.object({
   /**
    * The frame's backdrop: `default` for the theme's own gradient, `none` for a
    * transparent one, a `#rrggbb` color, `gradient:#rrggbb:#rrggbb`, or
    * `wallpaper:<id>` for a picture the surface drawing it carries.
    */
-  background: z
-    .union([
-      z.enum(['default', 'none']),
-      z.string().regex(/^#[0-9a-f]{6}$/i),
-      z.string().regex(/^gradient:#[0-9a-f]{6}:#[0-9a-f]{6}$/i),
-      z.string().regex(/^wallpaper:[a-z0-9-]+$/),
-    ])
-    .catch('default'),
-  /** Source code displayed in the window. Defaults to an empty string. */
-  code: z.string().catch(''),
+  background: z.union([
+    z.enum(['default', 'none']),
+    z.string().regex(/^#[0-9a-f]{6}$/i),
+    z.string().regex(/^gradient:#[0-9a-f]{6}:#[0-9a-f]{6}$/i),
+    z.string().regex(/^wallpaper:[a-z0-9-]+$/),
+  ]),
+  /** Source code displayed in the window. */
+  code: z.string(),
   /** A shiki language id, or `auto` to read it from the code. */
-  lang: z.string().catch('auto'),
+  lang: z.string(),
   /** Space around the window, in pixels. */
-  padding: z.number().int().min(0).max(256).catch(64),
+  padding: z.number().int().min(bounds.padding.min).max(bounds.padding.max),
   /** Corner radius of the window, in pixels. */
-  radius: z.number().int().min(0).max(24).catch(12),
+  radius: z.number().int().min(bounds.radius.min).max(bounds.radius.max),
   /** `auto` pairs syntax colors with the backdrop; a theme name pins them. */
-  syntax: z.union([z.literal('auto'), z.enum(Theme.names)]).catch('auto'),
+  syntax: z.union([z.literal('auto'), z.enum(Theme.names)]),
   /** A theme name, as `Theme.list` offers them. */
-  theme: z.enum(Theme.names).catch('golden-gate-dark'),
+  theme: z.enum(Theme.names),
   /** The window's title, which is empty when it has none. */
-  title: z.string().catch(''),
-  /** Whether the window includes a title bar. Defaults to `false`. */
-  titleBar: z.boolean().catch(false),
+  title: z.string(),
+  /** Whether the window includes a title bar. */
+  titleBar: z.boolean(),
   /** Whether the snippet is type checked, which only a TypeScript one can be. */
-  types: z.boolean().catch(true),
-  /** Fixed width of the window, in pixels. Omitted, the rendered lines set it. */
-  width: z.number().int().min(320).max(1600).optional().catch(undefined),
+  types: z.boolean(),
+  /**
+   * Fixed width of the window, in pixels. Omitted, the rendered lines set it,
+   * so this is the one field a whole frame may leave out.
+   */
+  width: z.number().int().min(bounds.width.min).max(bounds.width.max).optional(),
+})
+
+/**
+ * Everything a shared link carries. Every field falls back rather than
+ * failing, so a truncated or hand-edited link still opens something usable.
+ *
+ * The bounds come from {@link strict}; only what a field falls back to is
+ * stated here.
+ */
+export const schema = z.object({
+  background: strict.shape.background.catch('default'),
+  code: strict.shape.code.catch(''),
+  lang: strict.shape.lang.catch('auto'),
+  padding: strict.shape.padding.catch(64),
+  radius: strict.shape.radius.catch(12),
+  syntax: strict.shape.syntax.catch('auto'),
+  theme: strict.shape.theme.catch('golden-gate-dark'),
+  title: strict.shape.title.catch(''),
+  titleBar: strict.shape.titleBar.catch(false),
+  types: strict.shape.types.catch(true),
+  // The one field with no default: omitted, the rendered lines set the width.
+  width: strict.shape.width.catch(undefined),
 })
 
 /** The state {@link serialize} writes and {@link deserialize} reads. */

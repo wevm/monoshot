@@ -19,11 +19,8 @@ export function at(doc: Text, pos: number): Identifier | undefined {
   return found && { from: line.from + found.from, name: found.name, to: line.from + found.to }
 }
 
-/**
- * The identifier covering a column of a line, as offsets within it. Takes the
- * line as text so callers without a CodeMirror document can use it.
- */
-export function atColumn(text: string, column: number): Identifier | undefined {
+/** The identifier covering a column of a line, as offsets within it. */
+function atColumn(text: string, column: number): Identifier | undefined {
   for (const found of all(text)) {
     if (column < found.from) return undefined
     if (column <= found.to) return found
@@ -36,18 +33,6 @@ export function* all(text: string): Generator<{ from: number; name: string; to: 
   word.lastIndex = 0
   for (let match = word.exec(text); match; match = word.exec(text))
     yield { from: match.index, name: match[0], to: match.index + match[0].length }
-}
-
-/**
- * The line a `^?` caret in `line` points at, and the identifier under it. The
- * caret addresses the line above, which is where twoslash reads it from.
- */
-export function queried(doc: Text, line: number, column: number): Identifier | undefined {
-  if (line <= 1) return undefined
-  const above = doc.line(line - 1)
-  // A caret cannot sit before column 2, so one aimed past the end of a short
-  // line still addresses that line's last identifier.
-  return at(doc, above.from + Math.min(column, above.length))
 }
 
 /** Returns the target column of a `^?` line, or `undefined`. */

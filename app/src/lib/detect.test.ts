@@ -1,4 +1,4 @@
-import { detect, languages, title, typed } from './detect.js'
+import { detect, languages, title } from './detect.js'
 
 const python = `import json
 from dataclasses import dataclass
@@ -128,19 +128,6 @@ describe('detect', () => {
         undefined,
         undefined,
       ]
-    `)
-  })
-})
-
-describe('typed', () => {
-  test('covers the TypeScript family only', () => {
-    expect({ jsx: typed('jsx'), python: typed('python'), tsx: typed('tsx') })
-      .toMatchInlineSnapshot(`
-      {
-        "jsx": true,
-        "python": false,
-        "tsx": true,
-      }
     `)
   })
 })

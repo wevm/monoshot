@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex'
 import { AnimatePresence, MotionConfig, motion as m } from 'motion/react'
-import { Theme } from 'monoshot'
+import { Codec, Theme } from 'monoshot'
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -8,13 +8,19 @@ import type {
 } from 'react'
 import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-import * as Annotation from '#/lib/editor/annotation.js'
-import * as Identifier from '#/lib/editor/identifier.js'
+import * as Backgrounds from '#/lib/backgrounds.js'
 import { ignore } from '#/lib/export.js'
 import * as Wallpapers from '#/lib/wallpapers.js'
 import { text } from '#/theme/text.js'
 import { Tooltip } from '#/ui/Tooltip.js'
-import { color, crossfade, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
+import {
+  code as metrics,
+  color,
+  crossfade,
+  font,
+  motion,
+  shadow,
+} from '../../theme/tokens.stylex.js'
 
 const styles = stylex.create({
   // Backdrop and window colors are per-theme, so they arrive as CSS variables
@@ -253,7 +259,7 @@ export function Frame(props: Frame.Props) {
     ? Frame.maxPaddingFor(maxWidth, value - padding * 2)
     : Frame.maxPadding(value)
   const widthMin = Frame.minWidth(padding)
-  const customGradient = gradient(background)
+  const customGradient = Backgrounds.gradient(background)
   const backgroundKey = customGradient
     ? 'gradient'
     : background.startsWith('#')
@@ -607,12 +613,7 @@ type Palette = {
 const paddingCeiling = 160
 
 /** Largest fixed width the shared frame codec accepts. */
-const widthCeiling = 1600
-
-function gradient(background: string): [string, string] | undefined {
-  const match = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
-  return match?.[1] && match[2] ? [match[1], match[2]] : undefined
-}
+const widthCeiling = Codec.bounds.width.max
 
 export namespace Frame {
   /**
@@ -683,16 +684,19 @@ export namespace Frame {
   }
 }
 
+// Fixed rather than the `--code-*` custom properties the editor reads: those
+// shrink under the mobile override, and the artwork a capture produces is the
+// same picture on every device.
 const code = stylex.create({
   root: {
     fontFamily: font.mono,
-    fontSize: 14,
-    lineHeight: '22px',
+    fontSize: metrics.size,
+    lineHeight: metrics.line,
     // Ligatures would break the 1:1 metrics the editor relies on later.
     fontVariantLigatures: 'none',
     // The frame owns overflow: fixed widths wrap, while an intrinsic frame
     // expands to the longest line without adding a scrollbar to the picture.
-    paddingBlock: 12,
-    tabSize: 2,
+    paddingBlock: metrics.padding,
+    tabSize: metrics.tab,
   },
 })

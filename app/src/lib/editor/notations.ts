@@ -2,6 +2,7 @@ import { StateField } from '@codemirror/state'
 import type { ChangeSpec, EditorState, Extension } from '@codemirror/state'
 import { Decoration, EditorView } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
+import { Twoslash } from 'monoshot'
 
 import * as Identifier from './identifier.js'
 
@@ -20,7 +21,7 @@ const field = StateField.define<Value>({
 export type Kind = 'add' | 'focus' | 'highlight' | 'remove'
 
 /** Prose annotation rendered as its own row above code. */
-export type Tag = 'annotate' | 'error' | 'log' | 'warn'
+export type Tag = (typeof Twoslash.tags)[number]
 
 /** A notation, the lines it marks, and where its comment sits in the source. */
 export type Notation = {
@@ -114,8 +115,13 @@ const pattern =
 /**
  * A twoslash tag, which is prose the snippet carries about the line after it.
  * The export draws it as a row of its own; here it stays where it was written.
+ *
+ * Built from the published tag list rather than spelling it out: a tag the
+ * export renders and the editor does not would sit here as a plain comment.
  */
-const tagPattern = /^[ \t]*(?:\/\/|#|--|;|%|\/\*|<!--)[ \t]*@(annotate|error|log|warn):[ \t]?/
+const tagPattern = new RegExp(
+  `^[ \\t]*(?://|#|--|;|%|/\\*|<!--)[ \\t]*@(${Twoslash.tags.join('|')}):[ \\t]?`,
+)
 
 /** How a block comment ends, which a tag written in one carries. */
 const closing = /[ \t]*(?:\*\/|-->)[ \t]*$/

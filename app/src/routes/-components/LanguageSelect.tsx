@@ -118,11 +118,10 @@ const icons: Partial<Record<detect.LanguageId, Icon>> = {
 
 /** Language picker whose options carry a monochrome brand glyph. */
 export function LanguageSelect(props: LanguageSelect.Props) {
-  const automatic = detect.languages.find((language) => language.id === props.resolved)
   const items: readonly MenuSelect.Item<detect.LanguageId | 'auto'>[] = [
     {
       end: icon(props.resolved),
-      label: `Auto (${automatic?.title ?? props.resolved})`,
+      label: `Auto (${detect.title(props.resolved)})`,
       value: 'auto',
     },
     ...detect.languages.map((language) => ({

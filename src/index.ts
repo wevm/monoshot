@@ -5,6 +5,12 @@
  */
 export * as Api from './Api.js'
 /**
+ * Screenshots a standalone frame through Cloudflare Browser Rendering. See
+ * {@link Browser.screenshot}, and {@link Browser.fit} for the scale a capture
+ * can actually ask for.
+ */
+export * as Browser from './Browser.js'
+/**
  * Packs everything on screen into a URL fragment and reads it back, so a frame
  * travels as a link. See {@link Codec.serialize} and {@link Codec.deserialize}.
  */

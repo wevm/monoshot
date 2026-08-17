@@ -512,8 +512,6 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
   function control(options: {
     active?: boolean | undefined
     color?: string | undefined
-    /** Whether this action is unavailable for the row. */
-    disabled?: boolean | undefined
     /** What a press by pointer does, when it does more than a press by key. */
     hold?: (() => void) | undefined
     icon: string
@@ -527,19 +525,14 @@ function build(view: EditorView, container: HTMLElement, syntax: Notations.Synta
     // the same button whether pressing it writes a mark or takes one away.
     button.setAttribute('aria-pressed', String(options.active === true))
     if (options.color) button.style.setProperty('--rail-color', options.color)
-    button.disabled = options.disabled === true
     button.type = 'button'
     button.setAttribute('aria-label', options.label)
-    // Use an imperative tooltip for DOM created outside React. Disabled controls
-    // retain a native title because they do not receive pointer events.
-    if (button.disabled) button.title = options.label
-    else {
-      const named = () => Tooltip.point({ at: button, label: options.label })
-      const done = () => Tooltip.point()
-      button.addEventListener('pointerenter', named)
-      button.addEventListener('focus', named)
-      button.addEventListener('blur', done)
-    }
+    // Use an imperative tooltip for DOM created outside React.
+    const named = () => Tooltip.point({ at: button, label: options.label })
+    const done = () => Tooltip.point()
+    button.addEventListener('pointerenter', named)
+    button.addEventListener('focus', named)
+    button.addEventListener('blur', done)
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${options.icon}"/></svg>`
     // Ahead of the click: the editor would otherwise take focus and drop the
     // caret on the underlying editor position.

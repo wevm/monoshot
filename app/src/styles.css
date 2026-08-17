@@ -531,8 +531,3 @@
     transition-duration: 0s;
   }
 }
-
-.rail-control:disabled {
-  cursor: default;
-  opacity: 0.15;
-}

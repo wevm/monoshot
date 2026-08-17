@@ -23,6 +23,10 @@ const storage = createStorage({ driver: indexedDb({ base: 'monoshot:twoslash' })
  */
 const files = new Map<string, string>()
 
+// Assembled here rather than through `Twoslash.create` because acquisition is
+// a second stage in this worker: the first result is published without waiting
+// for a package fetch. What the resolver is told, though, is the library's own,
+// so the editor and the exported image read one snippet the same way.
 const twoslash = createTwoslashFromCDN({
   fsMap: files,
   // This copy only decides which lib files are fetched, and defaults to ES5
@@ -31,16 +35,7 @@ const twoslash = createTwoslashFromCDN({
   // at all, and every type behind an `await` collapses to `any`.
   compilerOptions,
   storage,
-  twoSlashOptionsOverrides: {
-    // The tags the frame draws, which stay ordinary comments unless the
-    // compiler is told to read them.
-    customTags: [...Twoslash.tags],
-    // This copy configures compilation of the snippet itself.
-    compilerOptions,
-    // Half-typed code is the normal case in an editor, and twoslash otherwise
-    // insists every compiler error be declared in the source.
-    handbookOptions: { noErrorValidation: true },
-  },
+  twoSlashOptionsOverrides: Twoslash.overrides,
 })
 
 /**
@@ -151,7 +146,7 @@ async function upgrade(request: Resolve, first: Resolved, published: boolean) {
     completions.forget()
     const upgraded = annotate(request, ambient)
     // Skip duplicate results when type acquisition did not change the output.
-    if (published && JSON.stringify(upgraded) === JSON.stringify(first)) return
+    if (published && same(upgraded, first)) return
     reply(upgraded)
   } catch (cause) {
     if (request.version === version) reply(failure(request, cause))
@@ -182,6 +177,25 @@ function annotate(request: Resolve, types: readonly string[] = []): Resolved {
 }
 
 type Resolved = Extract<Response, { result: Twoslash.Result }>
+
+/**
+ * Whether acquisition left the result unchanged.
+ *
+ * Counts first: a run carries a formatted type signature per node, so
+ * serializing both sides costs hundreds of kilobytes on the thread that also
+ * answers completion requests, and acquisition that resolved anything new
+ * almost always changes one of these lengths.
+ */
+function same(a: Resolved, b: Resolved): boolean {
+  if (
+    a.result.diagnostics.length !== b.result.diagnostics.length ||
+    a.result.hovers.length !== b.result.hovers.length ||
+    a.result.queries.length !== b.result.queries.length ||
+    a.types.nodes.length !== b.types.nodes.length
+  )
+    return false
+  return JSON.stringify(a) === JSON.stringify(b)
+}
 
 /**
  * Loads one package's declarations through the app route.

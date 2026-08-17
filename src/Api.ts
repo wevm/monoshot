@@ -3,16 +3,17 @@ import { Hono, type Handler } from 'hono'
 import { bundledLanguages } from 'shiki'
 import * as z from 'zod'
 
+import * as Browser from './Browser.js'
 import * as Codec from './Codec.js'
 import * as Frame from './Frame.js'
-import * as Browser from './internal/Browser.js'
+import * as Languages from './internal/Languages.js'
 import * as Theme from './Theme.js'
 
 /** What a request may weigh, so one of them cannot occupy an isolate. */
 const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
 
-/** Shiki language IDs and aliases that Twoslash can compile. */
-const typed: ReadonlySet<string> = new Set(['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'])
+/** Every grammar shiki bundles, by each name it accepts for one. */
+const languageNames = Object.keys(bundledLanguages) as [string, ...string[]]
 
 /** Every shape a request is read through, and the types they describe. */
 namespace schema {
@@ -39,11 +40,13 @@ namespace schema {
   /**
    * The frame to draw, described strictly. The codec falls back on every field
    * so a hand-edited link still opens something; a request naming a width no
-   * frame has is a mistake, and is answered as one. The bounds are stated here
-   * rather than read off the codec, which holds them as fallbacks.
+   * frame has is a mistake, and is answered as one. The bounds come from
+   * `Codec.strict`, which is where a frame's field states what it accepts.
    */
   export const document = z
     .object({
+      // Narrower than the codec's: a `wallpaper:` identifier names a picture
+      // the deployment holds, and a request carries one through `picture`.
       background: z
         .union([
           z.enum(['default', 'none']),
@@ -52,17 +55,21 @@ namespace schema {
         ])
         .optional(),
       code: z.string().min(1).max(limit.code),
-      lang: z.string(),
+      // Named rather than listed, as `theme` is: the enum describes itself to a
+      // generated client, and its own message would spell out every grammar.
+      lang: z.enum(languageNames, {
+        error: (issue) => `\`${String(issue.input)}\` is not bundled.`,
+      }),
       /** Fixed canvas height in pixels. By default, the canvas follows the content height. */
       height: z.number().int().min(120).max(2160).optional(),
-      padding: z.number().int().min(0).max(256).optional(),
+      padding: Codec.strict.shape.padding.optional(),
       /** Embedded backdrop image for the request-free renderer. */
       picture: z
         .string()
         .max(limit.picture)
         .regex(/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]+$/)
         .optional(),
-      radius: z.number().int().min(0).max(24).optional(),
+      radius: Codec.strict.shape.radius.optional(),
       // Named rather than listed: the enum's own message spells out
       // two dozen names, and `/themes` is where they are read from.
       theme: z
@@ -70,13 +77,15 @@ namespace schema {
         .optional(),
       title: z.string().max(200).optional(),
       titleBar: z.boolean().optional(),
+      /** Fades the window's bottom edge, for source cut short of its snippet. */
+      truncated: z.boolean().optional(),
       twoslash: z
         .union([z.boolean(), run])
         .optional()
         .describe(
           'Whether to resolve Twoslash annotations, or a pre-resolved run. Defaults to enabled for JavaScript and TypeScript.',
         ),
-      width: z.number().int().min(320).max(1600).optional(),
+      width: Codec.strict.shape.width,
     })
     .strict()
 
@@ -126,8 +135,12 @@ namespace schema {
   /** Response returned by `/themes`. */
   export const themes = z.array(
     z.object({
+      /** Present on a theme composed from artwork it also owns. */
+      artwork: z.boolean().optional(),
       displayName: z.string(),
       name: z.string(),
+      /** The radius a theme's artwork asks for, when it asks for one. */
+      radius: Codec.strict.shape.radius.optional(),
       type: z.union([z.literal('dark'), z.literal('light')]),
     }),
   )
@@ -160,24 +173,40 @@ export function create(options: create.Options = {}) {
    * routes read a request the same way; only what they do with the document
    * afterwards differs.
    */
-  async function frame_document(request: schema.Document): Promise<Response | string> {
+  async function frame_document(
+    context: picture.Context,
+    request: schema.Document,
+  ): Promise<Response | string> {
     // Apply codec defaults so requests, links, and the editor render omitted
     // fields consistently.
     const state = Codec.schema.parse(request)
-    if (!(state.lang in bundledLanguages))
-      return Response.json({ error: `lang: \`${state.lang}\` is not bundled.` }, { status: 400 })
     try {
+      // A theme composed from artwork owns a picture this cannot read: the
+      // library holds the colors it was composed from, not the file they came
+      // from. Only the default backdrop is the theme's to fill. Inside the
+      // boundary, so a loader that cannot reach its asset answers as a failed
+      // render rather than escaping the route.
+      const picture =
+        request.picture ??
+        (Theme.info(state.theme)?.artwork &&
+        (request.background === undefined || request.background === 'default')
+          ? await options.picture?.({ context, theme: state.theme })
+          : undefined)
       return await frame.toDocument({
         ...state,
+        // The codec fills a radius for every link. A request that named none
+        // leaves the theme free to state the geometry its artwork wants.
+        radius: request.radius,
         // Asserted through `unknown`: the run is validated structurally here,
         // and the renderer's node union declares positions this neither reads
         // nor requires a caller to send.
         twoslash:
           typeof request.twoslash === 'object'
             ? (request.twoslash as unknown as Frame.render.Types)
-            : (request.twoslash ?? typed.has(state.lang)),
+            : (request.twoslash ?? Languages.languages.has(state.lang)),
         ...(request.height === undefined ? {} : { height: request.height }),
-        ...(request.picture === undefined ? {} : { picture: request.picture }),
+        ...(picture === undefined ? {} : { picture }),
+        ...(request.truncated === undefined ? {} : { truncated: request.truncated }),
         lang: state.lang as Parameters<typeof frame.toDocument>[0]['lang'],
       })
     } catch (cause) {
@@ -208,7 +237,7 @@ export function create(options: create.Options = {}) {
         summary: 'Render a document',
       }),
       async (c) => {
-        const drawn = await frame_document(c.req.valid('json'))
+        const drawn = await frame_document(c, c.req.valid('json'))
         if (drawn instanceof Response) return drawn
         // Do not cache by URL because the response depends on the request body.
         return c.body(drawn, 200, { 'content-type': 'text/html; charset=utf-8' })
@@ -234,7 +263,7 @@ export function create(options: create.Options = {}) {
         if (!browser)
           return c.json({ error: 'Browser Rendering is not configured for this deployment.' }, 503)
         const request = c.req.valid('json')
-        const drawn = await frame_document(request)
+        const drawn = await frame_document(c, request)
         if (drawn instanceof Response) return drawn
         const png = await (async () => {
           try {
@@ -289,7 +318,28 @@ export declare namespace create {
      * engine. Pass one to share loaded grammars, or to choose the engine.
      */
     frame?: Frame.create.ReturnType | undefined
+    /**
+     * The artwork a composed theme was made from, as a `data:` URL, read off
+     * each request the way {@link browser} is.
+     *
+     * Called only for a theme that owns artwork, on a request that named no
+     * picture of its own and left the backdrop at `default`. The colors a theme
+     * was composed from ship with this package; the picture they were read off
+     * does not, so whoever can reach it hands it over. Without one, such a
+     * frame draws the theme's gradient.
+     */
+    picture?:
+      | ((options: picture.Options) => Promise<string | undefined> | string | undefined)
+      | undefined
   }
+}
+
+export declare namespace picture {
+  /** What a route hands a reader: the request, and what it reaches bindings by. */
+  type Context = { env: unknown; req: { url: string } }
+
+  /** The theme whose artwork is wanted, and the request asking for it. */
+  type Options = { context: Context; theme: string }
 }
 
 /**

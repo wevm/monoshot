@@ -142,11 +142,6 @@ for (const language of detectable) {
  */
 const confident = 6
 
-/** Whether twoslash applies: only the TypeScript family carries types. */
-export function typed(id: LanguageId): boolean {
-  return id === 'javascript' || id === 'jsx' || id === 'tsx' || id === 'typescript'
-}
-
 /** The name shown for a language id. */
 export function title(id: LanguageId): string {
   return languages.find((language) => language.id === id)?.title ?? id
