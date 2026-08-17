@@ -211,4 +211,22 @@ describe('build', () => {
       }
     `)
   })
+
+  test('fades the last rows only when the source was cut short', async () => {
+    const faded = async (truncated: boolean) => {
+      const document = await frame.toDocument({ ...options, truncated })
+      return /\.body::after/.test(document)
+    }
+    expect({
+      cut: await faded(true),
+      unset: /\.body::after/.test(await frame.toDocument(options)),
+      whole: await faded(false),
+    }).toMatchInlineSnapshot(`
+      {
+        "cut": true,
+        "unset": false,
+        "whole": false,
+      }
+    `)
+  })
 })

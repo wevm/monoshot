@@ -116,6 +116,7 @@ export const palettes = [
     colors: ['oklch(64.94% 0.1982 251.813)', '#ffffff'],
     displayName: 'Tempo',
     id: 'tempo',
+    radius: 0,
     type: 'dark',
   },
 ] as const satisfies readonly {
@@ -123,5 +124,6 @@ export const palettes = [
   colors: readonly string[]
   displayName: string
   id: string
+  radius?: number
   type: 'dark' | 'light'
 }[]

@@ -10,6 +10,7 @@ import * as z from 'zod'
 import * as Codec from './Codec.js'
 import type * as Frame from './Frame.js'
 import * as Headless from './Headless.js'
+import * as Languages from './internal/Languages.js'
 import * as Terminal from './internal/Terminal.js'
 import * as Theme from './Theme.js'
 import { version } from './version.js'
@@ -57,9 +58,6 @@ const settings = z.object({
   titleBar: z.boolean().optional().describe('Render the title bar.'),
   width: z.number().optional().describe('Width of the window, in pixels.'),
 })
-
-/** Canonical Shiki language IDs that support Twoslash type resolution. */
-const typed: ReadonlySet<string> = new Set(['javascript', 'jsx', 'tsx', 'typescript'])
 
 /** File-based snippet input. */
 const source = z.object({
@@ -190,7 +188,7 @@ export function create() {
             const parameters = {
               ...resolved.state,
               ...(picture === undefined ? {} : { picture }),
-              twoslash: options.twoslash ?? typed.has(resolved.state.lang),
+              twoslash: options.twoslash ?? Languages.languages.has(resolved.state.lang),
               ...(options.scale === undefined ? {} : { scale: options.scale }),
             }
             const image = await renderer.render({ ...parameters, type })
@@ -332,8 +330,8 @@ function frame(
       message: `Unknown theme \`${options.theme}\`. Run \`monoshot themes\` to list the available themes.`,
     }
   // The codec falls back rather than failing, which a half-edited URL needs
-  // and a command does not: a flag that was replaced was never understood.
-  const replaced = ignored(options, state)
+  // and a command does not: a flag the frame cannot accept was never understood.
+  const replaced = rejected(options)
   if (replaced.length > 0)
     return {
       code: 'invalid_settings',
@@ -346,16 +344,16 @@ function frame(
     state: {
       ...state,
       lang,
-      // Tempo's artwork is rectangular. Keep an explicitly selected radius.
-      radius: options.radius === undefined && state.theme === 'tempo' ? 0 : state.radius,
+      // A theme composed from artwork states the geometry that artwork wants.
+      // An explicitly selected radius outranks it.
+      radius: options.radius ?? Theme.info(state.theme)?.radius ?? state.radius,
     },
   }
 }
 
 /** Returns the artwork a composed theme owns when its default backdrop is selected. */
 async function themedPicture(state: Codec.State): Promise<string | undefined> {
-  if (state.background !== 'default' || !Theme.composed.some((theme) => theme.name === state.theme))
-    return undefined
+  if (state.background !== 'default' || Theme.info(state.theme)?.artwork !== true) return undefined
   const bytes = await fs.readFile(
     new URL(`../app/public/wallpapers/${state.theme}.webp`, import.meta.url),
   )
@@ -363,17 +361,23 @@ async function themedPicture(state: Codec.State): Promise<string | undefined> {
 }
 
 /**
- * The flags the codec replaced with its own defaults, named as they were
- * typed. `lang` is left out: resolving an alias to shiki's own id is a
- * substitution the command makes on purpose.
+ * The flags the frame cannot accept, named as they were typed.
+ *
+ * Read against `Codec.strict`, which is where a field states its bounds, so a
+ * bound changed there is enforced here without being restated. `lang` is left
+ * out: resolving an alias to shiki's own id is a substitution the command makes
+ * on purpose.
  */
-function ignored(options: z.output<typeof settings>, state: Codec.State): readonly string[] {
-  const asked = options as Record<string, unknown>
-  const kept = state as unknown as Record<string, unknown>
-  return Object.keys(state)
-    .filter((key) => key !== 'code' && key !== 'lang')
-    .filter((key) => asked[key] !== undefined && asked[key] !== kept[key])
-    .map((key) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`))
+function rejected(options: z.output<typeof settings>): readonly string[] {
+  const asked = Object.fromEntries(
+    Object.entries(options).filter(([key, value]) => value !== undefined && key !== 'lang'),
+  )
+  const read = Codec.strict.partial().safeParse(asked)
+  if (read.success) return []
+  const flags = read.error.issues.map((issue) => String(issue.path[0]))
+  return [...new Set(flags)].map((key) =>
+    key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`),
+  )
 }
 
 /**

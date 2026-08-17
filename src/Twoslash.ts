@@ -1,11 +1,12 @@
 import * as Cdn from './internal/Cdn.js'
 
 export { acquire } from './internal/Acquire.js'
-export { compilerOptions } from './internal/Cdn.js'
+export { compilerOptions, overrides } from './internal/Cdn.js'
+export { dialects, languages } from './internal/Languages.js'
 export { cut, unchecked } from './internal/Marks.js'
 import { unchecked } from './internal/Marks.js'
 export * as Registry from './internal/Registry.js'
-export { tags } from './internal/Tags.js'
+export { tagged, tags } from './internal/Tags.js'
 
 /** A type the language service resolved for a span of the source. */
 export type Annotation = {
@@ -63,8 +64,8 @@ export type Result = {
  * // ^?
  * ```
  */
-export function create(): create.ReturnType {
-  const resolver = Cdn.create()
+export function create(options: create.Options = {}): create.ReturnType {
+  const resolver = Cdn.create(options)
   return {
     async run(code, options = {}) {
       const twoslasher = await resolver.prepare(code)
@@ -77,6 +78,13 @@ export function create(): create.ReturnType {
 }
 
 export declare namespace create {
+  /**
+   * The environment the resolver runs in. Each field defaults to what a Node
+   * or Worker host provides; a browser passes its own, because it reaches
+   * neither the registry nor a filesystem.
+   */
+  type Options = Cdn.create.Options
+
   type ReturnType = {
     /**
      * Resolves a snippet's types after fetching imported declarations. The

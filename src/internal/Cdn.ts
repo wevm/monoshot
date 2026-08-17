@@ -30,26 +30,32 @@ export const compilerOptions = {
 }
 
 /**
+ * What Twoslash is told about a snippet, beyond the compiler's own options.
+ *
+ * Shared with every surface that runs Twoslash itself rather than through
+ * {@link create}: a resolver configured differently reads the same snippet
+ * differently, which is what the editor and the exported image must not do.
+ */
+export const overrides = {
+  compilerOptions,
+  // Register custom tags so Twoslash interprets them instead of ordinary comments.
+  customTags: [...tags],
+  // Allow incomplete snippets without requiring annotations for every diagnostic.
+  handbookOptions: { noErrorValidation: true },
+}
+
+/**
  * Creates a Twoslash resolver with consistent package declarations across runtimes.
  *
  * Compiler libraries load once per process; imported packages load per document through {@link prepare}.
  */
-export function create(): create.ReturnType {
+export function create(options: create.Options = {}): create.ReturnType {
   /** The compiler's file system, written to directly by both stages. */
   const files = new Map<string, string>()
   let started: Promise<Cdn> | undefined
 
-  /** Compiler and Twoslash options shared by local and CDN-backed resolvers. */
-  const overrides = {
-    compilerOptions,
-    // Register custom tags so Twoslash interprets them instead of ordinary comments.
-    customTags: [...tags],
-    // Allow incomplete snippets without requiring annotations for every diagnostic.
-    handbookOptions: { noErrorValidation: true },
-  }
-
   async function start(): Promise<Cdn> {
-    const compiler = await loadCompiler()
+    const compiler = options.compiler ?? (await loadCompiler())
     const lib = await bundled(compiler)
     // Read compiler libraries from disk in Node to avoid network-dependent type resolution.
     if (lib) {
@@ -66,7 +72,7 @@ export function create(): create.ReturnType {
     const twoslash = createTwoslashFromCDN({
       compilerOptions,
       fsMap: files,
-      storage: await cache(),
+      storage: options.storage ?? (await cache()),
       twoSlashOptionsOverrides: overrides,
     })
     // Only the lib files. Acquiring a document's packages is the second stage.
@@ -89,7 +95,7 @@ export function create(): create.ReturnType {
         code,
         compiler: cdn.compiler,
         files,
-        load: (name) => read(name),
+        load: options.load ?? read,
       })
       return (source, lang) => cdn.run(source, lang, acquired.types)
     },
@@ -121,6 +127,29 @@ async function loadCompiler(): Promise<typeof import('typescript')> {
 }
 
 export declare namespace create {
+  type Options = {
+    /**
+     * The compiler to resolve with. Defaults to the installed `typescript`,
+     * loaded so workerd selects its browser path rather than a `require` stub
+     * Node compatibility leaves unusable.
+     *
+     * Pass one to skip that detection, or to share a compiler the surface
+     * already holds for its own language service.
+     */
+    compiler?: typeof import('typescript') | undefined
+    /**
+     * Where a package's declarations come from. Defaults to the npm registry,
+     * which a browser cannot reach across origins and reads back through a
+     * route of its own instead.
+     */
+    load?: acquire.Options['load'] | undefined
+    /**
+     * Where compiler libraries fetched by a filesystem-free runtime are kept.
+     * Defaults to memory, which does not survive the surface that built it.
+     */
+    storage?: Storage | undefined
+  }
+
   type ReturnType = {
     /**
      * Fetches required declarations, then returns a Twoslash instance that

@@ -1,17 +1,8 @@
 import { snapdom } from '@zumer/snapdom'
-
-/** Scales the export menu offers, as multiples of the artwork's own size. */
-export const scales = [2, 4, 6] as const
+import { Browser } from 'monoshot'
 
 /** Marks chrome that belongs to the editor rather than the artwork. */
 export const ignore = 'data-ignore-in-export'
-
-/**
- * Chromium refuses to rasterize a canvas past this on either side, and browsers
- * cap total area well below the square of it. Both are silent failures: the
- * capture returns a blank image rather than throwing.
- */
-const side = 16_384
 
 /** Maximum canvas pixel count. Mobile Safari has a substantially lower limit. */
 const area = () => (matchMedia('(pointer: coarse)').matches ? 33_000_000 : 130_000_000)
@@ -22,6 +13,9 @@ const area = () => (matchMedia('(pointer: coarse)').matches ? 33_000_000 : 130_0
  * Artwork already over a limit at its own size comes back under 1, since a
  * capture it cannot shrink into is a blank image rather than a large one.
  *
+ * `Browser.fit` holds the per-side limit, which a headless capture is held to
+ * as well. Only the area cap is the canvas's own, so only that is added here.
+ *
  * An SVG is written out rather than drawn on a canvas, so it is held to no cap
  * and keeps the scale it asked for at any size.
  */
@@ -29,9 +23,7 @@ export function fit(size: { height: number; width: number }, options: capture.Op
   const { scale, type } = options
   const { height, width } = size
   if (type === 'svg' || !height || !width) return scale
-  const bySide = Math.min(side / width, side / height)
-  const byArea = Math.sqrt(area() / (width * height))
-  return Math.min(scale, bySide, byArea)
+  return Math.min(Browser.fit(size, scale), Math.sqrt(area() / (width * height)))
 }
 
 /**

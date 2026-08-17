@@ -36,6 +36,14 @@ export type Options = {
   palette: Theme.derive.Result
   /** Corner radius of the window, in pixels. */
   radius: number
+  /**
+   * Whether the source shown was cut short of the snippet it came from, which
+   * fades the window's bottom edge so the picture reads as continuing.
+   *
+   * Only the bottom: lines wrap rather than run past the window, so vertical
+   * clipping is the one axis a frame can lose content on. Defaults to `false`.
+   */
+  truncated?: boolean | undefined
   /** Window title. An empty title renders as `untitled`. */
   title: string
   /** Whether to draw the title bar above the code. */
@@ -141,6 +149,7 @@ ${canvasWidth}
   color: ${palette.window.foreground};
   padding: ${titleBar ? DocumentLayout.metrics.body.padding.titled : DocumentLayout.metrics.body.padding.plain}px var(--body-inset);
 }
+${options.truncated === true ? truncation : ''}
 .shiki, .shiki code {
   background: transparent !important;
   font-family: var(--code-font-family);
@@ -195,6 +204,22 @@ ${titleBar ? titleBarMarkup(title) : ''}
 </body>
 </html>`
 }
+
+/**
+ * Fades the last rows of a window whose source was cut short, so the picture
+ * reads as a snippet continuing rather than one that ends there.
+ */
+const truncation = `.body { position: relative; }
+.body::after {
+  background: linear-gradient(to bottom, transparent, var(--window-background));
+  block-size: 44px;
+  content: '';
+  inset-block-end: 0;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}`
 
 /**
  * The window's depth, one arm per surface type. Mirrors the preview's

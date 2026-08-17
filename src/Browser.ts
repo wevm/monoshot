@@ -1,4 +1,6 @@
-import * as Raster from './Raster.js'
+import * as Raster from './internal/Raster.js'
+
+export { fit } from './internal/Raster.js'
 
 /** Browser Rendering binding that implements `fetch`. */
 export type Endpoint = { fetch: typeof fetch }

@@ -468,7 +468,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
       (result) => {
         if (!active) return
         setError(undefined)
-        setFrame({ palette: Theme.derive(result.theme), tokens: result.tokens })
+        setFrame({ palette: palette(syntaxTheme, result.theme), tokens: result.tokens })
       },
       (cause: Error) => {
         if (active) setError(cause)
@@ -767,6 +767,11 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   // showing the picture would briefly brighten the whole page without a scrim.
   const visibleWallpaper = rect ? wallpaper : undefined
 
+  // Held in refs so a render never re-registers the listener below. Every
+  // handler is redeclared each render, and the page renders on every keystroke.
+  const exports = useRef({ copyImage, copyUrl, save })
+  exports.current = { copyImage, copyUrl, save }
+
   // Override browser defaults for shortcuts advertised by the export menu.
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
@@ -774,25 +779,25 @@ export function Page({ state }: { state?: string | undefined } = {}) {
       const key = event.key.toLowerCase()
       if (key === 's' && !event.shiftKey) {
         event.preventDefault()
-        save({ scale: 2, type: 'png' })
+        exports.current.save({ scale: 2, type: 'png' })
       } else if (key === 'c' && event.shiftKey) {
         // ⌘ only, as the menu advertises it. Ctrl+Shift+C is the element
         // picker on Windows and Linux, which the page has no business taking.
         if (!event.metaKey) return
         event.preventDefault()
-        copyUrl()
+        exports.current.copyUrl()
       } else if (key === 'c' && !event.shiftKey && !copying(event)) {
         event.preventDefault()
-        copyImage()
+        exports.current.copyImage()
       }
     }
     window.addEventListener('keydown', shortcut)
     return () => window.removeEventListener('keydown', shortcut)
-  }, [copyImage, copyUrl, save])
+  }, [])
 
   // A dark fill lands on the same near-black the shell mixes to, leaving no
   // visible artwork edge, so the guides carry the crop the whole way across.
-  const customGradient = gradient(settings.background)
+  const customGradient = Backgrounds.gradient(settings.background)
   const bleed =
     settings.background === 'none' ||
     (settings.background.startsWith('#') && lightness(settings.background) < 0.2) ||
@@ -803,25 +808,17 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const canvas = (() => {
     if (!frame) return undefined
     if (settings.background === 'none') return frame.palette.window
-    // A chosen color owns the whole surface, so the shell takes a darkened
-    // cast of it rather than sitting against an unrelated hue.
-    if (settings.background.startsWith('#'))
-      return {
-        background: `color-mix(in oklab, ${settings.background} 22%, #08080a)`,
-        foreground: frame.palette.page.foreground,
-      }
-    if (customGradient)
-      return {
-        background: `color-mix(in oklab, ${customGradient[0]} 22%, #08080a)`,
-        foreground: frame.palette.page.foreground,
-      }
-    // A picture owns the surface the same way, in the strongest color it holds.
-    if (wallpaper?.color)
-      return {
-        background: `color-mix(in oklab, ${wallpaper.color} 22%, #08080a)`,
-        foreground: frame.palette.page.foreground,
-      }
-    return frame.palette.page
+    // Whatever the backdrop leads with owns the surface, so the shell takes a
+    // darkened cast of it rather than sitting against an unrelated hue: the
+    // chosen color, the gradient's first stop, or the picture's strongest color.
+    const tint = settings.background.startsWith('#')
+      ? settings.background
+      : (customGradient?.[0] ?? wallpaper?.color)
+    if (!tint) return frame.palette.page
+    return {
+      background: `color-mix(in oklab, ${tint} 22%, #08080a)`,
+      foreground: frame.palette.page.foreground,
+    }
   })()
   const scrim =
     canvas && visibleWallpaper
@@ -1085,23 +1082,41 @@ function useEdges() {
       setRect(undefined)
       return
     }
-    const measure = () => {
+    const read = () => {
       const box = node.getBoundingClientRect()
-      setRect({
+      const next = {
         bottom: box.bottom,
         height: window.innerHeight,
         left: box.left,
         right: box.right,
         top: box.top,
         width: window.innerWidth,
+      }
+      // Momentum scrolling and a settled ResizeObserver both report edges that
+      // have not moved. Keeping the previous object leaves the page unrendered.
+      setRect((current) =>
+        current && (Object.keys(next) as (keyof Edges)[]).every((key) => current[key] === next[key])
+          ? current
+          : next,
+      )
+    }
+    // One read per frame: every listener below fires faster than the page can
+    // paint, and each read forces layout.
+    let frame: number | undefined
+    const measure = () => {
+      if (frame !== undefined) return
+      frame = requestAnimationFrame(() => {
+        frame = undefined
+        read()
       })
     }
-    measure()
+    read()
     const observer = new ResizeObserver(measure)
     observer.observe(node)
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, { passive: true })
     return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
       observer.disconnect()
       window.removeEventListener('resize', measure)
       window.removeEventListener('scroll', measure)
@@ -1131,6 +1146,23 @@ function copying(event: KeyboardEvent) {
   return getSelection()?.isCollapsed === false
 }
 
+const derived = new Map<string, Theme.derive.Result>()
+
+/**
+ * The palette of a syntax theme, one object per theme for the run.
+ *
+ * `Theme.derive` is deterministic, and the editor reconfigures its theme
+ * compartment whenever the palette's identity changes. Deriving afresh on every
+ * edit appends another CodeMirror style module, which style-mod never releases.
+ */
+function palette(name: string, theme: Parameters<typeof Theme.derive>[0]) {
+  const cached = derived.get(name)
+  if (cached) return cached
+  const built = Theme.derive(theme)
+  derived.set(name, built)
+  return built
+}
+
 /** Rough perceptual lightness of a `#rrggbb` color, from 0 to 1. */
 function lightness(hex: string) {
   if (hex.length !== 7) return 1
@@ -1139,9 +1171,4 @@ function lightness(hex: string) {
   return (
     (0.299 * ((value >> 16) & 255) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255
   )
-}
-
-function gradient(background: string): [string, string] | undefined {
-  const match = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
-  return match?.[1] && match[2] ? [match[1], match[2]] : undefined
 }

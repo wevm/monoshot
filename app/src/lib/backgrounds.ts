@@ -60,14 +60,14 @@ type Gradient = {
 export function syntax(background: string, palette: readonly string[] = []): Theme.Name {
   const wallpaper = Wallpapers.at(background)
   if (wallpaper && Theme.info(wallpaper.id)) return wallpaper.id as Theme.Name
-  const gradient = gradients.find(
+  const preset = gradients.find(
     (entry) => background.toLowerCase() === value(entry.colors).toLowerCase(),
   )
-  if (gradient) return gradient.theme
+  if (preset) return preset.theme
   const solid = colors.find((entry) => entry.toLowerCase() === background.toLowerCase())
   if (solid) return colorThemes[solid]
-  const encoded = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
-  if (encoded?.[1] && encoded[2]) return nearest([encoded[1], encoded[2]])
+  const stops = gradient(background)
+  if (stops) return nearest(stops)
   if (/^#[0-9a-f]{6}$/i.test(background)) return nearest([background])
   if (background === 'image' && palette.length) return nearest(palette)
   if (background === 'none') return 'vitesse-dark'
@@ -77,6 +77,14 @@ export function syntax(background: string, palette: readonly string[] = []): The
 export function value(colors: readonly [string, string]) {
   return `gradient:${colors[0]}:${colors[1]}`
 }
+
+/** The two stops a `gradient:` background names, or `undefined` for any other. */
+export function gradient(background: string): [string, string] | undefined {
+  const match = encoded.exec(background)
+  return match?.[1] && match[2] ? [match[1], match[2]] : undefined
+}
+
+const encoded = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i
 
 function nearest(palette: readonly string[]): Theme.Name {
   return Theme.list().reduce(

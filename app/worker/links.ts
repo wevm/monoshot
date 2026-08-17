@@ -1,5 +1,5 @@
-import * as DocumentLayout from '../../src/internal/DocumentLayout.js'
-import * as Tags from '../../src/internal/Tags.js'
+import { Frame, Twoslash } from 'monoshot'
+
 import * as Shared from '../src/lib/shared.js'
 
 /** Size and retention limits for shared links. */
@@ -31,16 +31,16 @@ const canvas = {
  */
 export function layout(code: string): layout.Result {
   const shown = excerpt(code)
-  const measured = measure(codeLines(shown.code))
+  const measured = shown.measured ?? measure(codeLines(shown.code))
   let width = canvas.narrowest
   for (; width < canvas.widest; width += canvas.step)
     if (contentHeight(measured, width) <= room(width)) break
   return {
     code: shown.code,
     height: canvasHeight(width),
-    overflow: { horizontal: false, vertical: shown.truncated },
     padding: canvas.padding,
     scale: output.width / width,
+    truncated: shown.truncated,
     width,
   }
 }
@@ -51,23 +51,25 @@ export declare namespace layout {
     code: string
     /** Canvas height in pixels, derived from `width` at the output ratio. */
     height: number
-    /** Clipped axes used to mark truncated source at the canvas edge. */
-    overflow: fade.Overflow
     /** Canvas space around the code window in pixels. */
     padding: number
     /** Device scale factor that maps the canvas to the output size. */
     scale: number
+    /** Whether rows were dropped, which the card marks at its bottom edge. */
+    truncated: boolean
     /** Canvas width in pixels. */
     width: number
   }
 }
 
 /** Truncates code to the rows available at the widest canvas. */
-function excerpt(code: string): { code: string; truncated: boolean } {
+function excerpt(code: string): { code: string; measured?: Line[]; truncated: boolean } {
   const source = codeLines(code)
   const measured = measure(source)
+  // Hand the measurement back when the source survives whole, so `layout` does
+  // not walk every grapheme a second time to learn what this already knows.
   if (contentHeight(measured, canvas.widest) <= room(canvas.widest))
-    return { code, truncated: false }
+    return { code, measured, truncated: false }
   const available = columns(canvas.widest)
   const shown: string[] = []
   let remaining = room(canvas.widest)
@@ -75,8 +77,8 @@ function excerpt(code: string): { code: string; truncated: boolean } {
     const measuredLine = measured[at]!
     const needed = lineHeight(measuredLine, available)
     if (needed > remaining) {
-      const gap = measuredLine.gap ? DocumentLayout.metrics.annotation.gap : 0
-      const rows = Math.floor((remaining - gap) / DocumentLayout.metrics.code.line)
+      const gap = measuredLine.gap ? Frame.metrics.annotation.gap : 0
+      const rows = Math.floor((remaining - gap) / Frame.metrics.code.line)
       if (rows > 0) shown.push(takeColumns(line, rows * available))
       break
     }
@@ -98,7 +100,7 @@ type Line = { columns: number; gap: boolean }
 function measure(source: readonly string[]): Line[] {
   let previousTagged = false
   return source.map((line) => {
-    const tagged = Tags.tagged(line)
+    const tagged = Twoslash.tagged(line)
     const measured = { columns: columnCount(line), gap: tagged && !previousTagged }
     previousTagged = tagged
     return measured
@@ -112,15 +114,15 @@ function canvasHeight(width: number): number {
 
 /** Code columns available at a canvas width. */
 function columns(width: number): number {
-  const { advance, size } = DocumentLayout.metrics.code
-  const { inset } = DocumentLayout.metrics.body
+  const { advance, size } = Frame.metrics.code
+  const { inset } = Frame.metrics.body
   return Math.max(1, Math.floor((width - canvas.padding * 2 - inset * 2) / (size * advance)))
 }
 
 /** Vertical pixels available to source and annotation rows. */
 function room(width: number): number {
-  const { padding } = DocumentLayout.metrics.body
-  const window = padding.plain * 2 + DocumentLayout.metrics.source.padding * 2
+  const { padding } = Frame.metrics.body
+  const window = padding.plain * 2 + Frame.metrics.source.padding * 2
   return canvasHeight(width) - canvas.padding * 2 - window
 }
 
@@ -132,8 +134,8 @@ function contentHeight(measured: readonly Line[], width: number): number {
 
 /** Vertical pixels that one measured line occupies. */
 function lineHeight(line: Line, available: number): number {
-  const annotation = line.gap ? DocumentLayout.metrics.annotation.gap : 0
-  return span(line.columns, available) * DocumentLayout.metrics.code.line + annotation
+  const annotation = line.gap ? Frame.metrics.annotation.gap : 0
+  return span(line.columns, available) * Frame.metrics.code.line + annotation
 }
 
 /** Rows a line of the given display columns occupies at a column capacity. */
@@ -148,7 +150,7 @@ const wide =
 
 /** Display columns a grapheme occupies at a column offset. */
 function advance(character: string, at: number): number {
-  const { tab } = DocumentLayout.metrics.code
+  const { tab } = Frame.metrics.code
   if (character === '\t') return tab - (at % tab)
   if (zeroWidth.test(character)) return 0
   return wide.test(character) || character.includes('\u20e3') ? 2 : 1
@@ -200,53 +202,6 @@ export function withoutTypes(code: string): string {
     .filter((line) => !/^\s*\/\/\s*\^\?\s*$/.test(line))
     .join('\n')
 }
-
-/** Adds edge fades to a standalone document for each clipped code axis. */
-export function fade(html: string, overflow: fade.Overflow): string {
-  const classes = [
-    'body',
-    ...(overflow.horizontal ? ['preview-overflow-x'] : []),
-    ...(overflow.vertical ? ['preview-overflow-y'] : []),
-  ]
-  if (classes.length === 1) return html
-  return html.replace('<div class="body">', `<div class="${classes.join(' ')}">`).replace(
-    '</head>',
-    `<style>
-.preview-overflow-x,
-.preview-overflow-y { position: relative; }
-.preview-overflow-x::before,
-.preview-overflow-y::after {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  z-index: 1;
-}
-.preview-overflow-x::before {
-  background: linear-gradient(to right, transparent, var(--window-background));
-  inset-block: 0;
-  inset-inline-end: 0;
-  width: 48px;
-}
-.preview-overflow-y::after {
-  background: linear-gradient(to bottom, transparent, var(--window-background));
-  block-size: 44px;
-  inset-block-end: 0;
-  inset-inline: 0;
-}
-</style>
-</head>`,
-  )
-}
-
-export declare namespace fade {
-  type Overflow = {
-    horizontal: boolean
-    vertical: boolean
-  }
-}
-
-/** Returns the first non-empty line, truncated for use as a preview title. */
-export const summarize = Shared.summarize
 
 /** Workers AI model used to generate snippet metadata. */
 const model = '@cf/meta/llama-3.2-3b-instruct'

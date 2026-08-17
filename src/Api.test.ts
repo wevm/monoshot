@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { createTwoslasher } from 'twoslash'
 
 import * as Api from './Api.js'
-import * as Browser from './internal/Browser.js'
+import * as Browser from './Browser.js'
 
 /** Posts a body to the routes, as a Worker would hand them a request. */
 async function post(body: unknown) {
@@ -284,6 +284,7 @@ describe('create', () => {
         "theme",
         "title",
         "titleBar",
+        "truncated",
         "twoslash",
         "width",
       ]

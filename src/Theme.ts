@@ -309,6 +309,11 @@ export declare namespace compose {
 
 /** Theme metadata. Frozen: callers share one instance. */
 export type Info = {
+  /**
+   * Whether the theme was composed from a picture it also owns, which a
+   * surface holding that picture draws as the frame's default backdrop.
+   */
+  readonly artwork?: boolean | undefined
   /** Human-readable name for a picker. */
   readonly displayName: string
   /**
@@ -316,6 +321,11 @@ export type Info = {
    * themes {@link composed} here.
    */
   readonly name: Name
+  /**
+   * Corner radius the theme's artwork asks its window to take, in pixels.
+   * Absent when the theme leaves the radius to whoever renders it.
+   */
+  readonly radius?: number | undefined
   /** Whether the theme is a light or dark scheme. */
   readonly type: 'light' | 'dark'
 }
@@ -381,8 +391,11 @@ const infos: readonly Info[] = Object.freeze([
   // was made here.
   ...palettes.map((palette) =>
     Object.freeze({
+      // Composed from a picture, so the artwork is the theme's to hand out.
+      artwork: true,
       displayName: palette.displayName,
       name: palette.id,
+      ...('radius' in palette ? { radius: palette.radius } : {}),
       type: palette.type,
     }),
   ),

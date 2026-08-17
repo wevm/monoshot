@@ -148,3 +148,18 @@ export const crossfade = {
   duration: 0.26,
   ease: [0.86, 0, 0.07, 1],
 } as const
+
+// The type metrics the exported frame is laid out on. `Frame.metrics` in the
+// library is the authority; these are its StyleX-consumable mirror, because the
+// compiler inlines this file at build time and cannot read an imported value.
+// `metrics.test.ts` fails when the two drift.
+export const code = stylex.defineConsts({
+  /** Space above and below the source, in pixels. */
+  padding: '12px',
+  /** Code line box, in pixels. */
+  line: '22px',
+  /** Code type size, in pixels. */
+  size: '14px',
+  /** Columns a tab advances to. */
+  tab: '2',
+})

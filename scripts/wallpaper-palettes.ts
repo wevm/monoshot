@@ -32,6 +32,12 @@ const canvas: Record<string, string> = {
   tempo: '#000000e6',
 }
 
+/** Corner radius a theme's artwork asks its window to take. */
+const radii: Record<string, number> = {
+  // Match the rectangular geometry of the Tempo artwork.
+  tempo: 0,
+}
+
 /** How coarsely a picture is read: enough pixels to weigh it, few to walk. */
 const grid = { height: 60, width: 96 }
 
@@ -54,6 +60,7 @@ const palettes = fs
       colors: strongest(pixels),
       displayName: titled(id),
       id,
+      ...(radii[id] === undefined ? {} : { radius: radii[id] }),
       type: paired ?? (dark(pixels) ? 'dark' : 'light'),
     }
   })
@@ -80,6 +87,7 @@ export const palettes = ${JSON.stringify(palettes, null, 2)} as const satisfies 
   colors: readonly string[]
   displayName: string
   id: string
+  radius?: number
   type: 'dark' | 'light'
 }[]
 `,

@@ -1,3 +1,4 @@
+import * as Shared from '../src/lib/shared.js'
 import * as Links from './links.js'
 
 describe('id', () => {
@@ -12,18 +13,18 @@ describe('id', () => {
 
 describe('summarize', () => {
   test('takes the first line that carries anything', () => {
-    expect(Links.summarize('\n\n  const a = 1\nconst b = 2\n', 'fallback')).toMatchInlineSnapshot(
+    expect(Shared.summarize('\n\n  const a = 1\nconst b = 2\n', 'fallback')).toMatchInlineSnapshot(
       `"const a = 1"`,
     )
   })
 
   test('falls back when there is nothing to read', () => {
-    expect(Links.summarize('\n   \n', 'A snippet')).toMatchInlineSnapshot(`"A snippet"`)
+    expect(Shared.summarize('\n   \n', 'A snippet')).toMatchInlineSnapshot(`"A snippet"`)
   })
 
   test('cuts a line longer than a card shows', () => {
     const long = `const ${'x'.repeat(200)} = 1`
-    const summary = Links.summarize(long, 'fallback')
+    const summary = Shared.summarize(long, 'fallback')
     expect(summary.length).toBe(72)
     expect(summary.endsWith('…')).toBe(true)
   })
@@ -59,31 +60,16 @@ describe('withoutTypes', () => {
   })
 })
 
-describe('fade', () => {
-  const html = '<html><head></head><body><div class="body">code</div></body></html>'
-
-  test('leaves a document unchanged when nothing was clipped', () => {
-    expect(Links.fade(html, { horizontal: false, vertical: false })).toBe(html)
-  })
-
-  test('fades each clipped edge', () => {
-    const faded = Links.fade(html, { horizontal: true, vertical: true })
-    expect(faded).toContain('class="body preview-overflow-x preview-overflow-y"')
-    expect(faded).toContain('linear-gradient(to right')
-    expect(faded).toContain('linear-gradient(to bottom')
-  })
-})
-
 describe('layout', () => {
   test('uses standard dimensions for a short snippet', () => {
-    const { code, overflow, ...shape } = Links.layout('const a = 1\n')
+    const { code, ...shape } = Links.layout('const a = 1\n')
     expect(code).toBe('const a = 1\n')
-    expect(overflow).toEqual({ horizontal: false, vertical: false })
     expect(shape).toMatchInlineSnapshot(`
       {
         "height": 420,
         "padding": 80,
         "scale": 1.5,
+        "truncated": false,
         "width": 800,
       }
     `)
@@ -91,14 +77,14 @@ describe('layout', () => {
 
   test('preserves output dimensions as the canvas grows', () => {
     const fifteen = Array.from({ length: 15 }, (_, at) => `const v${at} = ${at}`).join('\n')
-    const { code, overflow, ...grown } = Links.layout(fifteen)
+    const { code, ...grown } = Links.layout(fifteen)
     expect(code).toBe(fifteen)
-    expect(overflow).toEqual({ horizontal: false, vertical: false })
     expect(grown).toMatchInlineSnapshot(`
       {
         "height": 546,
         "padding": 80,
         "scale": 1.1538461538461537,
+        "truncated": false,
         "width": 1040,
       }
     `)
@@ -112,7 +98,7 @@ describe('layout', () => {
     const grown = Links.layout(most)
     expect(grown.width).toBe(1600)
     expect(grown.code).toBe(most)
-    expect(grown.overflow.vertical).toBe(false)
+    expect(grown.truncated).toBe(false)
   })
 
   test('drops the line past the last one the card holds', () => {
@@ -120,7 +106,7 @@ describe('layout', () => {
     const grown = Links.layout(over)
     expect(grown.width).toBe(1600)
     expect(grown.code).toBe(`${over.split('\n').slice(0, 29).join('\n')}\n`)
-    expect(grown.overflow.vertical).toBe(true)
+    expect(grown.truncated).toBe(true)
   })
 
   test('grows the canvas when a long line wraps', () => {
@@ -131,7 +117,7 @@ describe('layout', () => {
     const grown = Links.layout('x'.repeat(10_000))
     expect(grown.code.length).toBeLessThan(10_000)
     expect(grown.width).toBe(1600)
-    expect(grown.overflow.vertical).toBe(true)
+    expect(grown.truncated).toBe(true)
   })
 
   test('wraps a wide-character line at half the columns of a Latin one', () => {

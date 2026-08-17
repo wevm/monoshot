@@ -12,10 +12,6 @@ const prefix = 'wallpaper:'
 export type Wallpaper = {
   id: string
   name: string
-  /**
-   * Whether the wallpaper is exclusive to its associated theme.
-   */
-  themed?: boolean
 }
 
 /** Loaded wallpaper data and its dominant color. */
@@ -42,11 +38,8 @@ export const list: readonly Wallpaper[] = [
   { id: 'mountain-lion', name: 'Mountain Lion' },
   { id: 'snow-leopard', name: 'Snow Leopard' },
   { id: 'panther', name: 'Panther' },
-  { id: 'tempo', name: 'Tempo', themed: true },
+  { id: 'tempo', name: 'Tempo' },
 ]
-
-/** Wallpapers available as user-selectable backdrops. */
-export const offered: readonly Wallpaper[] = list.filter((wallpaper) => !wallpaper.themed)
 
 /** The background a wallpaper is set as. */
 export function background(id: string) {
@@ -63,11 +56,6 @@ export function at(background: string): Wallpaper | undefined {
 /** Whether a background references a wallpaper identifier. */
 export function names(background: string): boolean {
   return background.startsWith(prefix)
-}
-
-/** Returns the wallpaper with the specified identifier, when available. */
-export function byId(id: string): Wallpaper | undefined {
-  return list.find((wallpaper) => wallpaper.id === id)
 }
 
 /** Returns the thumbnail path used by a wallpaper swatch. */

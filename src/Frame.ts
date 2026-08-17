@@ -7,6 +7,7 @@ import { createHighlighter } from 'shiki'
 import type { TwoslashReturn } from 'twoslash'
 import type * as Cdn from './internal/Cdn.js'
 import * as Document from './internal/Document.js'
+import * as Languages from './internal/Languages.js'
 import * as Marks from './internal/Marks.js'
 import * as Tags from './internal/Tags.js'
 import * as Theme from './Theme.js'
@@ -22,8 +23,20 @@ import type {
   ThemedToken,
 } from 'shiki'
 
+/**
+ * The type metrics a frame is laid out on, in pixels.
+ *
+ * Anything drawing the same source beside a frame reads these rather than
+ * restating them: the editor and the rendered document lay out one snippet, and
+ * a disagreement shows up as text that moves when the frame is exported.
+ */
+export { metrics } from './internal/DocumentLayout.js'
+
 /** A bundled grammar or one of Shiki's grammar-free language modes. */
 export type Language = BundledLanguage | SpecialLanguage
+
+/** Window radius for a theme that states none, matching the codec's fallback. */
+const defaultRadius = 12
 
 /**
  * Creates a renderer that owns a highlighter for its lifetime.
@@ -94,7 +107,7 @@ export function create<const themes extends Themes = []>(
     )({
       // Include JavaScript and TypeScript IDs and aliases. The default omits
       // JavaScript, even though the language service resolves its types.
-      langs: ['javascript', 'js', 'jsx', 'ts', 'tsx', 'typescript'],
+      langs: [...Languages.languages],
       // Editor input is frequently incomplete, but available type information
       // remains useful when compilation fails.
       throws: false,
@@ -229,7 +242,7 @@ export function create<const themes extends Themes = []>(
     },
     render: highlight,
     async toDocument(parameters) {
-      const { code, lang, theme, twoslash = false, ...rest } = parameters
+      const { code, lang, radius, theme, twoslash = false, ...rest } = parameters
       const result = await highlight({ code, lang, theme, twoslash })
       return Document.build({
         ...rest,
@@ -237,6 +250,9 @@ export function create<const themes extends Themes = []>(
         annotated: twoslash !== false,
         html: result.html,
         palette: Theme.derive(result.theme),
+        // A theme composed from artwork states the geometry that artwork wants.
+        // An explicit radius is the caller's and outranks it.
+        radius: radius ?? Theme.info(theme)?.radius ?? defaultRadius,
       })
     },
     async tokens(parameters) {
@@ -352,9 +368,14 @@ export declare namespace toDocument {
   /** What to render, and the frame to render it in. */
   type Options<themes extends Themes = []> = Omit<
     Document.Options,
-    'annotated' | 'html' | 'palette'
-  > &
-    render.Options<themes>
+    'annotated' | 'html' | 'palette' | 'radius'
+  > & {
+    /**
+     * Corner radius of the window, in pixels. Defaults to the radius the theme
+     * asks for, and to 12 for a theme that asks for none.
+     */
+    radius?: number | undefined
+  } & render.Options<themes>
 
   /** The frame as one standalone HTML document. */
   type ReturnType = string

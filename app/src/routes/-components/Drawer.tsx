@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
 import { Slider } from '@base-ui/react/slider'
 import { MotionConfig, motion as m } from 'motion/react'
-import { Theme } from 'monoshot'
+import { Codec, Theme } from 'monoshot'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
@@ -21,7 +21,7 @@ import { Button } from '#/ui/Button.js'
 import { Input } from '#/ui/Input.js'
 import { PaletteSelect } from '#/ui/PaletteSelect.js'
 import { Switch } from '#/ui/Switch.js'
-import { color, font, motion, radius, shadow } from '../../theme/tokens.stylex.js'
+import { color, font, motion, shadow } from '../../theme/tokens.stylex.js'
 import { Frame } from './Frame.js'
 import { LanguageSelect } from './LanguageSelect.js'
 
@@ -46,12 +46,20 @@ const shortcuts = {
 } as const
 type Shortcut = (typeof shortcuts)[keyof typeof shortcuts]
 type PressedKey = Shortcut | 'arrowleft' | 'arrowright'
-type ArrowShortcut =
-  | typeof shortcuts.background
-  | typeof shortcuts.export
-  | typeof shortcuts.padding
-  | typeof shortcuts.radius
-  | typeof shortcuts.width
+
+/** The settings the arrow keys step once their shortcut has opened them. */
+const arrowShortcuts = [
+  shortcuts.background,
+  shortcuts.export,
+  shortcuts.padding,
+  shortcuts.radius,
+  shortcuts.width,
+] as const
+type ArrowShortcut = (typeof arrowShortcuts)[number]
+
+function arrows(key: string): key is ArrowShortcut {
+  return arrowShortcuts.includes(key as ArrowShortcut)
+}
 
 const styles = stylex.create({
   root: {
@@ -324,7 +332,7 @@ export function Drawer(props: Drawer.Props) {
   }
   const [mode, setMode] = useState<Mode>(() => modeFor(background))
   const [gradientColors, setGradientColors] = useState<[string, string]>(
-    () => gradient(background) ?? [...defaultGradient],
+    () => gradientStops(background) ?? [...defaultGradient],
   )
   const [activeShortcut, setActiveShortcut] = useState<ArrowShortcut>()
   const [pressedKey, setPressedKey] = useState<PressedKey>()
@@ -334,7 +342,7 @@ export function Drawer(props: Drawer.Props) {
 
   useEffect(() => setMode(modeFor(background)), [background])
   useEffect(() => {
-    const colors = gradient(background)
+    const colors = gradientStops(background)
     if (colors) setGradientColors(colors)
   }, [background])
 
@@ -343,7 +351,7 @@ export function Drawer(props: Drawer.Props) {
     next[index] = value.toUpperCase()
     setGradientColors(next)
     if (next.every((color) => /^#[0-9A-F]{6}$/.test(color)))
-      onChange({ background: `gradient:${next[0]}:${next[1]}` })
+      onChange({ background: Backgrounds.value(next) })
   }
 
   const selectImage = useCallback(
@@ -485,12 +493,9 @@ export function Drawer(props: Drawer.Props) {
               ?.focus(),
           )
         })
-      } else if (
-        shortcut === shortcuts.padding ||
-        shortcut === shortcuts.radius ||
-        shortcut === shortcuts.width ||
-        shortcut === shortcuts.export
-      ) {
+      } else if (arrows(shortcut)) {
+        // `background` is the one arrow-driven shortcut handled above, so what
+        // reaches here is the export menu and the three sliders.
         activate(shortcut)
         requestAnimationFrame(() => {
           const selector = shortcut === shortcuts.export ? 'button' : 'input[type="range"]'
@@ -505,15 +510,7 @@ export function Drawer(props: Drawer.Props) {
 
     function activate(shortcut: Shortcut) {
       setPressedKey(shortcut)
-      const arrowShortcut =
-        shortcut === shortcuts.background ||
-        shortcut === shortcuts.export ||
-        shortcut === shortcuts.padding ||
-        shortcut === shortcuts.radius ||
-        shortcut === shortcuts.width
-          ? shortcut
-          : undefined
-      setActiveShortcut(arrowShortcut)
+      setActiveShortcut(arrows(shortcut) ? shortcut : undefined)
       requestAnimationFrame(() => {
         scroll.current
           ?.querySelector<HTMLElement>(`[data-section="${shortcut}"]`)
@@ -849,8 +846,8 @@ export function Drawer(props: Drawer.Props) {
               <SliderField
                 active={activeShortcut === shortcuts.radius}
                 label="Radius"
-                max={24}
-                min={0}
+                max={Codec.bounds.radius.max}
+                min={Codec.bounds.radius.min}
                 onChange={(value) => onChange({ radius: value })}
                 pressed={pressedKey}
                 shortcut={shortcuts.radius}
@@ -1171,7 +1168,11 @@ function modeFor(background: string): Mode {
   return 'gradient'
 }
 
-function gradient(background: string): [string, string] | undefined {
-  const match = /^gradient:(#[0-9a-f]{6}):(#[0-9a-f]{6})$/i.exec(background)
-  return match?.[1] && match[2] ? [match[1].toUpperCase(), match[2].toUpperCase()] : undefined
+/**
+ * Gradient stops in the case the hex inputs hold them. `setGradientColor`
+ * uppercases what it writes, and validates against an uppercase pattern.
+ */
+function gradientStops(background: string): [string, string] | undefined {
+  const stops = Backgrounds.gradient(background)
+  return stops && [stops[0].toUpperCase(), stops[1].toUpperCase()]
 }
