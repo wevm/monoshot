@@ -85,7 +85,7 @@ namespace schema {
         .describe(
           'Whether to resolve Twoslash annotations, or a pre-resolved run. Defaults to enabled for JavaScript and TypeScript.',
         ),
-      width: Codec.strict.shape.width.optional(),
+      width: Codec.strict.shape.width,
     })
     .strict()
 
@@ -135,8 +135,12 @@ namespace schema {
   /** Response returned by `/themes`. */
   export const themes = z.array(
     z.object({
+      /** Present on a theme composed from artwork it also owns. */
+      artwork: z.boolean().optional(),
       displayName: z.string(),
       name: z.string(),
+      /** The radius a theme's artwork asks for, when it asks for one. */
+      radius: Codec.strict.shape.radius.optional(),
       type: z.union([z.literal('dark'), z.literal('light')]),
     }),
   )
@@ -176,16 +180,18 @@ export function create(options: create.Options = {}) {
     // Apply codec defaults so requests, links, and the editor render omitted
     // fields consistently.
     const state = Codec.schema.parse(request)
-    // A theme composed from artwork owns a picture this cannot read: the
-    // library holds the colors it was composed from, not the file they came
-    // from. Only the default backdrop is the theme's to fill.
-    const picture =
-      request.picture ??
-      (Theme.info(state.theme)?.artwork &&
-      (request.background === undefined || request.background === 'default')
-        ? await options.picture?.({ context, theme: state.theme })
-        : undefined)
     try {
+      // A theme composed from artwork owns a picture this cannot read: the
+      // library holds the colors it was composed from, not the file they came
+      // from. Only the default backdrop is the theme's to fill. Inside the
+      // boundary, so a loader that cannot reach its asset answers as a failed
+      // render rather than escaping the route.
+      const picture =
+        request.picture ??
+        (Theme.info(state.theme)?.artwork &&
+        (request.background === undefined || request.background === 'default')
+          ? await options.picture?.({ context, theme: state.theme })
+          : undefined)
       return await frame.toDocument({
         ...state,
         // The codec fills a radius for every link. A request that named none

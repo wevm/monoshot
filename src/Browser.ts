@@ -8,8 +8,8 @@ export type Endpoint = { fetch: typeof fetch }
 /** Screenshots a standalone frame through Cloudflare Browser Rendering. */
 export async function screenshot(
   endpoint: Endpoint,
-  options: { html: string; scale: number },
-): Promise<Uint8Array> {
+  options: screenshot.Options,
+): Promise<screenshot.ReturnType> {
   const { html, scale } = options
   const puppeteer = await import('@cloudflare/puppeteer').catch(() => {
     throw new Error('Image rendering requires `@cloudflare/puppeteer`.')
@@ -33,6 +33,25 @@ export async function screenshot(
     // Disconnected rather than closed because the session outlives this request.
     await browser.disconnect()
   }
+}
+
+export declare namespace screenshot {
+  type Options = {
+    /**
+     * The standalone document to capture. It is loaded with no network access
+     * of its own, so everything it draws has to be embedded in it.
+     */
+    html: string
+    /**
+     * Device scale factor the capture is taken at. Held to what the browser
+     * will rasterize by {@link fit}, so a large frame comes back smaller
+     * rather than blank.
+     */
+    scale: number
+  }
+
+  /** The frame as PNG bytes, with the canvas background left transparent. */
+  type ReturnType = Uint8Array
 }
 
 /** Returns an available browser session or launches one. */

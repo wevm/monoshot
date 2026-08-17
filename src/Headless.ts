@@ -127,11 +127,15 @@ export async function render(options: render.Options): Promise<Uint8Array> {
   }
 }
 
-/** Default frame options for image rendering. */
+/**
+ * Default frame options for image rendering.
+ *
+ * No radius: omitted, it is the theme's to state, and a default here would
+ * pin the window square before the theme is consulted.
+ */
 const defaults = {
   background: 'default',
   padding: 64,
-  radius: 12,
   title: '',
   titleBar: false,
 } as const satisfies render.Defaults
@@ -210,10 +214,7 @@ export declare namespace render {
   type Options = Options_render & create.Options
 
   /** Default frame options applied by {@link render}. */
-  type Defaults = Pick<
-    Frame.toDocument.Options,
-    'background' | 'padding' | 'radius' | 'title' | 'titleBar'
-  >
+  type Defaults = Pick<Frame.toDocument.Options, 'background' | 'padding' | 'title' | 'titleBar'>
 }
 
 async function launch(options: {

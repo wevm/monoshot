@@ -56,8 +56,11 @@ export const strict = z.object({
   titleBar: z.boolean(),
   /** Whether the snippet is type checked, which only a TypeScript one can be. */
   types: z.boolean(),
-  /** Fixed width of the window, in pixels. Omitted, the rendered lines set it. */
-  width: z.number().int().min(bounds.width.min).max(bounds.width.max),
+  /**
+   * Fixed width of the window, in pixels. Omitted, the rendered lines set it,
+   * so this is the one field a whole frame may leave out.
+   */
+  width: z.number().int().min(bounds.width.min).max(bounds.width.max).optional(),
 })
 
 /**
@@ -79,7 +82,7 @@ export const schema = z.object({
   titleBar: strict.shape.titleBar.catch(false),
   types: strict.shape.types.catch(true),
   // The one field with no default: omitted, the rendered lines set the width.
-  width: strict.shape.width.optional().catch(undefined),
+  width: strict.shape.width.catch(undefined),
 })
 
 /** The state {@link serialize} writes and {@link deserialize} reads. */
