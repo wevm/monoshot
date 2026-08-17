@@ -24,8 +24,8 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
   .route('/', renderer)
   // Store snippet state so the server can generate link-preview metadata.
   .post('/share', async (c) => {
-    if (!c.env.LINKS)
-      return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
+    const storage = c.env.LINKS
+    if (!storage) return c.json({ error: 'Sharing is not configured for this deployment.' }, 503)
     // Reject oversized bodies before parsing to limit memory use by unauthenticated requests.
     const declared = Number(c.req.header('content-length') ?? 0)
     if (declared > Links.limits.size * 2)
@@ -43,14 +43,24 @@ const api = new Hono<{ Bindings: Cloudflare.Env }>()
       return c.json({ error: 'That is not a snippet this can open.' }, 400)
 
     const id = Links.id()
-    // Generate metadata once during sharing instead of delaying every preview request.
     const settings = Codec.deserialize(state)
-    const said = c.env.AI ? await Links.describe(c.env.AI, settings.code) : undefined
     // Re-encode validated settings to remove trailing data ignored by the decoder.
     const canonical = Codec.serialize(settings)
-    await c.env.LINKS.put(id, JSON.stringify({ ...said, state: canonical }), {
+    await storage.put(id, JSON.stringify({ state: canonical }), {
       expirationTtl: Links.limits.ttl,
     })
+    // Metadata improves previews but does not affect the link. Generate it
+    // after responding so an AI request never delays the clipboard.
+    if (c.env.AI)
+      c.executionCtx.waitUntil(
+        Links.describe(c.env.AI, settings.code).then((said) =>
+          said
+            ? storage.put(id, JSON.stringify({ ...said, state: canonical }), {
+                expirationTtl: Links.limits.ttl,
+              })
+            : undefined,
+        ),
+      )
     // Render and store the card during sharing to reduce latency for preview clients.
     if (c.env.BROWSER)
       c.executionCtx.waitUntil(

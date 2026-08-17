@@ -1,4 +1,5 @@
 import app from './index.js'
+import { Codec } from 'monoshot'
 
 const startFetch = vi.hoisted(() =>
   vi.fn(() => new Response('html', { headers: { 'content-type': 'text/html' } })),
@@ -50,6 +51,49 @@ describe('api rendering', () => {
     })
     expect(html).toContain('background: transparent;')
     expect(html).toContain('border-radius: 8px;')
+  })
+})
+
+describe('sharing', () => {
+  test('returns the link before generated metadata finishes', async () => {
+    let finish: (value: unknown) => void = () => {}
+    const run = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const put = vi.fn(() => Promise.resolve())
+    const tasks: Promise<unknown>[] = []
+    const sharing = {
+      AI: { run },
+      LINKS: { put },
+      SHARE_RATE: { limit: () => Promise.resolve({ success: true }) },
+    } as never
+    const ctx = {
+      passThroughOnException: vi.fn(),
+      waitUntil: (task: Promise<unknown>) => tasks.push(task),
+    } as never
+    const state = Codec.serialize({ code: 'const a = 1' })
+    const response = await app.request(
+      '/api/share',
+      {
+        body: JSON.stringify({ state }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+      sharing,
+      ctx,
+    )
+
+    expect(response.status).toBe(201)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(tasks).toHaveLength(1)
+
+    finish({ choices: [{ message: { content: 'A title\nA useful description' } }] })
+    await Promise.all(tasks)
+    expect(put).toHaveBeenCalledTimes(2)
+    expect(put.mock.calls[1]?.[1]).toContain('A useful description')
   })
 })
 
