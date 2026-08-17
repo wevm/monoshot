@@ -63,7 +63,7 @@ describe('sharing', () => {
           finish = resolve
         }),
     )
-    const put = vi.fn(() => Promise.resolve())
+    const put = vi.fn((_key: string, _value: string, _options?: unknown) => Promise.resolve())
     const tasks: Promise<unknown>[] = []
     const sharing = {
       AI: { run },
