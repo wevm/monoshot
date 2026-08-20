@@ -13,8 +13,7 @@ z.config(z.locales.en())
 
 const renderer = Api.create({
   browser: (c) => (c.env as Cloudflare.Env).BROWSER,
-  // The wallpaper a composed theme was made from lives in this deployment's
-  // assets, which only this Worker can reach.
+  // Resolve theme artwork from this Worker's assets.
   picture: ({ context, theme }) =>
     inlined(context.env as Cloudflare.Env, new URL(context.req.url).origin, theme),
 })
@@ -256,8 +255,7 @@ async function card(
   state: string,
 ): Promise<ArrayBuffer | undefined> {
   const settings = Codec.deserialize(state)
-  // A `wallpaper:` background names a picture this deployment holds. Artwork a
-  // composed theme owns is filled by the renderer's own loader.
+  // Embed named wallpapers here. The renderer loads theme artwork separately.
   const named = Wallpapers.at(settings.background)
   const picture = named ? await inlined(env, origin, named.id) : undefined
   // Preserve the editor window width, then size the surrounding card to its rows.
@@ -277,7 +275,7 @@ async function card(
         lang: settings.lang === 'auto' ? (detect(settings.code) ?? 'typescript') : settings.lang,
         padding: shape.padding,
         ...(picture ? { picture } : {}),
-        // Artwork states the geometry it wants, as it does in the editor.
+        // Use the same theme radius as the editor.
         radius: Theme.info(settings.theme)?.radius ?? settings.radius,
         theme: settings.theme,
         titleBar: false,

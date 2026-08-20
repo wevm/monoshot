@@ -1,9 +1,6 @@
 /**
- * The languages the type resolver reads, each canonical shiki id against the
- * dialect the language service compiles it as.
- *
- * Shared with every surface: a language missing here resolves no types, so the
- * CLI, the API, and the editor would otherwise each decide that separately.
+ * Maps each supported Shiki language ID to its TypeScript compiler dialect.
+ * The CLI, API, and editor all use this map to decide whether to resolve types.
  */
 export const dialects = {
   javascript: 'js',
@@ -13,9 +10,7 @@ export const dialects = {
 } as const
 
 /**
- * Every name a resolvable language answers to. The dialects double as shiki's
- * aliases for the same languages, so a caller holding an unresolved `lang`
- * tests the same set as one holding a canonical id.
+ * Canonical IDs and aliases for every language that supports type resolution.
  */
 export const languages: ReadonlySet<string> = new Set([
   ...Object.keys(dialects),

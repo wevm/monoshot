@@ -165,7 +165,7 @@ function read(blob: Blob, id: string) {
   })
 }
 
-/** How coarsely the picture is read: enough pixels to weigh it, few to walk. */
+/** Samples 64 by 40 pixels when calculating dominant colors. */
 const grid = { height: 40, width: 64 }
 
 function distance(left: readonly number[], right: readonly number[]) {

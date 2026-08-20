@@ -561,7 +561,7 @@ declare namespace Handle {
   }
 }
 
-/** Matches the toolbar, so the whole surface settles at one rate. */
+/** Spring settings shared with the toolbar. */
 const spring = { bounce: 0.18, duration: 0.4, type: 'spring' } as const
 
 export declare namespace Frame {
@@ -595,10 +595,8 @@ export declare namespace Frame {
     /** Shows the window chrome: traffic lights and the title field. */
     titleBar: boolean
     /**
-     * The picture a `wallpaper:` background named, as data the page loaded, and
-     * how far it spreads: across the viewport, where the page draws the same
-     * picture and the two read as one; or across the artwork alone, which is
-     * all a captured copy has.
+     * Loaded picture for a `wallpaper:` background. `viewport` aligns it with
+     * the page background; `artwork` limits it to the exported frame.
      */
     wallpaper?: { source: string; spread: 'artwork' | 'viewport' } | undefined
     /** Artwork width in pixels, or intrinsic to the longest line when omitted. */
@@ -620,8 +618,7 @@ const widthCeiling = Codec.bounds.width.max
 
 export namespace Frame {
   /**
-   * Where a child draws what belongs beside the code rather than in it. Outside
-   * the window, which clips, and over the artwork it sits on.
+   * Portal target for controls that sit outside the clipped code window.
    */
   export const Aside = createContext<HTMLElement | null>(null)
 
@@ -650,12 +647,8 @@ export namespace Frame {
   }
 
   /**
-   * The highlighted code surface. Markup comes from shiki, which escapes the
-   * source when it serializes, so arbitrary user code is safe to inject here.
-   *
-   * Annotations arrive in that markup rather than being placed here: the
-   * renderer folds a `^?` line into the type it asked for, and `css` carries
-   * the rules that draw it.
+   * Renders highlighted markup from Shiki, which escapes source text before
+   * serialization. The markup and optional CSS already contain annotations.
    */
   export function Code(props: Code.Props) {
     const { css, html } = props
@@ -687,9 +680,8 @@ export namespace Frame {
   }
 }
 
-// Fixed rather than the `--code-*` custom properties the editor reads: those
-// shrink under the mobile override, and the artwork a capture produces is the
-// same picture on every device.
+// Exported frames use fixed metrics. Editor custom properties shrink on mobile,
+// but exports must remain device-independent.
 const code = stylex.create({
   root: {
     fontFamily: font.mono,

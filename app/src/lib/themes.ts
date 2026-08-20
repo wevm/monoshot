@@ -10,11 +10,9 @@ export type Framing = { radius: number }
 const plain: Framing = { radius: 12 }
 
 /**
- * Returns the frame overrides a theme asks for.
+ * Returns frame overrides declared by a theme.
  *
- * Read off the theme rather than listed here: a theme composed from artwork
- * states the geometry that artwork wants, and the CLI and the card renderer
- * read the same statement.
+ * The editor, CLI, and card renderer all read {@link Theme.info}.
  */
 function frame(name: string): Partial<Framing> {
   const radius = Theme.info(name)?.radius

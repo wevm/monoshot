@@ -25,7 +25,7 @@
   "type": "module",
   "version": "0.0.9",
   "license": "MIT",
-  "description": "Create code images with syntax highlighting, customizable themes, and type-aware annotations.",
+  "description": "Render code as an image with theming, annotations, multiple languages, sharable links, and more",
   "repository": {
     "type": "git",
     "url": "https://github.com/wevm/monoshot"

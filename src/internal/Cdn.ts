@@ -30,11 +30,9 @@ export const compilerOptions = {
 }
 
 /**
- * What Twoslash is told about a snippet, beyond the compiler's own options.
+ * Shared Twoslash options for the editor, CLI, and image renderer.
  *
- * Shared with every surface that runs Twoslash itself rather than through
- * {@link create}: a resolver configured differently reads the same snippet
- * differently, which is what the editor and the exported image must not do.
+ * Every runtime receives the same compiler options.
  */
 export const overrides = {
   compilerOptions,
@@ -129,23 +127,20 @@ async function loadCompiler(): Promise<typeof import('typescript')> {
 export declare namespace create {
   type Options = {
     /**
-     * The compiler to resolve with. Defaults to the installed `typescript`,
-     * loaded so workerd selects its browser path rather than a `require` stub
-     * Node compatibility leaves unusable.
+     * Compiler used for resolution. Defaults to the installed `typescript`,
+     * loaded through its browser path under workerd.
      *
-     * Pass one to skip that detection, or to share a compiler the surface
-     * already holds for its own language service.
+     * Pass a compiler to skip runtime detection or share an existing instance.
      */
     compiler?: typeof import('typescript') | undefined
     /**
-     * Where a package's declarations come from. Defaults to the npm registry,
-     * which a browser cannot reach across origins and reads back through a
-     * route of its own instead.
+     * Loads package declarations. Defaults to the npm registry. Browsers can
+     * provide a same-origin route instead.
      */
     load?: acquire.Options['load'] | undefined
     /**
-     * Where compiler libraries fetched by a filesystem-free runtime are kept.
-     * Defaults to memory, which does not survive the surface that built it.
+     * Stores compiler libraries in runtimes without filesystem access.
+     * Defaults to process-local memory.
      */
     storage?: Storage | undefined
   }

@@ -87,7 +87,7 @@ export declare namespace layout {
     padding: number
     /** Device scale factor that maps the canvas to the output size. */
     scale: number
-    /** Whether rows were dropped, which the card marks at its bottom edge. */
+    /** Whether the card omitted source rows. */
     truncated: boolean
     /** Code-window width preserved from the editor. */
     windowWidth: number
@@ -103,8 +103,7 @@ function excerpt(
 ): { code: string; measured?: Line[]; truncated: boolean } {
   const source = codeLines(code)
   const measured = measure(source)
-  // Hand the measurement back when the source survives whole, so `layout` does
-  // not walk every grapheme a second time to learn what this already knows.
+  // Reuse the measurement when no truncation is needed.
   if (contentHeight(measured, frame.windowWidth) <= room(canvas.widest, frame.padding))
     return { code, measured, truncated: false }
   const available = columns(frame.windowWidth)

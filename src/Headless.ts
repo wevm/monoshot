@@ -128,10 +128,8 @@ export async function render(options: render.Options): Promise<Uint8Array> {
 }
 
 /**
- * Default frame options for image rendering.
- *
- * No radius: omitted, it is the theme's to state, and a default here would
- * pin the window square before the theme is consulted.
+ * Default frame options for image rendering. Radius stays unset so the theme
+ * override can apply.
  */
 const defaults = {
   background: 'default',

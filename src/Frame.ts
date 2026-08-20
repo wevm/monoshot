@@ -24,18 +24,16 @@ import type {
 } from 'shiki'
 
 /**
- * The type metrics a frame is laid out on, in pixels.
+ * Shared pixel metrics for editor and exported-frame layout.
  *
- * Anything drawing the same source beside a frame reads these rather than
- * restating them: the editor and the rendered document lay out one snippet, and
- * a disagreement shows up as text that moves when the frame is exported.
+ * Both renderers use these values to keep text in the same position.
  */
 export { metrics } from './internal/DocumentLayout.js'
 
 /** A bundled grammar or one of Shiki's grammar-free language modes. */
 export type Language = BundledLanguage | SpecialLanguage
 
-/** Window radius for a theme that states none, matching the codec's fallback. */
+/** Window radius used when a theme defines no override. */
 const defaultRadius = 12
 
 /**
@@ -64,9 +62,8 @@ export function create<const themes extends Themes = []>(
   let resolver: Promise<Cdn.create.ReturnType> | undefined
 
   /**
-   * The renderer that draws the blocks, over types already resolved or over a
-   * compiler asked to resolve them. A resolved run skips the compiler
-   * entirely, which is the difference between loading megabytes and not.
+   * Builds the annotation transformer from resolved types or a local compiler.
+   * Passing resolved types avoids loading the compiler.
    */
   async function annotate(
     types: render.Types | undefined,
@@ -250,8 +247,7 @@ export function create<const themes extends Themes = []>(
         annotated: twoslash !== false,
         html: result.html,
         palette: Theme.derive(result.theme),
-        // A theme composed from artwork states the geometry that artwork wants.
-        // An explicit radius is the caller's and outranks it.
+        // An explicit radius overrides the theme radius.
         radius: radius ?? Theme.info(theme)?.radius ?? defaultRadius,
       })
     },
@@ -324,11 +320,10 @@ export declare namespace create {
      */
     render: (options: render.Options<themes>) => Promise<render.ReturnType>
     /**
-     * Renders a frame as a standalone document: chrome, backdrop, and code in
-     * one HTML string with no scripts and no external requests.
+     * Renders frame chrome, backdrop, and code as one HTML document. The
+     * document contains no scripts or external requests.
      *
-     * This is what every headless surface screenshots, so a CLI and a hosted
-     * API produce the same image from the same state.
+     * The CLI and hosted API both capture this document.
      *
      * Rejects when shiki cannot load the requested theme or language, and when
      * `background` or a font field carries CSS that would leave the stylesheet
@@ -336,8 +331,8 @@ export declare namespace create {
      */
     toDocument: (options: toDocument.Options) => Promise<toDocument.ReturnType>
     /**
-     * Tokenizes code without rendering it, for a surface that draws its own
-     * text. An editor colors its own document from these.
+     * Tokenizes code without rendering markup. Editors can color their own
+     * document from the returned tokens.
      */
     tokens: (options: tokens.Options<themes>) => Promise<tokens.ReturnType>
   }
@@ -371,8 +366,7 @@ export declare namespace toDocument {
     'annotated' | 'html' | 'palette' | 'radius'
   > & {
     /**
-     * Corner radius of the window, in pixels. Defaults to the radius the theme
-     * asks for, and to 12 for a theme that asks for none.
+     * Window corner radius in pixels. Defaults to the theme radius, then 12.
      */
     radius?: number | undefined
   } & render.Options<themes>

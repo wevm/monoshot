@@ -37,11 +37,8 @@ export type Options = {
   /** Corner radius of the window, in pixels. */
   radius: number
   /**
-   * Whether the source shown was cut short of the snippet it came from, which
-   * fades the window's bottom edge so the picture reads as continuing.
-   *
-   * Only the bottom: lines wrap rather than run past the window, so vertical
-   * clipping is the one axis a frame can lose content on. Defaults to `false`.
+   * Whether the source was truncated vertically. Adds a fade at the bottom of
+   * the window. Defaults to `false`.
    */
   truncated?: boolean | undefined
   /** Window title. An empty title renders as `untitled`. */
@@ -61,9 +58,8 @@ export type Options = {
 }
 
 /**
- * Builds a standalone document for a frame: no scripts, no requests, and every
- * font inlined. This is what a headless browser screenshots, so it is the one
- * contract the CLI and the image API share.
+ * Builds a standalone frame document with no scripts or external requests.
+ * The CLI and image API both capture this output.
  *
  * Throws `UnsafeValueError` when `background` or a font field carries CSS that
  * would leave the stylesheet or fetch a resource.
@@ -210,8 +206,7 @@ ${titleBar ? titleBarMarkup(title) : ''}
 }
 
 /**
- * Fades the last rows of a window whose source was cut short, so the picture
- * reads as a snippet continuing rather than one that ends there.
+ * Fades the final 44 pixels when the source has been truncated.
  */
 const truncation = `.body { position: relative; }
 .body::after {
@@ -226,9 +221,8 @@ const truncation = `.body { position: relative; }
 }`
 
 /**
- * The window's depth, one arm per surface type. Mirrors the preview's
- * `shadow.window` token, resolved here because a standalone document sets no
- * `color-scheme` for `light-dark()` to read.
+ * Light and dark window shadows matching `shadow.window`. Standalone documents
+ * cannot resolve the token's `light-dark()` value.
  */
 const shadow = {
   dark: '0 24px 48px -12px #00000059',

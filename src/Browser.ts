@@ -38,14 +38,13 @@ export async function screenshot(
 export declare namespace screenshot {
   type Options = {
     /**
-     * The standalone document to capture. It is loaded with no network access
-     * of its own, so everything it draws has to be embedded in it.
+     * Standalone document to capture. The browser blocks network requests, so
+     * the document must embed every asset.
      */
     html: string
     /**
-     * Device scale factor the capture is taken at. Held to what the browser
-     * will rasterize by {@link fit}, so a large frame comes back smaller
-     * rather than blank.
+     * Requested device scale factor. {@link fit} reduces it when the resulting
+     * bitmap would exceed the browser limit.
      */
     scale: number
   }

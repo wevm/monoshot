@@ -1,18 +1,18 @@
 ---
 name: monoshot
-description: Create code images, editor links, and standalone code documents with Monoshot. Use when an agent needs to open code in the Monoshot editor, export a local PNG or SVG, create an editor link, render an image or HTML document through the hosted API, list themes, or configure the Monoshot skill or MCP server.
+description: Render code as an image with theming, annotations, multiple languages, sharable links, and more. Use for local exports, hosted rendering, editor links, theme discovery, skill installation, or MCP setup.
 ---
 
 # Monoshot
 
-Create code images with syntax highlighting, themes, and type-aware annotations.
+Render code as an image with theming, annotations, multiple languages, sharable links, and more.
 
 ## Choose an interface
 
-- Prefer the CLI over the hosted API whenever the CLI can run in the current environment. Use the API only when the CLI is unavailable.
-- Use CLI `open` when the code is local and the user wants to continue editing it in the browser.
-- Use CLI `render` for an immediate local PNG or SVG export. This option keeps source local and requires Chrome or Chromium.
-- Use CLI `share` when the result should be an editor URL without opening a browser.
+- Prefer the CLI when it can run in the current environment. Use the hosted API when it cannot.
+- Use CLI `open` to load local code in the browser editor.
+- Use CLI `render` for a local PNG or SVG export. It keeps the source local and requires Chrome or Chromium.
+- Use CLI `share` to print an editor URL without opening a browser.
 - Use the hosted API for remote services, scripts, or environments where the CLI and a local browser are unavailable. The API returns PNG or standalone HTML.
 - Use MCP when an agent should call Monoshot repeatedly as structured tools.
 
@@ -68,7 +68,7 @@ After creating an image, run `share` with the same code and frame settings. Retu
 
 ### Return an editor link
 
-Use `share` when another person or process needs the configured snippet URL without launching a browser:
+Use `share` to print the configured snippet URL without launching a browser:
 
 ```sh
 npx monoshot share src/example.ts --theme github-light
@@ -96,7 +96,7 @@ npx monoshot <command> --help
 
 ## Use the hosted API
 
-Use the hosted API only when the CLI cannot run in the current environment. Do not choose the API merely because it is accessible.
+Use the hosted API when the CLI cannot run in the current environment.
 
 Use `POST /api/image` for a PNG:
 

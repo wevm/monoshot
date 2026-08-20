@@ -9,17 +9,17 @@ import * as Frame from './Frame.js'
 import * as Languages from './internal/Languages.js'
 import * as Theme from './Theme.js'
 
-/** What a request may weigh, so one of them cannot occupy an isolate. */
+/** Maximum request field sizes. */
 const limit = { code: 100_000, nodes: 20_000, picture: 4_000_000, text: 10_000 }
 
-/** Every grammar shiki bundles, by each name it accepts for one. */
+/** Names and aliases of every bundled Shiki grammar. */
 const languageNames = Object.keys(bundledLanguages) as [string, ...string[]]
 
-/** Every shape a request is read through, and the types they describe. */
+/** Request and response schemas. */
 namespace schema {
   /**
-   * A resolved twoslash run, as twoslash produced it. The cuts come with it:
-   * they are what proves the run describes this snippet rather than another.
+   * A resolved Twoslash run. Removal ranges verify that the run matches the
+   * submitted source.
    */
   const run = z.object({
     code: z.string().max(limit.code),
@@ -38,15 +38,12 @@ namespace schema {
   })
 
   /**
-   * The frame to draw, described strictly. The codec falls back on every field
-   * so a hand-edited link still opens something; a request naming a width no
-   * frame has is a mistake, and is answered as one. The bounds come from
-   * `Codec.strict`, which is where a frame's field states what it accepts.
+   * Validates a frame request without applying shared-link fallbacks. Numeric
+   * limits come from `Codec.strict`.
    */
   export const document = z
     .object({
-      // Narrower than the codec's: a `wallpaper:` identifier names a picture
-      // the deployment holds, and a request carries one through `picture`.
+      // API requests embed pictures instead of naming deployment assets.
       background: z
         .union([
           z.enum(['default', 'none']),
@@ -55,8 +52,7 @@ namespace schema {
         ])
         .optional(),
       code: z.string().min(1).max(limit.code),
-      // Named rather than listed, as `theme` is: the enum describes itself to a
-      // generated client, and its own message would spell out every grammar.
+      // Keep the error short because the generated schema lists every grammar.
       lang: z.enum(languageNames, {
         error: (issue) => `\`${String(issue.input)}\` is not bundled.`,
       }),
@@ -77,7 +73,7 @@ namespace schema {
         .optional(),
       title: z.string().max(200).optional(),
       titleBar: z.boolean().optional(),
-      /** Fades the window's bottom edge, for source cut short of its snippet. */
+      /** Fades the bottom edge when the source has been truncated. */
       truncated: z.boolean().optional(),
       twoslash: z
         .union([z.boolean(), run])
@@ -93,10 +89,8 @@ namespace schema {
   export type Document = z.infer<typeof document>
 
   /**
-   * Whether a run describes the code it arrived with. Twoslash cuts its
-   * notations out before compiling and reports where, so cutting the same
-   * ranges brings the run's own code back. Anything else was resolved against
-   * other code, and its offsets would land in the wrong places here.
+   * Verifies that a Twoslash run matches the submitted source. Applying its
+   * removal ranges must reproduce the compiled code.
    */
   function resolved(request: Document, context: z.RefinementCtx) {
     if (!request.twoslash || typeof request.twoslash === 'boolean') return
@@ -118,7 +112,7 @@ namespace schema {
 
   export const body = document.superRefine(resolved)
 
-  /** A frame to draw as an image, which is the frame plus how large to draw it. */
+  /** Frame request with an optional image scale. */
   export const picture = document
     .extend({ scale: z.number().positive().max(6).optional() })
     .strict()
@@ -135,11 +129,11 @@ namespace schema {
   /** Response returned by `/themes`. */
   export const themes = z.array(
     z.object({
-      /** Present on a theme composed from artwork it also owns. */
+      /** Whether the theme includes artwork. */
       artwork: z.boolean().optional(),
       displayName: z.string(),
       name: z.string(),
-      /** The radius a theme's artwork asks for, when it asks for one. */
+      /** Window radius declared by the theme. */
       radius: Codec.strict.shape.radius.optional(),
       type: z.union([z.literal('dark'), z.literal('light')]),
     }),
@@ -169,9 +163,8 @@ export function create(options: create.Options = {}) {
   const frame = options.frame ?? Frame.create({ engine: 'javascript' })
 
   /**
-   * The document a request describes, or the response refusing it. Both render
-   * routes read a request the same way; only what they do with the document
-   * afterwards differs.
+   * Builds the standalone document shared by the image and document routes.
+   * Returns an error response when rendering fails.
    */
   async function frame_document(
     context: picture.Context,
@@ -181,11 +174,8 @@ export function create(options: create.Options = {}) {
     // fields consistently.
     const state = Codec.schema.parse(request)
     try {
-      // A theme composed from artwork owns a picture this cannot read: the
-      // library holds the colors it was composed from, not the file they came
-      // from. Only the default backdrop is the theme's to fill. Inside the
-      // boundary, so a loader that cannot reach its asset answers as a failed
-      // render rather than escaping the route.
+      // The package stores theme colors, while the deployment stores theme
+      // artwork. Load that artwork only for the default backdrop.
       const picture =
         request.picture ??
         (Theme.info(state.theme)?.artwork &&
@@ -194,8 +184,7 @@ export function create(options: create.Options = {}) {
           : undefined)
       return await frame.toDocument({
         ...state,
-        // The codec fills a radius for every link. A request that named none
-        // leaves the theme free to state the geometry its artwork wants.
+        // Keep an omitted request radius unset so the theme radius can apply.
         radius: request.radius,
         // Asserted through `unknown`: the run is validated structurally here,
         // and the renderer's node union declares positions this neither reads
@@ -276,8 +265,7 @@ export function create(options: create.Options = {}) {
           }
         })()
         if (png instanceof Error) return c.json({ error: png.message }, 500)
-        // The bytes as they are: `c.body` takes a stream or a string, and an
-        // image is neither.
+        // `Response` accepts image bytes directly, while `c.body` does not.
         return new Response(png as unknown as BodyInit, {
           headers: { 'content-type': 'image/png' },
           status: 200,
@@ -307,26 +295,20 @@ export function create(options: create.Options = {}) {
 export declare namespace create {
   type Options = {
     /**
-     * The browser to screenshot in, read off each request. A binding reaches a
-     * Worker through its environment rather than its module scope, so this
-     * takes a reader rather than the binding itself. Without one, `/image`
-     * returns `503`. Other routes do not require a browser.
+     * Resolves the Browser Rendering binding for each request. Without one,
+     * `/image` returns `503`; other routes still work.
      */
     browser?: ((context: { env: unknown }) => Browser.Endpoint | undefined) | undefined
     /**
-     * Renderer to draw with. Defaults to one holding shiki's JavaScript
-     * engine. Pass one to share loaded grammars, or to choose the engine.
+     * Frame renderer. Defaults to Shiki's JavaScript engine. Pass an existing
+     * renderer to share loaded grammars or select another engine.
      */
     frame?: Frame.create.ReturnType | undefined
     /**
-     * The artwork a composed theme was made from, as a `data:` URL, read off
-     * each request the way {@link browser} is.
+     * Resolves theme artwork as a `data:` URL. Called only for the default
+     * backdrop when the request omits `picture`.
      *
-     * Called only for a theme that owns artwork, on a request that named no
-     * picture of its own and left the backdrop at `default`. The colors a theme
-     * was composed from ship with this package; the picture they were read off
-     * does not, so whoever can reach it hands it over. Without one, such a
-     * frame draws the theme's gradient.
+     * Without this option, themes use their generated gradients.
      */
     picture?:
       | ((options: picture.Options) => Promise<string | undefined> | string | undefined)
@@ -335,16 +317,15 @@ export declare namespace create {
 }
 
 export declare namespace picture {
-  /** What a route hands a reader: the request, and what it reaches bindings by. */
+  /** Request context available to binding resolvers. */
   type Context = { env: unknown; req: { url: string } }
 
-  /** The theme whose artwork is wanted, and the request asking for it. */
+  /** Theme name and request context for artwork resolution. */
   type Options = { context: Context; theme: string }
 }
 
 /**
- * The description a route carries, and the reading of it. A route states what
- * it accepts and returns one response through the enforcing middleware.
+ * Builds OpenAPI metadata from route validation schemas.
  */
 namespace OpenApi {
   /** OpenAPI metadata attached to route validation middleware. */
@@ -365,8 +346,7 @@ namespace OpenApi {
   }
 
   /**
-   * One shape for every rejection, whichever route and whichever check raised
-   * it: a caller reads which field was wrong and what was wrong with it.
+   * Formats validation failures as one field-specific error response.
    */
   const reject: Parameters<typeof zValidator>[2] = (result, c) => {
     if (result.success) return undefined
@@ -376,8 +356,7 @@ namespace OpenApi {
   }
 
   /**
-   * Validates a request, and remembers what it validated. The description is
-   * read back off the routes, so a route and what it accepts cannot drift.
+   * Attaches the validation schema and OpenAPI metadata to route middleware.
    */
   export function validate<schema extends z.ZodType, const target extends 'json' | 'query'>(
     target: target,
@@ -399,9 +378,8 @@ namespace OpenApi {
   }
 
   /**
-   * The routes as OpenAPI, built from the middleware guarding each one. Paths
-   * include the prefix where they are served, so a document read from a mounted app
-   * names the URLs a caller can reach.
+   * Builds OpenAPI paths from registered route metadata. The supplied prefix
+   * preserves paths when the app is mounted below the root.
    */
   export function describe(app: Hono, prefix = ''): Record<string, unknown> {
     const paths: Record<string, Record<string, unknown>> = {}
@@ -459,12 +437,12 @@ namespace OpenApi {
   }
 }
 
-/** Read inside the namespace, which cannot reach the other one by name. */
+/** Schema alias available inside `OpenApi`. */
 const schema_failure = schema.failure
 
 /**
- * The routes, ready to mount. Holds a renderer of its own; reach for
- * {@link create} to share one or to choose the engine.
+ * Ready-to-mount routes with a private renderer. Use {@link create} to share a
+ * renderer or select another engine.
  *
  * @example
  * ```ts twoslash

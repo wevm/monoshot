@@ -311,8 +311,7 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   // showing the picture would briefly brighten the whole page without a scrim.
   const visibleWallpaper = rect ? wallpaper : undefined
 
-  // Held in refs so a render never re-registers the listener below. Every
-  // handler is redeclared each render, and the page renders on every keystroke.
+  // Keep the listener stable while updating its handlers after each render.
   const exports = useRef({ copyImage, copyUrl, save })
   exports.current = { copyImage, copyUrl, save }
 
@@ -355,9 +354,8 @@ export function Page({ state }: { state?: string | undefined } = {}) {
   const canvas = (() => {
     if (!frame) return undefined
     if (settings.background === 'none') return frame.palette.window
-    // Whatever the backdrop leads with owns the surface, so the shell takes a
-    // darkened cast of it rather than sitting against an unrelated hue: the
-    // chosen color, the gradient's first stop, or the picture's strongest color.
+    // Tint the page from the solid color, first gradient stop, or dominant
+    // wallpaper color.
     const tint = settings.background.startsWith('#')
       ? settings.background
       : (customGradient?.[0] ?? wallpaper?.color)
@@ -712,16 +710,14 @@ function useEdges() {
         top: box.top,
         width: window.innerWidth,
       }
-      // Momentum scrolling and a settled ResizeObserver both report edges that
-      // have not moved. Keeping the previous object leaves the page unrendered.
+      // Reuse unchanged bounds to avoid a render after inert scroll and resize events.
       setRect((current) =>
         current && (Object.keys(next) as (keyof Edges)[]).every((key) => current[key] === next[key])
           ? current
           : next,
       )
     }
-    // One read per frame: every listener below fires faster than the page can
-    // paint, and each read forces layout.
+    // Coalesce events into one layout read per animation frame.
     let frame: number | undefined
     const measure = () => {
       if (frame !== undefined) return
@@ -769,11 +765,8 @@ function copying(event: KeyboardEvent) {
 const derived = new Map<string, Theme.derive.Result>()
 
 /**
- * The palette of a syntax theme, one object per theme for the run.
- *
- * `Theme.derive` is deterministic, and the editor reconfigures its theme
- * compartment whenever the palette's identity changes. Deriving afresh on every
- * edit appends another CodeMirror style module, which style-mod never releases.
+ * Caches one derived palette per theme. A new object makes CodeMirror add a
+ * style module, and style-mod never removes it.
  */
 function palette(name: string, theme: Parameters<typeof Theme.derive>[0]) {
   const cached = derived.get(name)

@@ -50,9 +50,8 @@ export type Result = {
  * Requires `typescript` in the consuming installation. The compiler and type
  * definitions load when the first snippet is resolved, not during import.
  *
- * Construct one per lifecycle that should share the compiler: an editor
- * session, CLI run, or worker. Subsequent snippets reuse the compiler and
- * library files loaded by the first run.
+ * Create one per editor session, CLI run, or worker. Later calls reuse the
+ * compiler and library files loaded by the first run.
  *
  * @example
  * ```ts twoslash
@@ -69,9 +68,8 @@ export function create(options: create.Options = {}): create.ReturnType {
   return {
     async run(code, options = {}) {
       const twoslasher = await resolver.prepare(code)
-      // Blanked as the frame blanks it: a line the snippet marks as removed is
-      // not code it is claiming, and compiling it reports the conflict between
-      // a declaration and its replacement rather than a mistake in either.
+      // Exclude lines marked as removed. Compiling both a declaration and its
+      // replacement would report a conflict that the displayed snippet omits.
       return annotate(twoslasher(unchecked(code), options.lang ?? 'ts'))
     },
   }
@@ -79,9 +77,8 @@ export function create(options: create.Options = {}): create.ReturnType {
 
 export declare namespace create {
   /**
-   * The environment the resolver runs in. Each field defaults to what a Node
-   * or Worker host provides; a browser passes its own, because it reaches
-   * neither the registry nor a filesystem.
+   * Resolver dependencies. Defaults support Node and Workers. Browsers must
+   * provide storage and a declaration loader.
    */
   type Options = Cdn.create.Options
 
@@ -146,9 +143,8 @@ export function annotate(result: annotate.Input): Result {
         from,
         level: node.level ?? 'error',
         text: node.text,
-        // Mapped on its own rather than added to `from`: a message can span a
-        // notation line, and the length twoslash reports is measured in the
-        // source it compiled, which no longer holds that line.
+        // Map the end independently because a diagnostic can cross a notation
+        // line that Twoslash removed before compilation.
         to: rawEnd(node.start + node.length, removals),
       })
       continue
@@ -204,10 +200,9 @@ export declare namespace annotate {
 }
 
 /**
- * The offset a compiled position had in the source as written. Twoslash cuts
- * its notation lines out before compiling, so every offset after one is short
- * by what was taken. `removals` must be ascending, since each cut shifts the
- * ones after it.
+ * Maps a compiled offset back to the original source. Twoslash removes notation
+ * lines before compiling, so later offsets need each removed length restored.
+ * `removals` must be ascending.
  */
 function raw(offset: number, removals: readonly (readonly [number, number])[]): number {
   let mapped = offset
@@ -216,9 +211,8 @@ function raw(offset: number, removals: readonly (readonly [number, number])[]): 
 }
 
 /**
- * The same for the exclusive end of a range. A cut beginning exactly where the
- * range ends lies outside it, so the end stays before the cut instead of
- * jumping over it and covering a notation the message never mentioned.
+ * Maps an exclusive range end back to the original source. A removal that
+ * starts at the end lies outside the range and does not change the result.
  */
 function rawEnd(offset: number, removals: readonly (readonly [number, number])[]): number {
   let mapped = offset

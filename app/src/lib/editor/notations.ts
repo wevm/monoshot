@@ -103,8 +103,8 @@ export function syntax(language: string): Syntax {
 }
 
 /**
- * A notation comment in the snippet language's comment syntax.
- * in. The count suffix, as in `[!code hl:3]`, is how many lines it covers.
+ * A notation comment in the snippet language's comment syntax. A suffix such
+ * as `[!code hl:3]` sets the number of affected lines.
  *
  * Match every notation on the line because Shiki processes all of them. A line
  * carrying two would otherwise show one of them as code.
@@ -113,11 +113,8 @@ const pattern =
   /(?:\/\/|\/\*|#|<!--|--|;|%)[ \t]*\[!code[ \t]+([\w+-]+)(?::(\d+))?\][ \t]*(?:\*\/|-->)?/g
 
 /**
- * A twoslash tag, which is prose the snippet carries about the line after it.
- * The export draws it as a row of its own; here it stays where it was written.
- *
- * Built from the published tag list rather than spelling it out: a tag the
- * export renders and the editor does not would sit here as a plain comment.
+ * Matches a Twoslash annotation tag. The editor and exporter both read the
+ * published tag list.
  */
 const tagPattern = new RegExp(
   `^[ \\t]*(?://|#|--|;|%|/\\*|<!--)[ \\t]*@(${Twoslash.tags.join('|')}):[ \\t]?`,

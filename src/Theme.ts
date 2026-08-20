@@ -9,10 +9,8 @@ const oklch = converter('oklch')
 import type { ThemeRegistrationRaw, ThemeRegistrationResolved } from 'shiki'
 
 /**
- * The themes a frame offers, as pickable metadata. Carries no theme payload.
- *
- * A chosen few rather than everything shiki bundles: a picker is a decision to
- * make, and sixty of them is a list to read.
+ * Returns selected themes as picker metadata without loading theme payloads.
+ * The list omits most bundled Shiki themes to keep the picker short.
  */
 export function list(): readonly Info[] {
   return infos
@@ -43,10 +41,8 @@ export const marks = {
 } as const
 
 /**
- * Derives the frame palette from a loaded shiki theme so every bundled theme
- * produces a coherent window, backdrop, and annotation styling.
- *
- * Pure and deterministic: the same theme always yields the same palette.
+ * Derives window, backdrop, and annotation colors from a loaded Shiki theme.
+ * The same input always returns the same palette.
  *
  * @example
  * ```ts twoslash
@@ -72,9 +68,8 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
   // An achromatic theme has no hue to rotate, so the backdrop stays neutral
   // rather than emitting `oklch(... NaN)`.
   const hue = accent?.h
-  // The backdrop is the theme's own color rather than a fixed wash of its hue,
-  // so a vivid theme sits on a vivid one. Bounded either way: unbounded, a
-  // saturated keyword becomes a backdrop that outshouts the code on it.
+  // Clamp backdrop chroma so saturated syntax colors do not reduce code
+  // contrast.
   const chroma =
     accent === undefined
       ? 0
@@ -87,8 +82,7 @@ export function derive(theme: ThemeRegistrationResolved): derive.Result {
   const lightness = clamp(type === 'dark' ? bg.l + shift : bg.l - shift, 0.16, 0.94)
 
   return {
-    // Use a dark surface tinted by the theme hue to maintain separation between
-    // application chrome and artwork.
+    // Tint the dark page with the theme hue. The lightness clamp separates it from the artwork.
     page: {
       background: css({
         c: hue === undefined ? 0 : 0.05,
@@ -127,9 +121,8 @@ export declare namespace derive {
       to: string
     }
     /**
-     * Canvas the frame sits on: near-black with a hint of the theme's hue.
-     * Surfaces with the backdrop turned off use `window` instead, so the
-     * artwork reads as one continuous color.
+     * Near-black page colors tinted with the theme hue. Frames without a
+     * backdrop use `window` colors instead.
      */
     page: {
       /** The canvas color itself. */
@@ -137,9 +130,9 @@ export declare namespace derive {
       /** Readable against `page.background`. */
       foreground: string
     }
-    /** Whether the frame reads as a light or dark surface. */
+    /** Whether the frame uses a light or dark color scheme. */
     type: 'light' | 'dark'
-    /** The code surface itself, using the theme's own canvas. */
+    /** Code-window colors from the theme. */
     window: {
       /** Canvas behind the code. */
       background: string
@@ -203,11 +196,10 @@ export function compose<const name extends string>(
     h: hue,
     l: type === 'dark' ? 0.9 : 0.28,
   })
-  /** A picture's color as text on this theme's background. */
+  /** Converts a picture color into readable syntax text. */
   const token = (color: Oklch, weight = 1) =>
     hex({
-      // A color with no hue stays without one: a floor on the chroma would
-      // shift an achromatic picture's tokens toward the zero-degree red hue.
+      // Keep achromatic colors at zero chroma. Raising them would add a red hue.
       c: Number.isFinite(color.h)
         ? clamp(color.c * 1.4, type === 'dark' ? 0.06 : 0.05, type === 'dark' ? 0.17 : 0.15)
         : 0,
@@ -236,15 +228,13 @@ export function compose<const name extends string>(
   })
   return {
     bg: background,
-    // Carried as the literal it was given, so a renderer built with this theme
-    // accepts its name where it accepts a bundled one.
+    // Preserve the literal name so the renderer accepts it as a custom theme.
     name,
     colors: { 'editor.background': background, 'editor.foreground': foreground },
     displayName,
     fg: foreground,
-    // One list, under the name the format gives it: `tokenColors` is the same
-    // field by another name, and a theme carrying both has one of them ignored.
-    // The unscoped rule leads, as what every token falls back to.
+    // Use `settings` only because `tokenColors` aliases the same field. The
+    // unscoped rule provides the fallback token colors.
     settings: [
       { settings: { background, foreground } },
       { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: comment } },
@@ -296,23 +286,20 @@ export declare namespace compose {
   type Options<name extends string = string> = {
     /** Explicit code canvas color. Defaults to a color derived from the palette. */
     background?: string | undefined
-    /** The colors the theme is made of, the most telling of them first. */
+    /** Source colors ordered by prominence. */
     colors: readonly string[]
     /** Human-readable name, for a picker. */
     displayName: string
     /** Name the theme is loaded and rendered by. */
     name: name
-    /** Whether the theme reads as a light or a dark one. */
+    /** Theme color scheme. */
     type: 'dark' | 'light'
   }
 }
 
 /** Theme metadata. Frozen: callers share one instance. */
 export type Info = {
-  /**
-   * Whether the theme was composed from a picture it also owns, which a
-   * surface holding that picture draws as the frame's default backdrop.
-   */
+  /** Whether the theme includes default-backdrop artwork. */
   readonly artwork?: boolean | undefined
   /** Human-readable name for a picker. */
   readonly displayName: string
@@ -322,8 +309,7 @@ export type Info = {
    */
   readonly name: Name
   /**
-   * Corner radius the theme's artwork asks its window to take, in pixels.
-   * Absent when the theme leaves the radius to whoever renders it.
+   * Window corner radius in pixels. When absent, the renderer uses its default.
    */
   readonly radius?: number | undefined
   /** Whether the theme is a light or dark scheme. */
@@ -334,11 +320,8 @@ export type Info = {
 export type Composed = (typeof palettes)[number]['id']
 
 /**
- * The themes composed here rather than bundled by shiki, made from the colors
- * of the default macOS wallpapers.
- *
- * A renderer loads one of these by name the way it loads a bundled theme; this
- * is what it loads.
+ * Themes generated from the default macOS wallpaper palettes. Renderers load
+ * these registrations by name alongside bundled Shiki themes.
  */
 export const composed: readonly ThemeRegistrationRaw[] = palettes.map((palette) =>
   compose({

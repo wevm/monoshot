@@ -76,8 +76,7 @@ const linked = settings.extend({
 })
 
 /**
- * Builds the command surface: `render` to an image, `share` and `open` to a
- * link, and `themes` for the names the rest accept.
+ * Defines the `render`, `share`, `open`, and `themes` commands.
  *
  * Returns the CLI rather than serving it, so `serve` belongs to the bin and a
  * test can drive the same definition through `fetch`.
@@ -85,10 +84,10 @@ const linked = settings.extend({
 export function create() {
   return Cli.create('monoshot', {
     description:
-      'Create code images with syntax highlighting, customizable themes, and type-aware annotations.',
+      'Render code as an image with theming, annotations, multiple languages, sharable links, and more',
     mcp: {
       instructions:
-        'Turn code into PNG or SVG images, or shareable links. Supports syntax highlighting, themes, and type annotations for JavaScript and TypeScript. Use `themes` to list available themes.',
+        'Render code as an image with theming, annotations, multiple languages, sharable links, and more. Use `themes` to list available themes.',
       // Four commands do not need a discovery gateway. Direct exposure also
       // keeps `mcp doctor` identical to what MCP clients list.
       tools: { discovery: 'direct' },
@@ -329,8 +328,7 @@ function frame(
       code: 'unknown_theme',
       message: `Unknown theme \`${options.theme}\`. Run \`monoshot themes\` to list the available themes.`,
     }
-  // The codec falls back rather than failing, which a half-edited URL needs
-  // and a command does not: a flag the frame cannot accept was never understood.
+  // Links need fallbacks for partial state. CLI flags must pass strict validation.
   const replaced = rejected(options)
   if (replaced.length > 0)
     return {
@@ -344,14 +342,13 @@ function frame(
     state: {
       ...state,
       lang,
-      // A theme composed from artwork states the geometry that artwork wants.
-      // An explicitly selected radius outranks it.
+      // An explicit radius overrides the theme radius.
       radius: options.radius ?? Theme.info(state.theme)?.radius ?? state.radius,
     },
   }
 }
 
-/** Returns the artwork a composed theme owns when its default backdrop is selected. */
+/** Loads theme artwork when the default backdrop is selected. */
 async function themedPicture(state: Codec.State): Promise<string | undefined> {
   if (state.background !== 'default' || Theme.info(state.theme)?.artwork !== true) return undefined
   const bytes = await fs.readFile(
@@ -361,12 +358,8 @@ async function themedPicture(state: Codec.State): Promise<string | undefined> {
 }
 
 /**
- * The flags the frame cannot accept, named as they were typed.
- *
- * Read against `Codec.strict`, which is where a field states its bounds, so a
- * bound changed there is enforced here without being restated. `lang` is left
- * out: resolving an alias to shiki's own id is a substitution the command makes
- * on purpose.
+ * Returns invalid frame flags in CLI spelling. Validation uses `Codec.strict`
+ * so bounds stay in one place. Language aliases are resolved separately.
  */
 function rejected(options: z.output<typeof settings>): readonly string[] {
   const asked = Object.fromEntries(

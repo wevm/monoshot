@@ -164,9 +164,8 @@ function annotate(request: Resolve, types: readonly string[] = []): Resolved {
   return {
     kind: 'resolve',
     result: Twoslash.annotate(run),
-    // Trimmed to what travels: a run carries the compiler's own objects, and
-    // only these three fields survive `postMessage` or mean anything after it.
-    // The code is the snippet as written rather than as the compiler saw it.
+    // Send only serializable fields used by the renderer. Restore the original
+    // source before posting the result.
     types: {
       code: Twoslash.cut(request.code, run.meta.removals),
       meta: { removals: run.meta.removals },
@@ -179,12 +178,8 @@ function annotate(request: Resolve, types: readonly string[] = []): Resolved {
 type Resolved = Extract<Response, { result: Twoslash.Result }>
 
 /**
- * Whether acquisition left the result unchanged.
- *
- * Counts first: a run carries a formatted type signature per node, so
- * serializing both sides costs hundreds of kilobytes on the thread that also
- * answers completion requests, and acquisition that resolved anything new
- * almost always changes one of these lengths.
+ * Compares result counts before serializing full runs. Each run can contain
+ * hundreds of kilobytes of formatted type text.
  */
 function same(a: Resolved, b: Resolved): boolean {
   if (

@@ -8,9 +8,9 @@
 
 <p align="center">
   <a href="#overview">Overview</a> ·
-  <a href="#quick-prompt">Quick Prompt</a> ·
-  <a href="#skills--mcp">Skills &amp; MCP</a> ·
-  <a href="#api">API</a> ·
+  <a href="#quick-prompt">Quick prompt</a> ·
+  <a href="#agent-integrations">Agent integrations</a> ·
+  <a href="#hosted-api">Hosted API</a> ·
   <a href="#cli">CLI</a> ·
   <a href="#license">License</a>
 </p>
@@ -21,7 +21,7 @@ Monoshot creates code images with type-aware editing, annotations, multiple lang
 
 Try it: [monoshot.dev](https://monoshot.dev)
 
-## Quick Prompt
+## Quick prompt
 
 Prompt your agent:
 
@@ -29,7 +29,7 @@ Prompt your agent:
 Use monoshot.dev/md and create a code snippet of simple viem usage. Use the golden gate dark theme.
 ```
 
-## Skills & MCP
+## Agent integrations
 
 Add Monoshot as an agent skill:
 
@@ -45,7 +45,7 @@ npx monoshot mcp add
 
 The server exposes `open`, `render`, `share`, and `themes` directly. Pass `embed: true` to `render` when the MCP client cannot read files from the server filesystem.
 
-## API
+## Hosted API
 
 Base URL: [monoshot.dev/api](https://monoshot.dev/api)
 
@@ -56,7 +56,7 @@ curl https://monoshot.dev/api/image \
   --output code.png
 ```
 
-JavaScript and TypeScript resolve Twoslash annotations automatically. Add a `^?` query to render an inferred type, or send `"twoslash": false` to disable type resolution.
+Monoshot resolves Twoslash annotations in JavaScript and TypeScript automatically. Add a `^?` query to render an inferred type, or send `"twoslash": false` to disable type resolution.
 
 ### Reference
 
@@ -82,9 +82,6 @@ npx monoshot share -c 'console.log("Hello, world!")' -t vitesse-light
 ### Reference
 
 ```text
-monoshot — Create code images with syntax highlighting, customizable themes,
-and type-aware annotations.
-
 Usage: monoshot <command>
 
 Commands:

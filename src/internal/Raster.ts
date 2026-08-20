@@ -1,13 +1,12 @@
 /**
- * Chromium refuses to rasterize past this on either side, and fails by
- * returning a blank image rather than by throwing.
+ * Chromium's maximum rasterized width or height. Larger captures return a
+ * blank image without throwing.
  */
 const side = 16_384
 
 /**
- * The largest scale that still rasterizes, at or below the one asked for. A
- * frame already past the limit at 1x gets a scale below 1: clamping to 1 would
- * hand back a scale this cannot promise.
+ * Returns the largest scale at or below the requested value that fits the
+ * Chromium limit. Oversized frames may require a scale below 1.
  */
 export function fit(box: { height: number; width: number } | null, scale: number): number {
   if (!box?.height || !box.width) return scale

@@ -3,14 +3,8 @@ import * as path from 'node:path'
 import { Frame } from 'monoshot'
 
 /**
- * The editor, the exported frame, and the standalone document lay out one
- * snippet, and `Frame.metrics` is what the library lays it out on. Two places
- * in the app restate those numbers rather than importing them: plain CSS cannot
- * read a module, and the StyleX compiler inlines `.stylex.ts` at build time
- * without resolving imported values. This is what keeps all three equal.
- *
- * Read as source rather than imported: `tokens.stylex.ts` throws outside the
- * babel plugin that compiles it.
+ * Reads duplicated layout values from CSS and StyleX source. These files cannot
+ * import `Frame.metrics`, so this test keeps their values synchronized.
  */
 function read(file: string): string {
   return fs.readFileSync(path.join(import.meta.dirname, file), 'utf8')

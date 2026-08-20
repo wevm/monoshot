@@ -6,11 +6,10 @@ import * as z from 'zod'
 import * as Theme from './Theme.js'
 
 /**
- * The range each sized field accepts, in pixels.
+ * Accepted pixel range for each sized field.
  *
- * Stated as data because a surface drawing a control for one of these needs the
- * numbers, not a schema: a slider that offers more than this is offering a value
- * the frame refuses. {@link strict} is built from these.
+ * UI controls and {@link strict} read these values, so both enforce the same
+ * limits.
  */
 export const bounds = {
   padding: { max: 256, min: 0 },
@@ -19,18 +18,14 @@ export const bounds = {
 } as const
 
 /**
- * Everything a frame carries, held to the bounds it must satisfy and nothing
- * else: a value outside them is an issue rather than a default.
+ * Validates complete frame state without applying fallbacks.
  *
- * This is where a bound is stated. {@link schema} reads the same fields
- * leniently by falling each one back, and a caller that must refuse a value
- * rather than replace it reads with this instead of restating the bounds.
+ * {@link schema} reuses these fields and replaces invalid values with defaults.
  */
 export const strict = z.object({
   /**
-   * The frame's backdrop: `default` for the theme's own gradient, `none` for a
-   * transparent one, a `#rrggbb` color, `gradient:#rrggbb:#rrggbb`, or
-   * `wallpaper:<id>` for a picture the surface drawing it carries.
+   * Frame backdrop. Accepts `default`, `none`, a `#rrggbb` color,
+   * `gradient:#rrggbb:#rrggbb`, or `wallpaper:<id>`.
    */
   background: z.union([
     z.enum(['default', 'none']),
@@ -57,18 +52,16 @@ export const strict = z.object({
   /** Whether the snippet is type checked, which only a TypeScript one can be. */
   types: z.boolean(),
   /**
-   * Fixed width of the window, in pixels. Omitted, the rendered lines set it,
-   * so this is the one field a whole frame may leave out.
+   * Fixed window width in pixels. When omitted, rendered line width determines
+   * the window width.
    */
   width: z.number().int().min(bounds.width.min).max(bounds.width.max).optional(),
 })
 
 /**
- * Everything a shared link carries. Every field falls back rather than
- * failing, so a truncated or hand-edited link still opens something usable.
+ * Parses shared-link state and replaces invalid fields with defaults.
  *
- * The bounds come from {@link strict}; only what a field falls back to is
- * stated here.
+ * Field validation comes from {@link strict}.
  */
 export const schema = z.object({
   background: strict.shape.background.catch('default'),
