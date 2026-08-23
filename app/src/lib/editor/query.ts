@@ -59,17 +59,19 @@ function build(state: EditorState, pending: boolean): Value {
     const text = doc.line(line)
     const column = Identifier.caretColumn(text.text)
     if (column === undefined) continue
-    if (pending) {
-      lines.push(line)
-      ranges.push(Decoration.replace({}).range(text.from, text.to))
-      continue
-    }
-    // Preserve a caret comment when no identifier exists at its target.
-    // collapsing into an empty box.
+    // Preserve a caret comment when no identifier exists at its target rather
+    // than collapsing it into an empty box.
     // The caret addresses the line above, which is where the type belongs.
     const above = line > 1 ? doc.line(line - 1) : undefined
     const target = above && above.from + Math.min(column, above.length)
     const found = target === undefined ? undefined : Types.at(state, target)
+    // Keep the last resolved block while its mapped span still covers the
+    // target. Pending only hides a query that has no result to draw yet.
+    if (pending && !found) {
+      lines.push(line)
+      ranges.push(Decoration.replace({}).range(text.from, text.to))
+      continue
+    }
     if (!found) continue
     const type = found.annotation
     lines.push(line)
