@@ -13,8 +13,8 @@ import { motion } from '../theme/tokens.stylex.js'
 const title = 'monoshot'
 const description =
   'Create code images with syntax highlighting, customizable themes, and type-aware annotations.'
-/** Dimensions and path of the generated social card. */
-const card = { height: '630', path: '/og.jpg', width: '1200' } as const
+/** Dimensions and path of the default social card. */
+const card = { height: '604', path: '/og.jpg', width: '1073' } as const
 
 export const Route = createRootRoute({
   head: ({ matches }) => ({
