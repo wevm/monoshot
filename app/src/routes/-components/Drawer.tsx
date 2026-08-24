@@ -216,6 +216,15 @@ const styles = stylex.create({
     position: 'relative',
     transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
   }),
+  wallpaperOption: { overflow: 'hidden' },
+  wallpaperImage: {
+    display: 'block',
+    height: '100%',
+    objectFit: 'cover',
+    pointerEvents: 'none',
+    userSelect: 'none',
+    width: '100%',
+  },
   wallpaperSelectionRing: {
     aspectRatio: '1',
     borderRadius: 9,
@@ -758,10 +767,15 @@ export function Drawer(props: Drawer.Props) {
                           key={wallpaper.id}
                           onClick={() => onChange({ background: value })}
                           type="button"
-                          {...stylex.props(
-                            styles.option(`url("${Wallpapers.thumbnail(wallpaper.id)}")`),
-                          )}
-                        />
+                          {...stylex.props(styles.option('none'), styles.wallpaperOption)}
+                        >
+                          <img
+                            alt=""
+                            draggable={false}
+                            src={Wallpapers.thumbnail(wallpaper.id)}
+                            {...stylex.props(styles.wallpaperImage)}
+                          />
+                        </button>
                       )
                     })}
                     {wallpaperIndex >= 0 && (
