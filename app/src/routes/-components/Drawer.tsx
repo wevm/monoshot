@@ -215,6 +215,18 @@ const styles = stylex.create({
     position: 'relative',
     transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
   }),
+  wallpaperPicture: (source: string) => ({
+    // Keep Safari from repainting thumbnails when Motion moves the selection ring.
+    backfaceVisibility: 'hidden',
+    backgroundImage: `url("${source}")`,
+    backgroundPosition: 'center',
+    backgroundSize: 'cover',
+    borderRadius: 'inherit',
+    inset: 0,
+    pointerEvents: 'none',
+    position: 'absolute',
+    transform: 'translateZ(0)',
+  }),
   gradientFields: { display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
   gradientField: {
     alignItems: 'center',
@@ -741,10 +753,14 @@ export function Drawer(props: Drawer.Props) {
                           key={wallpaper.id}
                           onClick={() => onChange({ background: value })}
                           type="button"
-                          {...stylex.props(
-                            styles.option(`url("${Wallpapers.thumbnail(wallpaper.id)}")`),
-                          )}
+                          {...stylex.props(styles.option('none'))}
                         >
+                          <span
+                            aria-hidden
+                            {...stylex.props(
+                              styles.wallpaperPicture(Wallpapers.thumbnail(wallpaper.id)),
+                            )}
+                          />
                           {selected && <SelectionRing row="wallpaper" />}
                         </button>
                       )
