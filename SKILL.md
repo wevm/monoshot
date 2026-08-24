@@ -20,6 +20,31 @@ Do not send private or sensitive source to the hosted API without authorization.
 
 When the user supplies a snippet, render it line for line. Preserve every line, blank line, indentation, comment, and character. Do not rewrite, reformat, truncate, or add annotations unless the user asks.
 
+## Add annotations
+
+Only change a supplied snippet when the user asks for annotations. Use these exact mappings for comment annotations:
+
+| User intent | Syntax | Appearance |
+| --- | --- | --- |
+| Info or note | `// @log: message` | Blue info row |
+| Success | `// @annotate: message` | Green success row |
+| Warning | `// @warn: message` | Yellow warning row |
+| Error | `// @error: message` | Red error row |
+
+An annotation comment describes the source line after it. Use `@log`, never `@annotate`, when the user asks for an info annotation. Replace `//` with the language's comment prefix when needed.
+
+Use these presentation annotations on a source line:
+
+| User intent | Syntax |
+| --- | --- |
+| Highlight | `// [!code hl]` |
+| Focus | `// [!code focus]` |
+| Added line | `// [!code ++]` |
+| Removed line | `// [!code --]` |
+| Inferred type | `// ^?` aligned beneath the expression |
+
+Monoshot removes annotation syntax from the rendered image. A standalone line marker can target following lines with a count, such as `// [!code hl:2]`.
+
 ## Use the CLI
 
 Run Monoshot without a global installation:
