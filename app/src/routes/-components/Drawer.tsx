@@ -198,6 +198,7 @@ const styles = stylex.create({
   },
   tabLabel: { position: 'relative' },
   optionGrid: { display: 'grid', gap: 10, gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' },
+  wallpaperGrid: { position: 'relative' },
   option: (backdrop: string) => ({
     aspectRatio: '1',
     backgroundImage: backdrop,
@@ -215,18 +216,17 @@ const styles = stylex.create({
     position: 'relative',
     transform: { default: 'scale(1)', ':active': 'scale(0.97)' },
   }),
-  wallpaperPicture: (source: string) => ({
-    // Keep Safari from repainting thumbnails when Motion moves the selection ring.
-    backfaceVisibility: 'hidden',
-    backgroundImage: `url("${source}")`,
-    backgroundPosition: 'center',
-    backgroundSize: 'cover',
-    borderRadius: 'inherit',
-    inset: 0,
+  wallpaperSelectionRing: {
+    aspectRatio: '1',
+    borderRadius: 9,
+    boxShadow: `0 0 0 2px ${color.chrome}, 0 0 0 4px ${color.onChrome}`,
+    insetBlockStart: 0,
+    insetInlineStart: 0,
     pointerEvents: 'none',
     position: 'absolute',
-    transform: 'translateZ(0)',
-  }),
+    width: 'calc((100% - 40px) / 5)',
+    zIndex: 1,
+  },
   gradientFields: { display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
   gradientField: {
     alignItems: 'center',
@@ -369,6 +369,11 @@ export function Drawer(props: Drawer.Props) {
   const frameWidth = width ?? 808
   const windowWidth = frameWidth - padding * 2
   const custom = background.startsWith('#') && !backgrounds.includes(background as never)
+  const wallpaperIndex = Wallpapers.list.findIndex(
+    (wallpaper) => background === Wallpapers.background(wallpaper.id),
+  )
+  const wallpaperColumn = wallpaperIndex % 5
+  const wallpaperRow = Math.floor(wallpaperIndex / 5)
   const automaticSwatch = Themes.swatch(theme)
   const syntaxItems = [
     {
@@ -742,7 +747,7 @@ export function Drawer(props: Drawer.Props) {
                 {...stylex.props(styles.panel)}
               >
                 {mode === 'wallpaper' ? (
-                  <div {...stylex.props(styles.optionGrid)}>
+                  <div {...stylex.props(styles.optionGrid, styles.wallpaperGrid)}>
                     {Wallpapers.list.map((wallpaper) => {
                       const value = Wallpapers.background(wallpaper.id)
                       const selected = background === value
@@ -753,18 +758,23 @@ export function Drawer(props: Drawer.Props) {
                           key={wallpaper.id}
                           onClick={() => onChange({ background: value })}
                           type="button"
-                          {...stylex.props(styles.option('none'))}
-                        >
-                          <span
-                            aria-hidden
-                            {...stylex.props(
-                              styles.wallpaperPicture(Wallpapers.thumbnail(wallpaper.id)),
-                            )}
-                          />
-                          {selected && <SelectionRing row="wallpaper" />}
-                        </button>
+                          {...stylex.props(
+                            styles.option(`url("${Wallpapers.thumbnail(wallpaper.id)}")`),
+                          )}
+                        />
                       )
                     })}
+                    {wallpaperIndex >= 0 && (
+                      <m.span
+                        animate={{
+                          transform: `translate3d(calc(${wallpaperColumn} * (100% + 10px)), calc(${wallpaperRow} * (100% + 10px)), 0)`,
+                        }}
+                        aria-hidden
+                        initial={false}
+                        transition={tabSlide}
+                        {...stylex.props(styles.wallpaperSelectionRing)}
+                      />
+                    )}
                   </div>
                 ) : mode === 'gradient' ? (
                   <>
@@ -1181,7 +1191,7 @@ function SliderField(props: {
 }
 
 /** One outline shared by the selected item in a row, so it moves instead of blinking. */
-function SelectionRing(props: { row: 'color' | 'gradient' | 'tabs' | 'wallpaper' }) {
+function SelectionRing(props: { row: 'color' | 'gradient' | 'tabs' }) {
   return (
     <m.span
       aria-hidden
