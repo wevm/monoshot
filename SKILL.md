@@ -18,6 +18,8 @@ Render code as an image with theming, annotations, multiple languages, sharable 
 
 Do not send private or sensitive source to the hosted API without authorization. Prefer the local CLI when source must remain on the machine.
 
+When the user supplies a snippet, render it line for line. Preserve every line, blank line, indentation, comment, and character. Do not rewrite, reformat, truncate, or add annotations unless the user asks.
+
 ## Use the CLI
 
 Run Monoshot without a global installation:
