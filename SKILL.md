@@ -24,24 +24,22 @@ When the user supplies a snippet, render it line for line. Preserve every line, 
 
 Only change a supplied snippet when the user asks for annotations. Use these exact mappings for comment annotations:
 
-| User intent  | Syntax                  | Appearance         |
-| ------------ | ----------------------- | ------------------ |
-| Info or note | `// @log: message`      | Blue info row      |
-| Success      | `// @annotate: message` | Green success row  |
-| Warning      | `// @warn: message`     | Yellow warning row |
-| Error        | `// @error: message`    | Red error row      |
+- Info or note: `// @log: message` renders a blue info row.
+- Success: `// @annotate: message` renders a green success row.
+- Warning: `// @warn: message` renders a yellow warning row.
+- Error: `// @error: message` renders a red error row.
 
-An annotation comment describes the source line after it. Use `@log`, never `@annotate`, when the user asks for an info annotation. Replace `//` with the language's comment prefix when needed.
+An annotation comment renders as a row at the same position in the snippet. Preserve its text and placement. Replace `//` with the language's comment prefix when needed.
+
+Keep annotation rows on one line unless the user asks for wrapping. Omit `--width` for CLI calls and `width` for API or MCP calls so Monoshot expands the frame to the longest source or annotation line. Do not split, shorten, or reformat annotation text to make it fit.
 
 Use these presentation annotations on a source line:
 
-| User intent   | Syntax                                 |
-| ------------- | -------------------------------------- |
-| Highlight     | `// [!code hl]`                        |
-| Focus         | `// [!code focus]`                     |
-| Added line    | `// [!code ++]`                        |
-| Removed line  | `// [!code --]`                        |
-| Inferred type | `// ^?` aligned beneath the expression |
+- Highlight: `// [!code hl]`
+- Focus: `// [!code focus]`
+- Added line: `// [!code ++]`
+- Removed line: `// [!code --]`
+- Inferred type: `// ^?` aligned beneath the expression
 
 Monoshot removes annotation syntax from the rendered image. A standalone line marker can target following lines with a count, such as `// [!code hl:2]`.
 
@@ -113,7 +111,7 @@ npx monoshot themes
 
 The `open`, `render`, and `share` commands accept common frame options such as `--background`, `--lang`, `--padding`, `--radius`, `--theme`, `--title`, `--title-bar`, and `--width`.
 
-Omit `--width` for CLI calls and `width` for API calls by default. Monoshot sizes the frame to its longest rendered source or annotation line. Set a width only when the image should wrap at a fixed measure. Use `scale` to increase PNG resolution without widening the layout.
+Omit `--width` for CLI calls and `width` for API or MCP calls by default. Set a width only when the user asks to wrap or constrain the image. Use `scale` to increase PNG resolution without widening the layout.
 
 Inspect the current command contract when an option is uncertain:
 
