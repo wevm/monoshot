@@ -24,6 +24,16 @@ const inset = 8
 /** The notch's own side, before it is turned onto its corner. */
 const notch = 7
 
+/** Palette values that a body-portaled hover no longer inherits from the editor. */
+const palette = [
+  '--mark-add',
+  '--mark-remove',
+  '--window-background',
+  '--window-border',
+  '--window-foreground',
+  '--window-surface',
+] as const
+
 const mark = Decoration.mark({ class: 'twoslash-mark' })
 
 /**
@@ -113,8 +123,13 @@ export const hover: Extension = [
           let surface = draw(view.state)
           const root = bridge(surface)
           const frame = view.dom.closest<HTMLElement>('[data-frame-window]')
-          if (frame)
+          if (frame) {
             root.style.setProperty('--twoslash-hover-max-width', `${frame.clientWidth - reach}px`)
+            const theme = getComputedStyle(view.dom)
+            root.style.color = theme.color
+            for (const property of palette)
+              root.style.setProperty(property, theme.getPropertyValue(property))
+          }
           /**
            * Aligns the notch with the identifier after viewport-constrained placement.
            */
