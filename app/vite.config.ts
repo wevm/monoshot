@@ -6,7 +6,7 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import icons from 'unplugin-icons/vite'
 import { defineConfig } from 'vite-plus'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Resolve the workspace `monoshot` package through its `src` export
   // condition so the app consumes library source without a dist build.
   resolve: {
@@ -20,7 +20,17 @@ export default defineConfig({
     },
   },
   plugins: [
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    cloudflare({
+      viteEnvironment: { name: 'ssr' },
+      remoteBindings: mode !== 'offline',
+      ...(mode === 'offline'
+        ? {
+            config: (config) => {
+              config.ai = undefined
+            },
+          }
+        : {}),
+    }),
     tanstackStart(),
     // `css-only` + `devPersistToDisk` bridge the workerd SSR process and the
     // client dev server (no index.html for the default `full` mode to inject
@@ -42,4 +52,4 @@ export default defineConfig({
     // babel hook of its own, so the compiler runs through rolldown's.
     babel({ presets: [reactCompilerPreset()] }),
   ],
-})
+}))
