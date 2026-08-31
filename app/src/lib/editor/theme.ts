@@ -97,12 +97,7 @@ export function theme(palette: Theme.derive.Result): Extension {
       // The annotation draws its own surface, so CodeMirror's tooltip chrome
       // has to step aside. It belongs here rather than in the stylesheet:
       // CodeMirror injects its styles unlayered, and unlayered always wins.
-      '.cm-tooltip': {
-        backgroundColor: 'transparent',
-        border: 'none',
-        // The frame overlay ignores pointer input; floating surfaces opt back in.
-        pointerEvents: 'auto',
-      },
+      '.cm-tooltip': { backgroundColor: 'transparent', border: 'none' },
       // A selection has to read against every bundled theme, so it tints the
       // theme's own border color rather than picking a color of its own.
       '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {

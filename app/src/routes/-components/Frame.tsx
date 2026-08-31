@@ -334,7 +334,10 @@ export function Frame(props: Frame.Props) {
               )}
             />
           </AnimatePresence>
-          <div {...stylex.props(styles.window, styles.radius(radius), styles.windowShadow)}>
+          <div
+            data-frame-window=""
+            {...stylex.props(styles.window, styles.radius(radius), styles.windowShadow)}
+          >
             <AnimatePresence initial={false}>
               {titleBar && (
                 <m.div

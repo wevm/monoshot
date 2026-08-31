@@ -112,6 +112,9 @@ export const hover: Extension = [
           let shape = showing(view.state)
           let surface = draw(view.state)
           const root = bridge(surface)
+          const frame = view.dom.closest<HTMLElement>('[data-frame-window]')
+          if (frame)
+            root.style.setProperty('--twoslash-hover-max-width', `${frame.clientWidth - reach}px`)
           /**
            * Aligns the notch with the identifier after viewport-constrained placement.
            */

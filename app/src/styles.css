@@ -296,6 +296,9 @@
      It appears often, so it barely moves: enough to register, not to notice. */
   .cm-tooltip .twoslash {
     animation: twoslash-in var(--motion-fast) var(--motion-out) both;
+    /* Include the transparent bridge in the window's width so a long type
+       stays over the code instead of running beneath the controls drawer. */
+    max-width: min(64ch, var(--twoslash-hover-max-width, 64ch));
     /* The same edge as a pinned type: a hover differs in where it sits, not in
        how it looks. Only the cast separates it from the code underneath. */
     box-shadow:
