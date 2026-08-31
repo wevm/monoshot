@@ -1321,7 +1321,7 @@ function useExports(
   }
 
   function copyImage() {
-    const { complete, report, run } = take({ scale: 2, type: 'png' })
+    const { complete, report, run } = take({ scale: 4, type: 'png' })
     track(
       'image',
       Export.copy(run)
