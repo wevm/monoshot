@@ -52,8 +52,8 @@ const styles = stylex.create({
   },
   chrome: {
     backgroundColor: {
-      default: color.chromeTranslucent,
-      ':hover:not(:disabled)': 'rgb(255 255 255 / 0.04)',
+      default: color.chromeControl,
+      ':hover:not(:disabled)': color.chromeControlHover,
       ':active:not(:disabled)': color.chromeHover,
     },
     boxShadow: { default: shadow.chromeBorder, ':focus-visible': shadow.focusRing },

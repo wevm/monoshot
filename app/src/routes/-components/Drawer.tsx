@@ -75,7 +75,7 @@ const styles = stylex.create({
     },
     transitionProperty: 'opacity, transform, visibility',
     transitionTimingFunction: motion.out,
-    width: { default: '100vw', '@media (min-width: 800px)': 352 },
+    width: { default: '100vw', '@media (min-width: 800px)': 400 },
     zIndex: 4,
   },
   rootClosed: {

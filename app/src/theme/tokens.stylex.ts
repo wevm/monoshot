@@ -88,6 +88,8 @@ export const color = stylex.defineVars({
   // Keep swatches visible against images with either color scheme.
   onArtwork: 'light-dark(#ffffff, #ffffff)',
   chromeTranslucent: '#1c1c1e99',
+  chromeControl: 'rgb(255 255 255 / 0.025)',
+  chromeControlHover: 'rgb(255 255 255 / 0.04)',
   onChrome: '#f5f5f7',
   onChromeSecondary: '#98989d',
   chromeHover: '#ffffff1f',
