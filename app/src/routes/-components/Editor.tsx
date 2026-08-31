@@ -2,7 +2,7 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { linter } from '@codemirror/lint'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { Compartment, EditorState } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView, keymap, tooltips } from '@codemirror/view'
 import * as stylex from '@stylexjs/stylex'
 import type { Theme } from 'monoshot'
 import type { Twoslash } from 'monoshot'
@@ -59,6 +59,7 @@ export function Editor(props: Editor.Props) {
   ignored.current = onIgnore
   // Ignoring a diagnostic changes editor state without changing the document.
   const [overlooking, setOverlooking] = useState<readonly number[]>(none)
+  const overlays = useRef(new Compartment()).current
   const palettes = useRef(new Compartment()).current
   const rails = useRef(new Compartment()).current
   // Where the controls beside a line are drawn: outside the window, which clips.
@@ -98,6 +99,7 @@ export function Editor(props: Editor.Props) {
             tooltipFilter: (found, state) =>
               found.filter((diagnostic) => !Types.over(state, diagnostic)),
           }),
+          overlays.of(tooltips(aside ? { parent: aside } : {})),
           rails.of(rail({ container: aside, syntax: syntax(language) })),
           queries(typesPending),
           hover,
@@ -127,6 +129,12 @@ export function Editor(props: Editor.Props) {
     // Built once: the document and palette are pushed in below rather than
     // rebuilding the editor and losing the cursor on every keystroke.
   }, [])
+
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: overlays.reconfigure(tooltips(aside ? { parent: aside } : {})),
+    })
+  }, [aside, overlays])
 
   useEffect(() => {
     view.current?.dispatch({ effects: palettes.reconfigure(theme(palette)) })
