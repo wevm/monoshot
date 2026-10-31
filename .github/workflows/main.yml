@@ -41,7 +41,7 @@ jobs:
 
       - name: PR or publish
         id: changesets
-        uses: wevm/actions/vendor/changesets/action/wagmi@73e899a58d51092d694fbaf94b7a1d8c09bfea28
+        uses: wevm/actions/vendor/changesets/action/wagmi@8963daf30237417f873c8e2f17e3bf9415e3a7b9
         with:
           commit: 'chore: version packages'
           publish: pnpm changeset:publish
@@ -82,7 +82,7 @@ jobs:
 
       - name: Deploy the app
         if: steps.credentials.outputs.ok == 'true'
-        uses: wevm/actions/vendor/cloudflare/wrangler-action/rev-9acf94ace14e@73e899a58d51092d694fbaf94b7a1d8c09bfea28
+        uses: wevm/actions/vendor/cloudflare/wrangler-action/rev-9acf94ace14e@8963daf30237417f873c8e2f17e3bf9415e3a7b9
         with:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
